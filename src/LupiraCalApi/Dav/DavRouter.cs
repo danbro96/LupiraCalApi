@@ -1,11 +1,11 @@
-using System.Globalization;
-using System.Xml.Linq;
-using LupiraCalApi.Application;
+﻿using LupiraCalApi.Application;
 using LupiraCalApi.Auth;
 using LupiraCalApi.Data;
 using LupiraCalApi.Data.Entities;
 using LupiraCalApi.Domain;
 using Microsoft.EntityFrameworkCore;
+using System.Globalization;
+using System.Xml.Linq;
 using DataCalendar = LupiraCalApi.Data.Entities.Calendar;   // disambiguate from System.Globalization.Calendar
 
 namespace LupiraCalApi.Dav;

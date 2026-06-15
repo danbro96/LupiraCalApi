@@ -1,5 +1,4 @@
-using System.Text.Json;
-using LupiraCalApi.Auth;
+﻿using LupiraCalApi.Auth;
 using LupiraCalApi.Data;
 using LupiraCalApi.Data.Entities;
 using LupiraCalApi.Domain;
@@ -7,6 +6,7 @@ using LupiraCalApi.Dtos.Contacts;
 using LupiraCalApi.Mappers;
 using LupiraCalApi.Serialization;
 using Microsoft.EntityFrameworkCore;
+using System.Text.Json;
 
 namespace LupiraCalApi.Application;
 
@@ -20,11 +20,18 @@ public sealed class ContactService(CalDbContext db, AccessResolver access)
         var uid = $"{Guid.NewGuid():N}@cal.lupira.com";
         var c = new Contact
         {
-            Id = Guid.NewGuid(), AddressBookId = r.AddressBookId, VcardUid = uid,
-            FullName = r.FullName, GivenName = r.GivenName, FamilyName = r.FamilyName, Organization = r.Organization,
+            Id = Guid.NewGuid(),
+            AddressBookId = r.AddressBookId,
+            VcardUid = uid,
+            FullName = r.FullName,
+            GivenName = r.GivenName,
+            FamilyName = r.FamilyName,
+            Organization = r.Organization,
             Emails = r.Emails is null ? null : JsonSerializer.Serialize(r.Emails),
             Phones = r.Phones is null ? null : JsonSerializer.Serialize(r.Phones),
-            Birthday = r.Birthday, Tags = r.Tags, Metadata = "{}",
+            Birthday = r.Birthday,
+            Tags = r.Tags,
+            Metadata = "{}",
         };
         c.SourceVcard = VCardSerializer.Build(uid, r.FullName, r.GivenName, r.FamilyName, r.Organization, r.Emails, r.Phones, r.Birthday);
         c.ContentHash = ContentHash.Of(c.SourceVcard);
@@ -122,8 +129,11 @@ public sealed class ContactService(CalDbContext db, AccessResolver access)
         book.UpdatedAt = DateTimeOffset.UtcNow;
         db.ContactChanges.Add(new ContactChange
         {
-            AddressBookId = addressBookId, Revision = book.Revision,
-            ItemVcardUid = vcardUid, ChangeType = changeType, ContentHash = hash,
+            AddressBookId = addressBookId,
+            Revision = book.Revision,
+            ItemVcardUid = vcardUid,
+            ChangeType = changeType,
+            ContentHash = hash,
         });
     }
 }

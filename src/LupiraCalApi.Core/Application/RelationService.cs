@@ -1,6 +1,5 @@
-using LupiraCalApi.Auth;
+﻿using LupiraCalApi.Auth;
 using LupiraCalApi.Data;
-using LupiraCalApi.Data.Entities;
 using LupiraCalApi.Dtos.Events;
 using LupiraCalApi.Dtos.Relations;
 using LupiraCalApi.Mappers;
@@ -22,8 +21,12 @@ public sealed class RelationService(CalDbContext db, AccessResolver access)
 
         var rel = new Data.Entities.Relation
         {
-            Id = Guid.NewGuid(), FromKind = "event", FromId = eventId,
-            ToKind = r.ToKind, ToRef = r.ToRef, RelationType = r.RelationType,
+            Id = Guid.NewGuid(),
+            FromKind = "event",
+            FromId = eventId,
+            ToKind = r.ToKind,
+            ToRef = r.ToRef,
+            RelationType = r.RelationType,
             Metadata = r.Metadata?.ToJsonString(),
         };
         db.Relations.Add(rel);

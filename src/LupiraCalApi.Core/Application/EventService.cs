@@ -1,5 +1,4 @@
-using System.Text.Json.Nodes;
-using LupiraCalApi.Auth;
+﻿using LupiraCalApi.Auth;
 using LupiraCalApi.Data;
 using LupiraCalApi.Data.Entities;
 using LupiraCalApi.Domain;
@@ -7,6 +6,7 @@ using LupiraCalApi.Dtos.Events;
 using LupiraCalApi.Mappers;
 using LupiraCalApi.Serialization;
 using Microsoft.EntityFrameworkCore;
+using System.Text.Json.Nodes;
 
 namespace LupiraCalApi.Application;
 
@@ -26,9 +26,18 @@ public sealed class EventService(CalDbContext db, AccessResolver access, Recurre
             Id = Guid.NewGuid(),
             CalendarId = r.CalendarId,
             IcalUid = $"{Guid.NewGuid():N}@cal.lupira.com",
-            Title = r.Title, Description = r.Description, Location = r.Location, Status = r.Status,
-            IsAllDay = r.IsAllDay, StartsAt = r.StartsAt, EndsAt = r.EndsAt, StartTimezone = r.StartTimezone,
-            StartDate = r.StartDate, EndDate = r.EndDate, RecurrenceRule = r.RecurrenceRule, Tags = r.Tags,
+            Title = r.Title,
+            Description = r.Description,
+            Location = r.Location,
+            Status = r.Status,
+            IsAllDay = r.IsAllDay,
+            StartsAt = r.StartsAt,
+            EndsAt = r.EndsAt,
+            StartTimezone = r.StartTimezone,
+            StartDate = r.StartDate,
+            EndDate = r.EndDate,
+            RecurrenceRule = r.RecurrenceRule,
+            Tags = r.Tags,
             Metadata = "{}",
         };
         e.SourceIcalendar = ICalSerializer.ToICalendar(e);
@@ -202,8 +211,11 @@ public sealed class EventService(CalDbContext db, AccessResolver access, Recurre
         cal.UpdatedAt = DateTimeOffset.UtcNow;
         db.CalendarChanges.Add(new CalendarChange
         {
-            CalendarId = calendarId, Revision = cal.Revision,
-            ItemIcalUid = icalUid, ChangeType = changeType, ContentHash = hash,
+            CalendarId = calendarId,
+            Revision = cal.Revision,
+            ItemIcalUid = icalUid,
+            ChangeType = changeType,
+            ContentHash = hash,
         });
     }
 

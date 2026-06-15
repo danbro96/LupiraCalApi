@@ -1,5 +1,4 @@
-using LupiraCalApi.Data;
-using Microsoft.EntityFrameworkCore;
+﻿using LupiraCalApi.Data;
 using Microsoft.Extensions.Diagnostics.HealthChecks;
 
 namespace LupiraCalApi.Health;

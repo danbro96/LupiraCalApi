@@ -1,8 +1,8 @@
-using System.Text.RegularExpressions;
-using Ical.Net.CalendarComponents;
+﻿using Ical.Net.CalendarComponents;
 using Ical.Net.DataTypes;
 using Ical.Net.Serialization;
 using LupiraCalApi.Data.Entities;
+using System.Text.RegularExpressions;
 using IcalCalendar = Ical.Net.Calendar;
 
 namespace LupiraCalApi.Serialization;

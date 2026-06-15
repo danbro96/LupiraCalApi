@@ -1,6 +1,4 @@
-using System.ComponentModel;
-using System.Text.Json.Nodes;
-using LupiraCalApi.Application;
+﻿using LupiraCalApi.Application;
 using LupiraCalApi.Auth;
 using LupiraCalApi.Dtos.Calendars;
 using LupiraCalApi.Dtos.Contacts;
@@ -8,6 +6,8 @@ using LupiraCalApi.Dtos.Events;
 using LupiraCalApi.Dtos.Relations;
 using ModelContextProtocol;
 using ModelContextProtocol.Server;
+using System.ComponentModel;
+using System.Text.Json.Nodes;
 
 namespace LupiraCalApi.Mcp;
 

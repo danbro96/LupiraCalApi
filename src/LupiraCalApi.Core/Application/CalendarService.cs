@@ -1,4 +1,4 @@
-using LupiraCalApi.Auth;
+﻿using LupiraCalApi.Auth;
 using LupiraCalApi.Data;
 using LupiraCalApi.Data.Entities;
 using LupiraCalApi.Dtos.Calendars;
@@ -32,8 +32,12 @@ public sealed class CalendarService(CalDbContext db, AccessResolver access)
 
         var c = new Calendar
         {
-            Id = Guid.NewGuid(), OwnerId = userId, Slug = r.Slug,
-            DisplayName = r.DisplayName, Color = r.Color, DefaultTimezone = r.DefaultTimezone,
+            Id = Guid.NewGuid(),
+            OwnerId = userId,
+            Slug = r.Slug,
+            DisplayName = r.DisplayName,
+            Color = r.Color,
+            DefaultTimezone = r.DefaultTimezone,
         };
         db.Calendars.Add(c);
         await db.SaveChangesAsync(ct);

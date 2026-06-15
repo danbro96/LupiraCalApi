@@ -1,6 +1,6 @@
-using System.Text.Json.Nodes;
-using LupiraCalApi.Data.Entities;
+﻿using LupiraCalApi.Data.Entities;
 using LupiraCalApi.Dtos.Events;
+using System.Text.Json.Nodes;
 
 namespace LupiraCalApi.Mappers;
 

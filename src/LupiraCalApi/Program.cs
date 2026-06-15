@@ -1,4 +1,4 @@
-using LupiraCalApi.Auth;
+﻿using LupiraCalApi.Auth;
 using LupiraCalApi.Data;
 using LupiraCalApi.Dav;
 using LupiraCalApi.Domain;
@@ -11,7 +11,6 @@ using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Diagnostics.HealthChecks;
 using Microsoft.AspNetCore.HttpOverrides;
 using Microsoft.EntityFrameworkCore;
-using OpenTelemetry;
 using OpenTelemetry.Metrics;
 using OpenTelemetry.Resources;
 using OpenTelemetry.Trace;

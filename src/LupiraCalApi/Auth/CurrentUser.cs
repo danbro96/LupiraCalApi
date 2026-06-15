@@ -1,6 +1,6 @@
-using System.Security.Claims;
-using LupiraCalApi.Application;
+﻿using LupiraCalApi.Application;
 using LupiraCalApi.Data.Entities;
+using System.Security.Claims;
 
 namespace LupiraCalApi.Auth;
 

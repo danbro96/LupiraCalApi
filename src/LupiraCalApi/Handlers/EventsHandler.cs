@@ -1,9 +1,9 @@
-using System.Text.Json.Nodes;
-using LupiraCalApi.Application;
+﻿using LupiraCalApi.Application;
 using LupiraCalApi.Auth;
 using LupiraCalApi.Dtos.Events;
 using LupiraCalApi.Http;
 using Microsoft.AspNetCore.Http.HttpResults;
+using System.Text.Json.Nodes;
 
 namespace LupiraCalApi.Handlers;
 
