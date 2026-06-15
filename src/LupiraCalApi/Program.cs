@@ -4,6 +4,7 @@ using LupiraCalApi.Data;
 using LupiraCalApi.Dav;
 using LupiraCalApi.Domain;
 using LupiraCalApi.Health;
+using LupiraCalApi.Mcp;
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Diagnostics.HealthChecks;
@@ -21,10 +22,16 @@ var connectionString = builder.Configuration.GetConnectionString("Postgres")
     ?? "Host=localhost;Port=5432;Database=lupira_cal;Username=lupira_cal_user;Password=devpassword";
 builder.Services.AddDbContext<CalDbContext>(o => o.UseNpgsql(connectionString).UseSnakeCaseNamingConvention());
 builder.Services.AddSingleton<RecurrenceExpander>();
+builder.Services.AddHttpContextAccessor();
+builder.Services.AddScoped<IUserContext, UserContext>();
+builder.Services.AddScoped<AccessService>();
+builder.Services.AddScoped<CalendarService>();
+builder.Services.AddScoped<EventService>();
+builder.Services.AddScoped<ContactService>();
 
 // --- Auth: OIDC JWT for /api (the agent obtains a member-scoped token via Authentik token-exchange);
 //           HTTP Basic -> LDAP outpost for /dav. One identity authority (Authentik). ---
-builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
+var authBuilder = builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
     .AddJwtBearer(options =>
     {
         options.Authority = builder.Configuration["Auth:Authority"];
@@ -33,13 +40,17 @@ builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
     })
     .AddScheme<AuthenticationSchemeOptions, DavBasicAuthHandler>(DavConstants.Scheme, _ => { });
 
+// Development-only: allow X-Dev-User header auth so the API can be exercised without Authentik.
+if (builder.Environment.IsDevelopment())
+    authBuilder.AddScheme<AuthenticationSchemeOptions, DevAuthHandler>(DevAuthHandler.SchemeName, _ => { });
+
+string[] apiSchemes = builder.Environment.IsDevelopment()
+    ? [JwtBearerDefaults.AuthenticationScheme, DevAuthHandler.SchemeName]
+    : [JwtBearerDefaults.AuthenticationScheme];
+
 builder.Services.AddAuthorizationBuilder()
-    .AddPolicy("ApiPolicy", p => p
-        .AddAuthenticationSchemes(JwtBearerDefaults.AuthenticationScheme)
-        .RequireAuthenticatedUser())
-    .AddPolicy("DavPolicy", p => p
-        .AddAuthenticationSchemes(DavConstants.Scheme)
-        .RequireAuthenticatedUser());
+    .AddPolicy("ApiPolicy", p => p.AddAuthenticationSchemes(apiSchemes).RequireAuthenticatedUser())
+    .AddPolicy("DavPolicy", p => p.AddAuthenticationSchemes(DavConstants.Scheme).RequireAuthenticatedUser());
 
 // --- Observability: OpenTelemetry -> OpenObserve. Env-gated; the OTLP exporter reads OTEL_EXPORTER_OTLP_*
 //     automatically (http/protobuf + Basic auth header set in compose). ---
@@ -66,7 +77,18 @@ builder.Services.AddHealthChecks()
 
 builder.Services.AddOpenApi();
 
+// MCP server for the agent, mounted at /api/mcp (LAN/WireGuard-only — not published through the tunnel).
+builder.Services.AddMcpServer().WithHttpTransport().WithTools<CalendarTools>();
+
 var app = builder.Build();
+
+// Deliberate, one-shot schema apply (used as a deploy step: `dotnet LupiraCalApi.dll --apply-schema`).
+if (args.Contains("--apply-schema"))
+{
+    using var scope = app.Services.CreateScope();
+    await scope.ServiceProvider.GetRequiredService<CalDbContext>().Database.MigrateAsync();
+    return;
+}
 
 // Behind the Cloudflare Tunnel the public host differs from the container, so honor forwarded headers —
 // CalDAV discovery must emit absolute https://cal.lupira.com/... hrefs. Restrict KnownProxies in prod.
@@ -77,6 +99,25 @@ var forwarded = new ForwardedHeadersOptions
 forwarded.KnownIPNetworks.Clear();
 forwarded.KnownProxies.Clear();
 app.UseForwardedHeaders(forwarded);
+
+// Map domain errors to HTTP status codes (403 for access denied, 404 for not found).
+app.Use(async (ctx, next) =>
+{
+    try
+    {
+        await next();
+    }
+    catch (AccessDeniedException ex)
+    {
+        ctx.Response.StatusCode = StatusCodes.Status403Forbidden;
+        await ctx.Response.WriteAsJsonAsync(new { error = ex.Message });
+    }
+    catch (KeyNotFoundException ex)
+    {
+        ctx.Response.StatusCode = StatusCodes.Status404NotFound;
+        await ctx.Response.WriteAsJsonAsync(new { error = ex.Message });
+    }
+});
 
 app.UseAuthentication();
 app.UseAuthorization();
@@ -89,6 +130,9 @@ app.MapHealthChecks("/readyz", new HealthCheckOptions { Predicate = c => c.Tags.
     .DisableHttpMetrics();
 
 app.MapApi();
+
+// Agent MCP transport (LAN/WireGuard-only; excluded from the Cloudflare Tunnel at the edge).
+app.MapMcp("/api/mcp").RequireAuthorization("ApiPolicy");
 
 // CalDAV/CardDAV catch-all (Basic auth). All HTTP verbs — including PROPFIND/REPORT/MKCALENDAR — reach
 // DavRouter, which dispatches on the method. The cast picks the RequestDelegate Map overload.

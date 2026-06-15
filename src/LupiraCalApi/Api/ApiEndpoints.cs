@@ -1,36 +1,66 @@
 using System.Security.Claims;
+using System.Text.Json.Nodes;
+using LupiraCalApi.Domain;
 
 namespace LupiraCalApi.Api;
 
-/// <summary>
-/// The agent + web-UI REST surface under /api (OIDC-protected). Handlers are stubs in Phase 0; the real
-/// EventService/ContactService/SearchService implementations land in Phase 1–2, scoped to the caller's own
-/// + shared containers. The split into EventsEndpoints/ContactsEndpoints/etc. happens as they grow.
-/// </summary>
+/// <summary>The agent + web-UI REST surface under /api (OIDC-protected). Handlers resolve the caller via
+/// <see cref="IUserContext"/> and delegate to the domain services, which enforce container-scoped access.</summary>
 public static class ApiEndpoints
 {
     public static IEndpointRouteBuilder MapApi(this IEndpointRouteBuilder app)
     {
         var api = app.MapGroup("/api").RequireAuthorization("ApiPolicy");
 
-        // Verifies a token resolves to a principal (useful for the agent token-exchange smoke test).
         api.MapGet("/me", (ClaimsPrincipal user) => Results.Ok(new
         {
             sub = user.FindFirstValue("sub") ?? user.Identity?.Name,
             email = user.FindFirstValue(ClaimTypes.Email) ?? user.FindFirstValue("email"),
         }));
 
-        api.MapGet("/events", () => NotYet("events search/list (Phase 1)"));
-        api.MapPost("/events", () => NotYet("create event (Phase 1)"));
-        api.MapGet("/contacts", () => NotYet("contacts query (Phase 1)"));
-        api.MapGet("/calendars", () => NotYet("list accessible calendars + address books (Phase 1)"));
+        // Containers
+        api.MapGet("/calendars", async (IUserContext uc, CalendarService cals) =>
+            Results.Ok(await cals.ListContainersAsync((await uc.GetCurrentUserAsync()).Id)));
+        api.MapPost("/calendars", async (IUserContext uc, CalendarService cals, CreateCalendarRequest req) =>
+            Results.Ok(await cals.CreateAsync((await uc.GetCurrentUserAsync()).Id, req)));
 
-        // MCP transport — Phase 1, mounted here so it inherits the same OIDC policy. Kept LAN-only (not tunneled).
-        api.MapMethods("/mcp", ["GET", "POST"], () => NotYet("MCP server (Phase 1)"));
+        // Events
+        api.MapGet("/events", async (IUserContext uc, EventService ev,
+            string? query, DateTimeOffset? from, DateTimeOffset? to, Guid? calendarId) =>
+            Results.Ok(await ev.SearchAsync((await uc.GetCurrentUserAsync()).Id, query, from, to, calendarId)));
+        api.MapPost("/events", async (IUserContext uc, EventService ev, CreateEventRequest req) =>
+            Results.Ok(await ev.CreateAsync((await uc.GetCurrentUserAsync()).Id, req)));
+        api.MapGet("/events/{id:guid}", async (IUserContext uc, EventService ev, Guid id) =>
+        {
+            var dto = await ev.GetAsync((await uc.GetCurrentUserAsync()).Id, id);
+            return dto is null ? Results.NotFound() : Results.Ok(dto);
+        });
+        api.MapPut("/events/{id:guid}", async (IUserContext uc, EventService ev, Guid id, UpdateEventRequest req) =>
+            Results.Ok(await ev.UpdateAsync((await uc.GetCurrentUserAsync()).Id, id, req)));
+        api.MapDelete("/events/{id:guid}", async (IUserContext uc, EventService ev, Guid id) =>
+        {
+            await ev.DeleteAsync((await uc.GetCurrentUserAsync()).Id, id);
+            return Results.NoContent();
+        });
+        api.MapPost("/events/{id:guid}/metadata", async (IUserContext uc, EventService ev, Guid id, JsonNode patch) =>
+            Results.Ok(await ev.AttachMetadataAsync((await uc.GetCurrentUserAsync()).Id, id, patch)));
+
+        // Contacts
+        api.MapGet("/contacts", async (IUserContext uc, ContactService cs, string? query, Guid? addressBookId) =>
+            Results.Ok(await cs.QueryAsync((await uc.GetCurrentUserAsync()).Id, query, addressBookId)));
+        api.MapPost("/contacts", async (IUserContext uc, ContactService cs, CreateContactRequest req) =>
+            Results.Ok(await cs.CreateAsync((await uc.GetCurrentUserAsync()).Id, req)));
+        api.MapGet("/contacts/{id:guid}", async (IUserContext uc, ContactService cs, Guid id) =>
+        {
+            var dto = await cs.GetAsync((await uc.GetCurrentUserAsync()).Id, id);
+            return dto is null ? Results.NotFound() : Results.Ok(dto);
+        });
+        api.MapDelete("/contacts/{id:guid}", async (IUserContext uc, ContactService cs, Guid id) =>
+        {
+            await cs.DeleteAsync((await uc.GetCurrentUserAsync()).Id, id);
+            return Results.NoContent();
+        });
 
         return app;
     }
-
-    private static IResult NotYet(string what) =>
-        Results.Problem($"Not implemented: {what}.", statusCode: StatusCodes.Status501NotImplemented);
 }
