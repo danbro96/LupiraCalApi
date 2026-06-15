@@ -1,7 +1,9 @@
+using System.Globalization;
 using System.Xml.Linq;
 using LupiraCalApi.Data;
 using LupiraCalApi.Domain;
 using Microsoft.EntityFrameworkCore;
+using DataCalendar = LupiraCalApi.Data.Calendar;   // disambiguate from System.Globalization.Calendar
 
 namespace LupiraCalApi.Dav;
 
@@ -150,13 +152,14 @@ public static class DavRouter
         return MultiStatus([.. responses]);
     }
 
-    static XElement[] CalendarProps(Calendar c) =>
+    static XElement[] CalendarProps(DataCalendar c) =>
     [
         new XElement(D + "resourcetype", new XElement(D + "collection"), new XElement(C + "calendar")),
         new XElement(D + "displayname", c.DisplayName ?? c.Slug),
         new XElement(CS + "getctag", $"\"rev-{c.Revision}\""),
         new XElement(D + "sync-token", $"{c.Revision}"),
         new XElement(C + "supported-calendar-component-set", new XElement(C + "comp", new XAttribute("name", "VEVENT"))),
+        SupportedReports(C + "calendar-query", C + "calendar-multiget", D + "sync-collection"),
     ];
 
     static async Task<XElement> AddressbookHomePropfind(CalDbContext db, string baseUrl, User user, bool deep, CancellationToken ct)
@@ -197,19 +200,31 @@ public static class DavRouter
         new XElement(D + "displayname", a.DisplayName ?? a.Slug),
         new XElement(CS + "getctag", $"\"rev-{a.Revision}\""),
         new XElement(D + "sync-token", $"{a.Revision}"),
+        SupportedReports(CR + "addressbook-query", CR + "addressbook-multiget", D + "sync-collection"),
     ];
 
     // ---------- REPORT (calendar-query / calendar-multiget / addressbook-*) ----------
 
     static async Task HandleCalendarReport(HttpContext ctx, CalDbContext db, string baseUrl, User user, Guid calId)
     {
-        if (!await db.Calendars.AnyAsync(c => c.Id == calId && c.OwnerId == user.Id, ctx.RequestAborted)) { ctx.Response.StatusCode = 404; return; }
+        var cal = await db.Calendars.FirstOrDefaultAsync(c => c.Id == calId && c.OwnerId == user.Id, ctx.RequestAborted);
+        if (cal is null) { ctx.Response.StatusCode = 404; return; }
         var body = await ReadBody(ctx);
-        var requested = ExtractHrefUids(body, ".ics");
+        var doc = TryParseXml(body);
 
-        var q = db.Events.Where(e => e.CalendarId == calId && e.DeletedAt == null);
-        if (requested.Count > 0) q = q.Where(e => requested.Contains(e.IcalUid));   // calendar-multiget
-        var events = await q.ToListAsync(ctx.RequestAborted);                        // calendar-query returns all (Phase 3)
+        if (doc?.Root?.Name == D + "sync-collection") { await CalendarSync(ctx, db, baseUrl, user, cal, doc); return; }
+
+        var events = await db.Events.Where(e => e.CalendarId == calId && e.DeletedAt == null).ToListAsync(ctx.RequestAborted);
+        var requested = ExtractHrefUids(body, ".ics");
+        if (requested.Count > 0)
+        {
+            events = [.. events.Where(e => requested.Contains(e.IcalUid))];           // calendar-multiget
+        }
+        else if (ParseTimeRange(doc) is { } range)                                    // calendar-query time-range
+        {
+            var exp = ctx.RequestServices.GetRequiredService<RecurrenceExpander>();
+            events = [.. events.Where(e => OverlapsWindow(e, range.Start, range.End, exp))];
+        }
 
         var responses = events.Select(e => Response($"{baseUrl}/dav/u/{user.Id}/cal/{calId}/{e.IcalUid}.ics",
             new XElement(D + "getetag", Etag(e.ContentHash)),
@@ -217,20 +232,67 @@ public static class DavRouter
         await WriteMultiStatus(ctx, MultiStatus([.. responses]));
     }
 
+    static async Task CalendarSync(HttpContext ctx, CalDbContext db, string baseUrl, User user, DataCalendar cal, XDocument doc)
+    {
+        var token = ParseSyncToken(doc);
+        var responses = new List<XElement>();
+        string Href(string uid) => $"{baseUrl}/dav/u/{user.Id}/cal/{cal.Id}/{uid}.ics";
+
+        if (token is null)   // initial sync: every live resource
+        {
+            foreach (var e in await db.Events.Where(e => e.CalendarId == cal.Id && e.DeletedAt == null).ToListAsync(ctx.RequestAborted))
+                responses.Add(Response(Href(e.IcalUid), new XElement(D + "getetag", Etag(e.ContentHash))));
+        }
+        else                 // diffs since token: latest change per resource (saved -> 200 getetag, deleted -> 404 tombstone)
+        {
+            var changes = await db.CalendarChanges.Where(c => c.CalendarId == cal.Id && c.Revision > token).ToListAsync(ctx.RequestAborted);
+            foreach (var ch in changes.GroupBy(c => c.ItemIcalUid).Select(g => g.OrderByDescending(x => x.Revision).First()))
+                responses.Add(ch.ChangeType == "deleted"
+                    ? DeletedResponse(Href(ch.ItemIcalUid))
+                    : Response(Href(ch.ItemIcalUid), new XElement(D + "getetag", Etag(ch.ContentHash ?? ""))));
+        }
+        await WriteMultiStatus(ctx, MultiStatusWithToken(cal.Revision, [.. responses]));
+    }
+
     static async Task HandleAddressbookReport(HttpContext ctx, CalDbContext db, string baseUrl, User user, Guid abId)
     {
-        if (!await db.AddressBooks.AnyAsync(a => a.Id == abId && a.OwnerId == user.Id, ctx.RequestAborted)) { ctx.Response.StatusCode = 404; return; }
+        var book = await db.AddressBooks.FirstOrDefaultAsync(a => a.Id == abId && a.OwnerId == user.Id, ctx.RequestAborted);
+        if (book is null) { ctx.Response.StatusCode = 404; return; }
         var body = await ReadBody(ctx);
-        var requested = ExtractHrefUids(body, ".vcf");
+        var doc = TryParseXml(body);
 
-        var q = db.Contacts.Where(x => x.AddressBookId == abId && x.DeletedAt == null);
-        if (requested.Count > 0) q = q.Where(x => requested.Contains(x.VcardUid));
-        var contacts = await q.ToListAsync(ctx.RequestAborted);
+        if (doc?.Root?.Name == D + "sync-collection") { await AddressbookSync(ctx, db, baseUrl, user, book, doc); return; }
+
+        var contacts = await db.Contacts.Where(x => x.AddressBookId == abId && x.DeletedAt == null).ToListAsync(ctx.RequestAborted);
+        var requested = ExtractHrefUids(body, ".vcf");
+        if (requested.Count > 0) contacts = [.. contacts.Where(x => requested.Contains(x.VcardUid))];
 
         var responses = contacts.Select(x => Response($"{baseUrl}/dav/u/{user.Id}/card/{abId}/{x.VcardUid}.vcf",
             new XElement(D + "getetag", Etag(x.ContentHash)),
             new XElement(CR + "address-data", x.SourceVcard)));
         await WriteMultiStatus(ctx, MultiStatus([.. responses]));
+    }
+
+    static async Task AddressbookSync(HttpContext ctx, CalDbContext db, string baseUrl, User user, AddressBook book, XDocument doc)
+    {
+        var token = ParseSyncToken(doc);
+        var responses = new List<XElement>();
+        string Href(string uid) => $"{baseUrl}/dav/u/{user.Id}/card/{book.Id}/{uid}.vcf";
+
+        if (token is null)
+        {
+            foreach (var x in await db.Contacts.Where(c => c.AddressBookId == book.Id && c.DeletedAt == null).ToListAsync(ctx.RequestAborted))
+                responses.Add(Response(Href(x.VcardUid), new XElement(D + "getetag", Etag(x.ContentHash))));
+        }
+        else
+        {
+            var changes = await db.ContactChanges.Where(c => c.AddressBookId == book.Id && c.Revision > token).ToListAsync(ctx.RequestAborted);
+            foreach (var ch in changes.GroupBy(c => c.ItemVcardUid).Select(g => g.OrderByDescending(x => x.Revision).First()))
+                responses.Add(ch.ChangeType == "deleted"
+                    ? DeletedResponse(Href(ch.ItemVcardUid))
+                    : Response(Href(ch.ItemVcardUid), new XElement(D + "getetag", Etag(ch.ContentHash ?? ""))));
+        }
+        await WriteMultiStatus(ctx, MultiStatusWithToken(book.Revision, [.. responses]));
     }
 
     // ---------- GET object ----------
@@ -348,6 +410,59 @@ public static class DavRouter
         new XAttribute(XNamespace.Xmlns + "cr", CR.NamespaceName),
         new XAttribute(XNamespace.Xmlns + "cs", CS.NamespaceName),
         responses);
+
+    static XElement MultiStatusWithToken(long token, XElement[] responses)
+    {
+        var ms = MultiStatus(responses);
+        ms.Add(new XElement(D + "sync-token", token.ToString(CultureInfo.InvariantCulture)));
+        return ms;
+    }
+
+    static XElement DeletedResponse(string href) => new(D + "response",
+        new XElement(D + "href", href),
+        new XElement(D + "status", "HTTP/1.1 404 Not Found"));
+
+    static XElement SupportedReports(params XName[] reports) => new(D + "supported-report-set",
+        reports.Select(r => new XElement(D + "supported-report", new XElement(D + "report", new XElement(r)))));
+
+    static long? ParseSyncToken(XDocument doc)
+    {
+        var el = doc.Descendants(D + "sync-token").FirstOrDefault();
+        var v = el?.Value.Trim();
+        if (string.IsNullOrEmpty(v)) return null;                    // empty/absent => initial sync
+        return long.TryParse(v, NumberStyles.Integer, CultureInfo.InvariantCulture, out var t) ? t : null;
+    }
+
+    static (DateTimeOffset Start, DateTimeOffset End)? ParseTimeRange(XDocument? doc)
+    {
+        var tr = doc?.Descendants().FirstOrDefault(x => x.Name.LocalName == "time-range");
+        if (tr is null) return null;
+        var s = ParseICalUtc(tr.Attribute("start")?.Value);
+        var e = ParseICalUtc(tr.Attribute("end")?.Value);
+        return s is { } start && e is { } end ? (start, end) : null;
+    }
+
+    static DateTimeOffset? ParseICalUtc(string? s) =>
+        !string.IsNullOrEmpty(s) && DateTimeOffset.TryParseExact(
+            s, "yyyyMMdd'T'HHmmss'Z'", CultureInfo.InvariantCulture,
+            DateTimeStyles.AssumeUniversal | DateTimeStyles.AdjustToUniversal, out var d) ? d : null;
+
+    static bool OverlapsWindow(Event e, DateTimeOffset start, DateTimeOffset end, RecurrenceExpander exp)
+    {
+        if (!string.IsNullOrWhiteSpace(e.RecurrenceRule)) return exp.Expand(e.SourceIcalendar, start, end).Count > 0;
+        DateTimeOffset? s = e.IsAllDay && e.StartDate is { } d
+            ? new DateTimeOffset(d.Year, d.Month, d.Day, 0, 0, 0, TimeSpan.Zero) : e.StartsAt;
+        if (s is null) return false;
+        var en = e.EndsAt ?? (e.IsAllDay && e.EndDate is { } ed
+            ? new DateTimeOffset(ed.Year, ed.Month, ed.Day, 0, 0, 0, TimeSpan.Zero) : s.Value);
+        return s.Value < end && en >= start;
+    }
+
+    static XDocument? TryParseXml(string body)
+    {
+        if (string.IsNullOrWhiteSpace(body)) return null;
+        try { return XDocument.Parse(body); } catch { return null; }
+    }
 
     static XElement Response(string href, params XElement[] props) => new(D + "response",
         new XElement(D + "href", href),
