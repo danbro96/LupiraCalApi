@@ -1,8 +1,9 @@
-using LupiraCalApi.Api;
 using LupiraCalApi.Auth;
 using LupiraCalApi.Data;
 using LupiraCalApi.Dav;
 using LupiraCalApi.Domain;
+using LupiraCalApi.Endpoints;
+using LupiraCalApi.Handlers;
 using LupiraCalApi.Health;
 using LupiraCalApi.Mcp;
 using Microsoft.AspNetCore.Authentication;
@@ -17,18 +18,19 @@ using OpenTelemetry.Trace;
 
 var builder = WebApplication.CreateBuilder(args);
 
-// --- Persistence: EF Core relational source of truth, schema `cal`, snake_case columns/tables ---
+// --- Bounded context (data + transport-neutral services), registered from the Core class library. ---
 var connectionString = builder.Configuration.GetConnectionString("Postgres")
     ?? "Host=localhost;Port=5432;Database=lupira_cal;Username=lupira_cal_user;Password=devpassword";
-builder.Services.AddDbContext<CalDbContext>(o => o.UseNpgsql(connectionString).UseSnakeCaseNamingConvention());
-builder.Services.AddSingleton<RecurrenceExpander>();
+builder.Services.AddCalCore(connectionString);
+
+// --- Host-only services: identity (claims -> Core UserDirectory) + the thin REST handlers. ---
 builder.Services.AddHttpContextAccessor();
-builder.Services.AddScoped<IUserContext, UserContext>();
-builder.Services.AddScoped<AccessService>();
-builder.Services.AddScoped<CalendarService>();
-builder.Services.AddScoped<EventService>();
-builder.Services.AddScoped<ContactService>();
-builder.Services.AddScoped<RelationService>();
+builder.Services.AddScoped<CurrentUser>();
+builder.Services.AddScoped<MeHandler>();
+builder.Services.AddScoped<CalendarsHandler>();
+builder.Services.AddScoped<EventsHandler>();
+builder.Services.AddScoped<ContactsHandler>();
+builder.Services.AddScoped<RelationsHandler>();
 
 // --- Auth: OIDC JWT for /api (the agent obtains a member-scoped token via Authentik token-exchange);
 //           HTTP Basic -> LDAP outpost for /dav. One identity authority (Authentik). ---
@@ -101,25 +103,6 @@ forwarded.KnownIPNetworks.Clear();
 forwarded.KnownProxies.Clear();
 app.UseForwardedHeaders(forwarded);
 
-// Map domain errors to HTTP status codes (403 for access denied, 404 for not found).
-app.Use(async (ctx, next) =>
-{
-    try
-    {
-        await next();
-    }
-    catch (AccessDeniedException ex)
-    {
-        ctx.Response.StatusCode = StatusCodes.Status403Forbidden;
-        await ctx.Response.WriteAsJsonAsync(new { error = ex.Message });
-    }
-    catch (KeyNotFoundException ex)
-    {
-        ctx.Response.StatusCode = StatusCodes.Status404NotFound;
-        await ctx.Response.WriteAsJsonAsync(new { error = ex.Message });
-    }
-});
-
 app.UseAuthentication();
 app.UseAuthorization();
 
@@ -130,7 +113,12 @@ app.MapHealthChecks("/livez", new HealthCheckOptions { Predicate = _ => false })
 app.MapHealthChecks("/readyz", new HealthCheckOptions { Predicate = c => c.Tags.Contains("ready") })
     .DisableHttpMetrics();
 
-app.MapApi();
+// REST surface (/api), one MapXxx per resource.
+app.MapMe();
+app.MapCalendars();
+app.MapEvents();
+app.MapContacts();
+app.MapRelations();
 
 // DAV service discovery (anonymous): clients probe these before auth, then follow to /dav/.
 app.MapMethods("/.well-known/caldav", ["GET", "PROPFIND", "OPTIONS"], () => Results.Redirect("/dav/", permanent: true));

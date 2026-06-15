@@ -8,11 +8,6 @@ using Microsoft.Extensions.Options;
 
 namespace LupiraCalApi.Auth;
 
-public static class DavConstants
-{
-    public const string Scheme = "dav";
-}
-
 /// <summary>
 /// HTTP Basic auth for the /dav surface (DAV clients can't do OIDC). The decoded email becomes the
 /// principal; resolution to the local users.id happens via IUserContext (by email), so it converges with

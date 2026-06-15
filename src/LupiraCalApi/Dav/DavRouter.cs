@@ -1,9 +1,12 @@
 using System.Globalization;
 using System.Xml.Linq;
+using LupiraCalApi.Application;
+using LupiraCalApi.Auth;
 using LupiraCalApi.Data;
+using LupiraCalApi.Data.Entities;
 using LupiraCalApi.Domain;
 using Microsoft.EntityFrameworkCore;
-using DataCalendar = LupiraCalApi.Data.Calendar;   // disambiguate from System.Globalization.Calendar
+using DataCalendar = LupiraCalApi.Data.Entities.Calendar;   // disambiguate from System.Globalization.Calendar
 
 namespace LupiraCalApi.Dav;
 
@@ -39,7 +42,7 @@ public static class DavRouter
         }
 
         var db = ctx.RequestServices.GetRequiredService<CalDbContext>();
-        var user = await ctx.RequestServices.GetRequiredService<IUserContext>().GetCurrentUserAsync(ctx.RequestAborted);
+        var user = await ctx.RequestServices.GetRequiredService<CurrentUser>().GetAsync(ctx.RequestAborted);
 
         var baseUrl = $"{ctx.Request.Scheme}://{ctx.Request.Host}";
         var segments = (ctx.Request.Path.Value ?? "").Trim('/').Split('/', StringSplitOptions.RemoveEmptyEntries);
@@ -327,53 +330,59 @@ public static class DavRouter
     {
         var raw = await ReadBody(ctx);
         var (ifMatch, ifNoneMatchStar) = Preconditions(ctx);
-        try
-        {
-            var (created, etag) = await ctx.RequestServices.GetRequiredService<EventService>()
-                .PutIcsAsync(user.Id, calId, uid, raw, ifMatch, ifNoneMatchStar, ctx.RequestAborted);
-            ctx.Response.Headers.ETag = $"\"{etag}\"";
-            ctx.Response.StatusCode = created ? StatusCodes.Status201Created : StatusCodes.Status204NoContent;
-        }
-        catch (DavPreconditionException) { ctx.Response.StatusCode = StatusCodes.Status412PreconditionFailed; }
-        catch (FormatException) { ctx.Response.StatusCode = StatusCodes.Status400BadRequest; }
+        var result = await ctx.RequestServices.GetRequiredService<EventService>()
+            .PutIcsAsync(user.Id, calId, uid, raw, ifMatch, ifNoneMatchStar, ctx.RequestAborted);
+        WriteDavWrite(ctx, result);
     }
 
     static async Task HandleDeleteEvent(HttpContext ctx, User user, Guid calId, string uid)
     {
         var (ifMatch, _) = Preconditions(ctx);
-        try
-        {
-            await ctx.RequestServices.GetRequiredService<EventService>().DeleteByUidAsync(user.Id, calId, uid, ifMatch, ctx.RequestAborted);
-            ctx.Response.StatusCode = StatusCodes.Status204NoContent;
-        }
-        catch (DavPreconditionException) { ctx.Response.StatusCode = StatusCodes.Status412PreconditionFailed; }
+        var result = await ctx.RequestServices.GetRequiredService<EventService>()
+            .DeleteByUidAsync(user.Id, calId, uid, ifMatch, ctx.RequestAborted);
+        WriteDavStatus(ctx, result);
     }
 
     static async Task HandlePutContact(HttpContext ctx, User user, Guid abId, string uid)
     {
         var raw = await ReadBody(ctx);
         var (ifMatch, ifNoneMatchStar) = Preconditions(ctx);
-        try
-        {
-            var (created, etag) = await ctx.RequestServices.GetRequiredService<ContactService>()
-                .PutVcfAsync(user.Id, abId, uid, raw, ifMatch, ifNoneMatchStar, ctx.RequestAborted);
-            ctx.Response.Headers.ETag = $"\"{etag}\"";
-            ctx.Response.StatusCode = created ? StatusCodes.Status201Created : StatusCodes.Status204NoContent;
-        }
-        catch (DavPreconditionException) { ctx.Response.StatusCode = StatusCodes.Status412PreconditionFailed; }
-        catch (FormatException) { ctx.Response.StatusCode = StatusCodes.Status400BadRequest; }
+        var result = await ctx.RequestServices.GetRequiredService<ContactService>()
+            .PutVcfAsync(user.Id, abId, uid, raw, ifMatch, ifNoneMatchStar, ctx.RequestAborted);
+        WriteDavWrite(ctx, result);
     }
 
     static async Task HandleDeleteContact(HttpContext ctx, User user, Guid abId, string uid)
     {
         var (ifMatch, _) = Preconditions(ctx);
-        try
-        {
-            await ctx.RequestServices.GetRequiredService<ContactService>().DeleteByUidAsync(user.Id, abId, uid, ifMatch, ctx.RequestAborted);
-            ctx.Response.StatusCode = StatusCodes.Status204NoContent;
-        }
-        catch (DavPreconditionException) { ctx.Response.StatusCode = StatusCodes.Status412PreconditionFailed; }
+        var result = await ctx.RequestServices.GetRequiredService<ContactService>()
+            .DeleteByUidAsync(user.Id, abId, uid, ifMatch, ctx.RequestAborted);
+        WriteDavStatus(ctx, result);
     }
+
+    // Map the service OpResult to the DAV wire status (412 for the If-Match/If-None-Match precondition).
+    static void WriteDavWrite(HttpContext ctx, OpResult<DavWriteResult> r)
+    {
+        if (r.Status == OpStatus.Ok && r.Value is { } w)
+        {
+            ctx.Response.Headers.ETag = $"\"{w.Etag}\"";
+            ctx.Response.StatusCode = w.Created ? StatusCodes.Status201Created : StatusCodes.Status204NoContent;
+            return;
+        }
+        ctx.Response.StatusCode = DavStatus(r.Status);
+    }
+
+    static void WriteDavStatus(HttpContext ctx, OpResult r) => ctx.Response.StatusCode = DavStatus(r.Status);
+
+    static int DavStatus(OpStatus status) => status switch
+    {
+        OpStatus.Ok => StatusCodes.Status204NoContent,
+        OpStatus.Forbidden => StatusCodes.Status403Forbidden,
+        OpStatus.NotFound => StatusCodes.Status404NotFound,
+        OpStatus.Conflict => StatusCodes.Status412PreconditionFailed,
+        OpStatus.Invalid => StatusCodes.Status400BadRequest,
+        _ => StatusCodes.Status500InternalServerError,
+    };
 
     static (string? IfMatch, bool IfNoneMatchStar) Preconditions(HttpContext ctx)
     {
