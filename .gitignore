@@ -1,0 +1,31 @@
+# .NET build output
+bin/
+obj/
+[Bb]in/
+[Oo]bj/
+*.user
+*.suo
+*.userosscache
+*.sln.docstates
+
+# Rider / VS / VS Code
+.vs/
+.idea/
+.vscode/
+
+# Test results
+[Tt]est[Rr]esult*/
+*.trx
+
+# Publish output
+publish/
+*.nupkg
+
+# Local secrets / env (never commit)
+appsettings.*.local.json
+.env
+*.env
+
+# OS
+.DS_Store
+Thumbs.db
