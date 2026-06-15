@@ -1,3 +1,5 @@
+using NpgsqlTypes;
+
 namespace LupiraCalApi.Data;
 
 // Domain-readable entities. C# is PascalCase; EFCore.NamingConventions maps to snake_case columns/tables
@@ -89,6 +91,7 @@ public class Event
     public string ContentHash { get; set; } = null!;     // hash of SourceIcalendar; emitted as the HTTP ETag
     public string[]? Tags { get; set; }
     public string Metadata { get; set; } = "{}";         // jsonb; free-form agent annotations
+    public NpgsqlTsVector SearchVector { get; set; } = null!; // generated (title+description+location); GIN-indexed
 
     public DateTimeOffset CreatedAt { get; set; }
     public DateTimeOffset? UpdatedAt { get; set; }
@@ -113,6 +116,7 @@ public class Contact
     public string ContentHash { get; set; } = null!;
     public string[]? Tags { get; set; }
     public string Metadata { get; set; } = "{}";        // jsonb
+    public NpgsqlTsVector SearchVector { get; set; } = null!; // generated (full_name+organization); GIN-indexed
     public DateTimeOffset CreatedAt { get; set; }
     public DateTimeOffset? UpdatedAt { get; set; }
     public DateTimeOffset? DeletedAt { get; set; }

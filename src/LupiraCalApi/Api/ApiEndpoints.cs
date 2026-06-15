@@ -26,8 +26,8 @@ public static class ApiEndpoints
 
         // Events
         api.MapGet("/events", async (IUserContext uc, EventService ev,
-            string? query, DateTimeOffset? from, DateTimeOffset? to, Guid? calendarId) =>
-            Results.Ok(await ev.SearchAsync((await uc.GetCurrentUserAsync()).Id, query, from, to, calendarId)));
+            string? query, DateTimeOffset? from, DateTimeOffset? to, Guid? calendarId, string? tag, string? metadata) =>
+            Results.Ok(await ev.SearchAsync((await uc.GetCurrentUserAsync()).Id, query, from, to, calendarId, tag, metadata)));
         api.MapPost("/events", async (IUserContext uc, EventService ev, CreateEventRequest req) =>
             Results.Ok(await ev.CreateAsync((await uc.GetCurrentUserAsync()).Id, req)));
         api.MapGet("/events/{id:guid}", async (IUserContext uc, EventService ev, Guid id) =>
@@ -44,6 +44,14 @@ public static class ApiEndpoints
         });
         api.MapPost("/events/{id:guid}/metadata", async (IUserContext uc, EventService ev, Guid id, JsonNode patch) =>
             Results.Ok(await ev.AttachMetadataAsync((await uc.GetCurrentUserAsync()).Id, id, patch)));
+
+        // Cross-domain relations (e.g. event ↔ LupiraTasks item)
+        api.MapPost("/events/{id:guid}/relations", async (IUserContext uc, RelationService rel, Guid id, CreateRelationRequest req) =>
+            Results.Ok(await rel.LinkEventAsync((await uc.GetCurrentUserAsync()).Id, id, req)));
+        api.MapGet("/events/{id:guid}/relations", async (IUserContext uc, RelationService rel, Guid id) =>
+            Results.Ok(await rel.ListForEventAsync((await uc.GetCurrentUserAsync()).Id, id)));
+        api.MapGet("/relations", async (IUserContext uc, RelationService rel, string toKind, string toRef) =>
+            Results.Ok(await rel.FindEventsLinkedToAsync((await uc.GetCurrentUserAsync()).Id, toKind, toRef)));
 
         // Contacts
         api.MapGet("/contacts", async (IUserContext uc, ContactService cs, string? query, Guid? addressBookId) =>

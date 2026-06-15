@@ -28,6 +28,7 @@ builder.Services.AddScoped<AccessService>();
 builder.Services.AddScoped<CalendarService>();
 builder.Services.AddScoped<EventService>();
 builder.Services.AddScoped<ContactService>();
+builder.Services.AddScoped<RelationService>();
 
 // --- Auth: OIDC JWT for /api (the agent obtains a member-scoped token via Authentik token-exchange);
 //           HTTP Basic -> LDAP outpost for /dav. One identity authority (Authentik). ---

@@ -34,3 +34,7 @@ public record CreateContactRequest(
 public record ContactDto(
     Guid Id, Guid AddressBookId, string VcardUid, string? FullName, string? Organization,
     DateOnly? Birthday, string[]? Tags, JsonNode? Metadata, string Etag);
+
+// Cross-domain links (e.g. an event derived from a LupiraTasks item, referenced by id string).
+public record CreateRelationRequest(string ToKind, string ToRef, string RelationType, JsonNode? Metadata);
+public record RelationDto(Guid Id, string FromKind, Guid FromId, string ToKind, string ToRef, string RelationType, JsonNode? Metadata);

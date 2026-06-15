@@ -23,6 +23,7 @@ public class CalDbContext(DbContextOptions<CalDbContext> options) : DbContext(op
     protected override void OnModelCreating(ModelBuilder b)
     {
         b.HasDefaultSchema("cal");
+        b.HasPostgresExtension("pg_trgm");   // typo-tolerant fuzzy search (gin_trgm_ops indexes below)
 
         b.Entity<User>(e =>
         {
@@ -71,6 +72,13 @@ public class CalDbContext(DbContextOptions<CalDbContext> options) : DbContext(op
             e.Property(x => x.RecurrenceOverrides).HasColumnType("jsonb");
             e.HasIndex(x => new { x.CalendarId, x.IcalUid }).IsUnique();
             e.HasOne<Calendar>().WithMany().HasForeignKey(x => x.CalendarId).OnDelete(DeleteBehavior.Cascade);
+
+            // Full-text search (generated tsvector) + fuzzy title + metadata containment + tag filtering.
+            e.HasGeneratedTsVectorColumn(x => x.SearchVector, "english", x => new { x.Title, x.Description, x.Location });
+            e.HasIndex(x => x.SearchVector).HasMethod("gin");
+            e.HasIndex(x => x.Title).HasMethod("gin").HasOperators("gin_trgm_ops");
+            e.HasIndex(x => x.Metadata).HasMethod("gin").HasOperators("jsonb_path_ops");
+            e.HasIndex(x => x.Tags).HasMethod("gin");
         });
 
         b.Entity<Contact>(e =>
@@ -83,6 +91,12 @@ public class CalDbContext(DbContextOptions<CalDbContext> options) : DbContext(op
             e.Property(x => x.Addresses).HasColumnType("jsonb");
             e.HasIndex(x => new { x.AddressBookId, x.VcardUid }).IsUnique();
             e.HasOne<AddressBook>().WithMany().HasForeignKey(x => x.AddressBookId).OnDelete(DeleteBehavior.Cascade);
+
+            e.HasGeneratedTsVectorColumn(x => x.SearchVector, "simple", x => new { x.FullName, x.Organization });
+            e.HasIndex(x => x.SearchVector).HasMethod("gin");
+            e.HasIndex(x => x.FullName).HasMethod("gin").HasOperators("gin_trgm_ops");
+            e.HasIndex(x => x.Metadata).HasMethod("gin").HasOperators("jsonb_path_ops");
+            e.HasIndex(x => x.Tags).HasMethod("gin");
         });
 
         b.Entity<CalendarChange>(e =>

@@ -44,8 +44,9 @@ public sealed class ContactService(CalDbContext db, AccessService access)
         var q = db.Contacts.Where(c => ids.Contains(c.AddressBookId) && c.DeletedAt == null);
         if (!string.IsNullOrWhiteSpace(query))
         {
-            var like = $"%{query.Trim()}%";
-            q = q.Where(c => EF.Functions.ILike(c.FullName ?? "", like) || EF.Functions.ILike(c.Organization ?? "", like));
+            var term = query.Trim();
+            q = q.Where(c => c.SearchVector.Matches(EF.Functions.WebSearchToTsQuery("simple", term))
+                || EF.Functions.TrigramsWordSimilarity(term, c.FullName ?? "") >= 0.3);
         }
         var list = await q.OrderBy(c => c.FullName).ToListAsync(ct);
         return list.Select(Map).ToList();

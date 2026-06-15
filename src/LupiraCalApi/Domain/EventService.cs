@@ -33,11 +33,12 @@ public sealed class EventService(CalDbContext db, AccessService access, Recurren
         db.Events.Add(e);
         await BumpAndLogAsync(e.CalendarId, e.IcalUid, "saved", e.ContentHash, ct);
         await db.SaveChangesAsync(ct);
-        return Map(e);
+        return ToDto(e);
     }
 
     public async Task<List<EventOccurrenceDto>> SearchAsync(
-        Guid userId, string? query, DateTimeOffset? from, DateTimeOffset? to, Guid? calendarId, CancellationToken ct = default)
+        Guid userId, string? query, DateTimeOffset? from, DateTimeOffset? to, Guid? calendarId,
+        string? tag = null, string? metadataContains = null, CancellationToken ct = default)
     {
         var calIds = await access.AccessibleCalendars(userId).Select(c => c.Id).ToListAsync(ct);
         if (calendarId is { } cid)
@@ -49,11 +50,16 @@ public sealed class EventService(CalDbContext db, AccessService access, Recurren
         var q = db.Events.Where(e => calIds.Contains(e.CalendarId) && e.DeletedAt == null);
         if (!string.IsNullOrWhiteSpace(query))
         {
-            var like = $"%{query.Trim()}%";
-            q = q.Where(e => EF.Functions.ILike(e.Title ?? "", like)
-                || EF.Functions.ILike(e.Description ?? "", like)
-                || EF.Functions.ILike(e.Location ?? "", like));
+            var term = query.Trim();
+            // Ranked full-text (generated tsvector) OR typo-tolerant trigram word-similarity on the title
+            // (word_similarity matches a query word inside the longer title; 0.3 catches single-letter typos).
+            q = q.Where(e => e.SearchVector.Matches(EF.Functions.WebSearchToTsQuery("english", term))
+                || EF.Functions.TrigramsWordSimilarity(term, e.Title ?? "") >= 0.3);
         }
+        if (!string.IsNullOrWhiteSpace(tag))
+            q = q.Where(e => e.Tags != null && e.Tags.Contains(tag));
+        if (!string.IsNullOrWhiteSpace(metadataContains))
+            q = q.Where(e => EF.Functions.JsonContains(e.Metadata, metadataContains));
         var candidates = await q.ToListAsync(ct);
 
         var windowStart = from ?? DateTimeOffset.UtcNow.AddYears(-1);
@@ -84,7 +90,7 @@ public sealed class EventService(CalDbContext db, AccessService access, Recurren
         var e = await db.Events.FirstOrDefaultAsync(x => x.Id == id && x.DeletedAt == null, ct);
         if (e is null) return null;
         if (!await access.CanReadCalendarAsync(userId, e.CalendarId, ct)) throw new AccessDeniedException();
-        return Map(e);
+        return ToDto(e);
     }
 
     public async Task<EventDto> UpdateAsync(Guid userId, Guid id, UpdateEventRequest r, CancellationToken ct = default)
@@ -107,7 +113,7 @@ public sealed class EventService(CalDbContext db, AccessService access, Recurren
         e.ContentHash = ContentHash.Of(e.SourceIcalendar);
         await BumpAndLogAsync(e.CalendarId, e.IcalUid, "saved", e.ContentHash, ct);
         await db.SaveChangesAsync(ct);
-        return Map(e);
+        return ToDto(e);
     }
 
     public async Task DeleteAsync(Guid userId, Guid id, CancellationToken ct = default)
@@ -135,7 +141,7 @@ public sealed class EventService(CalDbContext db, AccessService access, Recurren
         e.Metadata = current.ToJsonString();
         e.UpdatedAt = DateTimeOffset.UtcNow;
         await db.SaveChangesAsync(ct);
-        return Map(e);
+        return ToDto(e);
     }
 
     private async Task BumpAndLogAsync(Guid calendarId, string icalUid, string changeType, string? hash, CancellationToken ct)
@@ -156,7 +162,7 @@ public sealed class EventService(CalDbContext db, AccessService access, Recurren
         return e.StartsAt;
     }
 
-    private static EventDto Map(Event e) => new(
+    public static EventDto ToDto(Event e) => new(
         e.Id, e.CalendarId, e.IcalUid, e.Title, e.Description, e.Location, e.Status, e.IsAllDay,
         e.StartsAt, e.EndsAt, e.StartDate, e.EndDate, e.RecurrenceRule, e.Tags,
         JsonNode.Parse(string.IsNullOrWhiteSpace(e.Metadata) ? "{}" : e.Metadata), e.ContentHash);
