@@ -8,8 +8,8 @@ RUN dotnet publish src/LupiraCalApi/LupiraCalApi.csproj -c Release -o /app --no-
 
 FROM mcr.microsoft.com/dotnet/aspnet:10.0 AS runtime
 WORKDIR /app
-# curl is used by the compose healthcheck (curl -fsS .../readyz)
-RUN apt-get update && apt-get install -y --no-install-recommends curl && rm -rf /var/lib/apt/lists/*
+# curl: compose healthcheck (curl -fsS .../readyz). libldap: System.DirectoryServices.Protocols (DAV Basic -> LDAP bind).
+RUN apt-get update && apt-get install -y --no-install-recommends curl libldap-2.5-0 && rm -rf /var/lib/apt/lists/*
 COPY --from=build /app .
 EXPOSE 8080
 ENV ASPNETCORE_URLS=http://+:8080
