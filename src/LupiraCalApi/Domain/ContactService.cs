@@ -71,6 +71,49 @@ public sealed class ContactService(CalDbContext db, AccessService access)
         await db.SaveChangesAsync(ct);
     }
 
+    // ---- CardDAV write path (Phase 4) ----
+
+    public async Task<(bool Created, string Etag)> PutVcfAsync(
+        Guid userId, Guid addressBookId, string vcardUid, string rawVcard, string? ifMatch, bool ifNoneMatchStar, CancellationToken ct = default)
+    {
+        if (!await access.CanWriteAddressBookAsync(userId, addressBookId, ct)) throw new AccessDeniedException();
+
+        var existing = await db.Contacts.FirstOrDefaultAsync(c => c.AddressBookId == addressBookId && c.VcardUid == vcardUid, ct);
+        var live = existing is { DeletedAt: null };
+        if (ifNoneMatchStar && live) throw new DavPreconditionException("Resource already exists.");
+        if (ifMatch is not null && (!live || existing!.ContentHash != ifMatch)) throw new DavPreconditionException("ETag mismatch.");
+
+        var p = VCardSerializer.ParseVCard(rawVcard);
+        var c = existing ?? new Contact { Id = Guid.NewGuid(), AddressBookId = addressBookId, VcardUid = vcardUid, Metadata = "{}" };
+        c.FullName = p.FullName; c.GivenName = p.GivenName; c.FamilyName = p.FamilyName; c.Organization = p.Organization;
+        c.Emails = p.Emails is null ? null : JsonSerializer.Serialize(p.Emails);
+        c.Phones = p.Phones is null ? null : JsonSerializer.Serialize(p.Phones);
+        c.Birthday = p.Birthday;
+        c.SourceVcard = rawVcard;
+        c.ContentHash = ContentHash.Of(rawVcard);
+        c.DeletedAt = null;   // resurrect if previously deleted
+
+        if (existing is null) db.Contacts.Add(c);
+        else c.UpdatedAt = DateTimeOffset.UtcNow;
+
+        await BumpAndLogAsync(addressBookId, vcardUid, "saved", c.ContentHash, ct);
+        await db.SaveChangesAsync(ct);
+        return (!live, c.ContentHash);
+    }
+
+    public async Task DeleteByUidAsync(Guid userId, Guid addressBookId, string vcardUid, string? ifMatch, CancellationToken ct = default)
+    {
+        var c = await db.Contacts.FirstOrDefaultAsync(
+            x => x.AddressBookId == addressBookId && x.VcardUid == vcardUid && x.DeletedAt == null, ct)
+            ?? throw new KeyNotFoundException("Contact not found.");
+        if (!await access.CanWriteAddressBookAsync(userId, addressBookId, ct)) throw new AccessDeniedException();
+        if (ifMatch is not null && c.ContentHash != ifMatch) throw new DavPreconditionException("ETag mismatch.");
+
+        c.DeletedAt = DateTimeOffset.UtcNow;
+        await BumpAndLogAsync(addressBookId, vcardUid, "deleted", null, ct);
+        await db.SaveChangesAsync(ct);
+    }
+
     private async Task BumpAndLogAsync(Guid addressBookId, string vcardUid, string changeType, string? hash, CancellationToken ct)
     {
         var book = await db.AddressBooks.FirstAsync(a => a.Id == addressBookId, ct);

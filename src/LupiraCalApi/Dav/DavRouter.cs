@@ -29,11 +29,10 @@ public static class DavRouter
 
         if (method == "OPTIONS") { WriteOptions(ctx); return; }
 
-        // Writes are not supported in the read-only phase.
-        if (method is "PUT" or "DELETE" or "MKCALENDAR" or "MKCOL" or "PROPPATCH" or "MOVE" or "COPY" or "LOCK" or "UNLOCK")
+        // Collection-level writes / locking aren't supported (object PUT/DELETE are handled in routing below).
+        if (method is "MKCALENDAR" or "MKCOL" or "PROPPATCH" or "MOVE" or "COPY" or "LOCK" or "UNLOCK")
         {
             ctx.Response.StatusCode = StatusCodes.Status403Forbidden;
-            await ctx.Response.WriteAsync("Read-only (writes land in Phase 4).");
             return;
         }
 
@@ -73,7 +72,13 @@ public static class DavRouter
                     if (method == "PROPFIND") { await WriteMultiStatus(ctx, await CalendarPropfind(db, baseUrl, user, calId, deep, ctx.RequestAborted)); return; }
                     if (method == "REPORT") { await HandleCalendarReport(ctx, db, baseUrl, user, calId); return; }
                 }
-                if (rest.Length == 5 && method is "GET" or "HEAD") { await GetEvent(ctx, db, user, Guid.Parse(rest[3]), StripExt(rest[4])); return; }
+                if (rest.Length == 5)
+                {
+                    var calId = Guid.Parse(rest[3]); var uid = StripExt(rest[4]);
+                    if (method is "GET" or "HEAD") { await GetEvent(ctx, db, user, calId, uid); return; }
+                    if (method == "PUT") { await HandlePutEvent(ctx, user, calId, uid); return; }
+                    if (method == "DELETE") { await HandleDeleteEvent(ctx, user, calId, uid); return; }
+                }
             }
             else if (rest.Length >= 3 && rest[2] == "card")
             {
@@ -84,7 +89,13 @@ public static class DavRouter
                     if (method == "PROPFIND") { await WriteMultiStatus(ctx, await AddressbookPropfind(db, baseUrl, user, abId, deep, ctx.RequestAborted)); return; }
                     if (method == "REPORT") { await HandleAddressbookReport(ctx, db, baseUrl, user, abId); return; }
                 }
-                if (rest.Length == 5 && method is "GET" or "HEAD") { await GetContact(ctx, db, user, Guid.Parse(rest[3]), StripExt(rest[4])); return; }
+                if (rest.Length == 5)
+                {
+                    var abId = Guid.Parse(rest[3]); var uid = StripExt(rest[4]);
+                    if (method is "GET" or "HEAD") { await GetContact(ctx, db, user, abId, uid); return; }
+                    if (method == "PUT") { await HandlePutContact(ctx, user, abId, uid); return; }
+                    if (method == "DELETE") { await HandleDeleteContact(ctx, user, abId, uid); return; }
+                }
             }
         }
 
@@ -246,6 +257,72 @@ public static class DavRouter
         ctx.Response.ContentType = "text/vcard; charset=utf-8";
         if (ctx.Request.Method == "HEAD") return;
         await ctx.Response.WriteAsync(x.SourceVcard);
+    }
+
+    // ---------- write path (Phase 4): object PUT / DELETE with ETag preconditions ----------
+
+    static async Task HandlePutEvent(HttpContext ctx, User user, Guid calId, string uid)
+    {
+        var raw = await ReadBody(ctx);
+        var (ifMatch, ifNoneMatchStar) = Preconditions(ctx);
+        try
+        {
+            var (created, etag) = await ctx.RequestServices.GetRequiredService<EventService>()
+                .PutIcsAsync(user.Id, calId, uid, raw, ifMatch, ifNoneMatchStar, ctx.RequestAborted);
+            ctx.Response.Headers.ETag = $"\"{etag}\"";
+            ctx.Response.StatusCode = created ? StatusCodes.Status201Created : StatusCodes.Status204NoContent;
+        }
+        catch (DavPreconditionException) { ctx.Response.StatusCode = StatusCodes.Status412PreconditionFailed; }
+        catch (FormatException) { ctx.Response.StatusCode = StatusCodes.Status400BadRequest; }
+    }
+
+    static async Task HandleDeleteEvent(HttpContext ctx, User user, Guid calId, string uid)
+    {
+        var (ifMatch, _) = Preconditions(ctx);
+        try
+        {
+            await ctx.RequestServices.GetRequiredService<EventService>().DeleteByUidAsync(user.Id, calId, uid, ifMatch, ctx.RequestAborted);
+            ctx.Response.StatusCode = StatusCodes.Status204NoContent;
+        }
+        catch (DavPreconditionException) { ctx.Response.StatusCode = StatusCodes.Status412PreconditionFailed; }
+    }
+
+    static async Task HandlePutContact(HttpContext ctx, User user, Guid abId, string uid)
+    {
+        var raw = await ReadBody(ctx);
+        var (ifMatch, ifNoneMatchStar) = Preconditions(ctx);
+        try
+        {
+            var (created, etag) = await ctx.RequestServices.GetRequiredService<ContactService>()
+                .PutVcfAsync(user.Id, abId, uid, raw, ifMatch, ifNoneMatchStar, ctx.RequestAborted);
+            ctx.Response.Headers.ETag = $"\"{etag}\"";
+            ctx.Response.StatusCode = created ? StatusCodes.Status201Created : StatusCodes.Status204NoContent;
+        }
+        catch (DavPreconditionException) { ctx.Response.StatusCode = StatusCodes.Status412PreconditionFailed; }
+        catch (FormatException) { ctx.Response.StatusCode = StatusCodes.Status400BadRequest; }
+    }
+
+    static async Task HandleDeleteContact(HttpContext ctx, User user, Guid abId, string uid)
+    {
+        var (ifMatch, _) = Preconditions(ctx);
+        try
+        {
+            await ctx.RequestServices.GetRequiredService<ContactService>().DeleteByUidAsync(user.Id, abId, uid, ifMatch, ctx.RequestAborted);
+            ctx.Response.StatusCode = StatusCodes.Status204NoContent;
+        }
+        catch (DavPreconditionException) { ctx.Response.StatusCode = StatusCodes.Status412PreconditionFailed; }
+    }
+
+    static (string? IfMatch, bool IfNoneMatchStar) Preconditions(HttpContext ctx)
+    {
+        string? ifMatch = null;
+        if (ctx.Request.Headers.TryGetValue("If-Match", out var im) && im.Count > 0)
+        {
+            var v = im.ToString().Trim();
+            if (v.Length > 0 && v != "*") ifMatch = v.Trim('"');
+        }
+        var inm = ctx.Request.Headers.TryGetValue("If-None-Match", out var n) ? n.ToString().Trim() : "";
+        return (ifMatch, inm == "*");
     }
 
     // ---------- helpers ----------

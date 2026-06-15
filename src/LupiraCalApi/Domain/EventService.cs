@@ -144,6 +144,51 @@ public sealed class EventService(CalDbContext db, AccessService access, Recurren
         return ToDto(e);
     }
 
+    // ---- CalDAV write path (Phase 4): upsert/delete a resource keyed by its URL uid, with ETag preconditions ----
+
+    public async Task<(bool Created, string Etag)> PutIcsAsync(
+        Guid userId, Guid calendarId, string icalUid, string rawIcs, string? ifMatch, bool ifNoneMatchStar, CancellationToken ct = default)
+    {
+        if (!await access.CanWriteCalendarAsync(userId, calendarId, ct)) throw new AccessDeniedException();
+
+        // Find any row for this uid (incl. soft-deleted) so a DELETE-then-PUT resurrects it rather than
+        // colliding with the unique (calendar_id, ical_uid) index. "Exists" for preconditions = live row.
+        var existing = await db.Events.FirstOrDefaultAsync(e => e.CalendarId == calendarId && e.IcalUid == icalUid, ct);
+        var live = existing is { DeletedAt: null };
+        if (ifNoneMatchStar && live) throw new DavPreconditionException("Resource already exists.");
+        if (ifMatch is not null && (!live || existing!.ContentHash != ifMatch)) throw new DavPreconditionException("ETag mismatch.");
+
+        var p = ICalSerializer.ParseICalendar(rawIcs);   // throws FormatException on bad payload
+        var e = existing ?? new Event { Id = Guid.NewGuid(), CalendarId = calendarId, IcalUid = icalUid, Metadata = "{}" };
+        e.Title = p.Title; e.Description = p.Description; e.Location = p.Location;
+        e.IsAllDay = p.IsAllDay; e.StartsAt = p.StartsAt; e.EndsAt = p.EndsAt;
+        e.StartTimezone = p.StartTimezone; e.EndTimezone = p.EndTimezone;
+        e.StartDate = p.StartDate; e.EndDate = p.EndDate; e.RecurrenceRule = p.RecurrenceRule;
+        e.SourceIcalendar = rawIcs;                       // dual representation: store the client blob verbatim
+        e.ContentHash = ContentHash.Of(rawIcs);
+        e.DeletedAt = null;                               // resurrect if this uid was previously deleted
+
+        if (existing is null) db.Events.Add(e);
+        else e.UpdatedAt = DateTimeOffset.UtcNow;
+
+        await BumpAndLogAsync(calendarId, icalUid, "saved", e.ContentHash, ct);
+        await db.SaveChangesAsync(ct);
+        return (!live, e.ContentHash);
+    }
+
+    public async Task DeleteByUidAsync(Guid userId, Guid calendarId, string icalUid, string? ifMatch, CancellationToken ct = default)
+    {
+        var e = await db.Events.FirstOrDefaultAsync(
+            x => x.CalendarId == calendarId && x.IcalUid == icalUid && x.DeletedAt == null, ct)
+            ?? throw new KeyNotFoundException("Event not found.");
+        if (!await access.CanWriteCalendarAsync(userId, calendarId, ct)) throw new AccessDeniedException();
+        if (ifMatch is not null && e.ContentHash != ifMatch) throw new DavPreconditionException("ETag mismatch.");
+
+        e.DeletedAt = DateTimeOffset.UtcNow;
+        await BumpAndLogAsync(calendarId, icalUid, "deleted", null, ct);
+        await db.SaveChangesAsync(ct);
+    }
+
     private async Task BumpAndLogAsync(Guid calendarId, string icalUid, string changeType, string? hash, CancellationToken ct)
     {
         var cal = await db.Calendars.FirstAsync(c => c.Id == calendarId, ct);
