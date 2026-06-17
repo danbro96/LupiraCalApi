@@ -20,6 +20,13 @@ public sealed class AccessResolver(IQuerySession session)
         await session.Query<CalendarOwner>().AnyAsync(
             o => o.CalendarId == calendarId && o.PrincipalId == principalId && (o.Access == Access.Owner || o.Access == Access.ReadWrite), ct);
 
+    /// <summary>Owner-only (not read-write): gates granting/revoking co-owners on a container.</summary>
+    public async Task<bool> IsCalendarOwnerAsync(Guid principalId, Guid calendarId, CancellationToken ct = default) =>
+        await session.Query<CalendarOwner>().AnyAsync(o => o.CalendarId == calendarId && o.PrincipalId == principalId && o.Access == Access.Owner, ct);
+
+    public async Task<bool> IsAddressBookOwnerAsync(Guid principalId, Guid addressBookId, CancellationToken ct = default) =>
+        await session.Query<AddressBookOwner>().AnyAsync(o => o.AddressBookId == addressBookId && o.PrincipalId == principalId && o.Access == Access.Owner, ct);
+
     public async Task<bool> CanReadAddressBookAsync(Guid principalId, Guid addressBookId, CancellationToken ct = default) =>
         await session.Query<AddressBookOwner>().AnyAsync(o => o.AddressBookId == addressBookId && o.PrincipalId == principalId, ct);
 

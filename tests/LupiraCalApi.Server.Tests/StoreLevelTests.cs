@@ -3,6 +3,7 @@ using LupiraCalApi.Auth;
 using LupiraCalApi.Domain;
 using LupiraCalApi.Dtos.CalendarItems;
 using LupiraCalApi.Dtos.Calendars;
+using Marten;
 using Microsoft.Extensions.DependencyInjection;
 using Xunit;
 
@@ -17,6 +18,15 @@ public sealed class StoreLevelTests(CalApiTestFactory factory) : IntegrationTest
         using var scope = Factory.Services.CreateScope();
         return await f(scope.ServiceProvider);
     }
+
+    private Task<Guid> ProvisionAsync(string sub, string email) =>
+        InScope(async sp => (await sp.GetRequiredService<PrincipalDirectory>().ResolveOrProvisionAsync(sub, email, null)).Id);
+
+    private Task<OpResult<OwnerGrantDto>> GrantCalAsync(Guid caller, Guid calId, string email, string access = "owner") =>
+        InScope(sp => sp.GetRequiredService<CalendarService>().GrantCalendarOwnerAsync(caller, calId, new GrantOwnerRequest(email, access)));
+
+    private Task<OpResult> RevokeCalAsync(Guid caller, Guid calId, string email) =>
+        InScope(sp => sp.GetRequiredService<CalendarService>().RevokeCalendarOwnerAsync(caller, calId, email));
 
     [Fact]
     public async Task Participation_history_is_composed_from_events()
@@ -52,19 +62,109 @@ public sealed class StoreLevelTests(CalApiTestFactory factory) : IntegrationTest
     [Fact]
     public async Task Granting_a_second_owner_lets_them_read_the_calendar()
     {
-        var alice = Guid.NewGuid();
-        var bob = Guid.NewGuid();
+        var alice = await ProvisionAsync("sub-alice", "alice@x.test");
         var calId = (await InScope(sp => sp.GetRequiredService<CalendarService>()
             .CreateAsync(alice, new CreateCalendarRequest("fam", "Family", "calendar", null, "UTC")))).Value!.Id;
 
-        await using (var s = Factory.Store.LightweightSession())
-        {
-            s.Store(new CalendarOwner { Id = CalendarOwner.MakeId(calId, bob), CalendarId = calId, PrincipalId = bob, Access = Access.Owner });
-            await s.SaveChangesAsync();
-        }
+        var grant = await GrantCalAsync(alice, calId, "bob@x.test");
+        Assert.Equal(OpStatus.Ok, grant.Status);
+        var bob = grant.Value!.PrincipalId;
 
         Assert.True(await InScope(sp => sp.GetRequiredService<AccessResolver>().CanReadCalendarAsync(bob, calId)));
         var bobs = await InScope(sp => sp.GetRequiredService<CalendarService>().ListContainersAsync(bob));
         Assert.Contains(bobs.Value!, c => c.Id == calId);
+    }
+
+    [Fact]
+    public async Task Re_granting_updates_access_in_place()
+    {
+        var alice = await ProvisionAsync("sub-alice", "alice@x.test");
+        var calId = (await InScope(sp => sp.GetRequiredService<CalendarService>()
+            .CreateAsync(alice, new CreateCalendarRequest("fam", "Family", "calendar", null, "UTC")))).Value!.Id;
+
+        var bob = (await GrantCalAsync(alice, calId, "bob@x.test", "owner")).Value!.PrincipalId;
+        await GrantCalAsync(alice, calId, "bob@x.test", "read");   // downgrade
+
+        await using var s = Factory.Store.LightweightSession();
+        var rows = await s.Query<CalendarOwner>().Where(o => o.CalendarId == calId && o.PrincipalId == bob).ToListAsync();
+        Assert.Single(rows);                       // deterministic MakeId → upsert, not a duplicate
+        Assert.Equal(Access.Read, rows[0].Access);
+    }
+
+    [Fact]
+    public async Task Revoking_drops_access()
+    {
+        var alice = await ProvisionAsync("sub-alice", "alice@x.test");
+        var calId = (await InScope(sp => sp.GetRequiredService<CalendarService>()
+            .CreateAsync(alice, new CreateCalendarRequest("fam", "Family", "calendar", null, "UTC")))).Value!.Id;
+        var bob = (await GrantCalAsync(alice, calId, "bob@x.test")).Value!.PrincipalId;
+
+        var revoke = await RevokeCalAsync(alice, calId, "bob@x.test");
+        Assert.Equal(OpStatus.Ok, revoke.Status);
+        Assert.False(await InScope(sp => sp.GetRequiredService<AccessResolver>().CanReadCalendarAsync(bob, calId)));
+    }
+
+    [Fact]
+    public async Task Cannot_revoke_the_last_owner()
+    {
+        var alice = await ProvisionAsync("sub-alice", "alice@x.test");
+        var calId = (await InScope(sp => sp.GetRequiredService<CalendarService>()
+            .CreateAsync(alice, new CreateCalendarRequest("fam", "Family", "calendar", null, "UTC")))).Value!.Id;
+
+        var revoke = await RevokeCalAsync(alice, calId, "alice@x.test");
+        Assert.Equal(OpStatus.Conflict, revoke.Status);
+    }
+
+    [Fact]
+    public async Task Granting_an_unprovisioned_email_converges_on_login()
+    {
+        var alice = await ProvisionAsync("sub-alice", "alice@x.test");
+        var calId = (await InScope(sp => sp.GetRequiredService<CalendarService>()
+            .CreateAsync(alice, new CreateCalendarRequest("fam", "Family", "calendar", null, "UTC")))).Value!.Id;
+
+        var carolId = (await GrantCalAsync(alice, calId, "carol@x.test")).Value!.PrincipalId;   // placeholder principal
+        var carol = await InScope(sp => sp.GetRequiredService<PrincipalDirectory>()
+            .ResolveOrProvisionAsync("oidc-sub-carol", "carol@x.test", "Carol"));               // first real login
+
+        Assert.Equal(carolId, carol.Id);                  // same row — did not create a duplicate
+        Assert.Equal("oidc-sub-carol", carol.AuthentikSub); // placeholder sub upgraded to the real one
+    }
+
+    [Fact]
+    public async Task Bootstrap_is_idempotent()
+    {
+        var alice = await ProvisionAsync("sub-alice", "alice@x.test");
+
+        var first = await InScope(sp => sp.GetRequiredService<CalendarService>().BootstrapPersonalAsync(alice));
+        Assert.Equal(2, first.Value!.Count);
+        Assert.Contains(first.Value!, c => c is { Kind: "calendar", Slug: "personal" });
+        Assert.Contains(first.Value!, c => c is { Kind: "addressbook", Slug: "personal" });
+
+        var second = await InScope(sp => sp.GetRequiredService<CalendarService>().BootstrapPersonalAsync(alice));
+        Assert.Equal(
+            first.Value!.Select(c => c.Id).OrderBy(x => x),
+            second.Value!.Select(c => c.Id).OrderBy(x => x));   // same ids, nothing new created
+
+        var all = await InScope(sp => sp.GetRequiredService<CalendarService>().ListContainersAsync(alice));
+        Assert.Equal(2, all.Value!.Count);
+    }
+
+    [Fact]
+    public async Task Address_book_grant_and_revoke_are_symmetric()
+    {
+        var alice = await ProvisionAsync("sub-alice", "alice@x.test");
+        var bookId = (await InScope(sp => sp.GetRequiredService<CalendarService>()
+            .CreateAsync(alice, new CreateCalendarRequest("fam", "Family", "addressbook", null, null)))).Value!.Id;
+
+        var grant = await InScope(sp => sp.GetRequiredService<CalendarService>()
+            .GrantAddressBookOwnerAsync(alice, bookId, new GrantOwnerRequest("bob@x.test", "read")));
+        Assert.Equal(OpStatus.Ok, grant.Status);
+        var bob = grant.Value!.PrincipalId;
+        Assert.True(await InScope(sp => sp.GetRequiredService<AccessResolver>().CanReadAddressBookAsync(bob, bookId)));
+
+        var revoke = await InScope(sp => sp.GetRequiredService<CalendarService>()
+            .RevokeAddressBookOwnerAsync(alice, bookId, "bob@x.test"));
+        Assert.Equal(OpStatus.Ok, revoke.Status);
+        Assert.False(await InScope(sp => sp.GetRequiredService<AccessResolver>().CanReadAddressBookAsync(bob, bookId)));
     }
 }

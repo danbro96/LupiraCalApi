@@ -52,6 +52,22 @@ public sealed class RestEndpointsTests(CalApiTestFactory factory) : IntegrationT
     }
 
     [Fact]
+    public async Task Bootstrap_creates_personal_containers_and_is_idempotent()
+    {
+        var api = Factory.ApiClient(Email);
+
+        var first = await (await api.PostAsync("/api/me/bootstrap", null)).Content.ReadFromJsonAsync<List<ContainerDto>>();
+        Assert.Contains(first!, c => c is { Kind: "calendar", Slug: "personal" });
+        Assert.Contains(first!, c => c is { Kind: "addressbook", Slug: "personal" });
+
+        var second = await (await api.PostAsync("/api/me/bootstrap", null)).Content.ReadFromJsonAsync<List<ContainerDto>>();
+        Assert.Equal(first!.Select(c => c.Id).OrderBy(x => x), second!.Select(c => c.Id).OrderBy(x => x));
+
+        var all = await api.GetFromJsonAsync<List<ContainerDto>>("/api/calendars");
+        Assert.Equal(2, all!.Count);   // exactly the two personal containers — no duplicates
+    }
+
+    [Fact]
     public async Task Unfiled_item_has_no_calendar_memberships()
     {
         var api = Factory.ApiClient(Email);

@@ -1,11 +1,13 @@
+using LupiraCalApi.Auth;
 using LupiraCalApi.Domain;
 using LupiraCalApi.Dtos.Calendars;
 using Marten;
 
 namespace LupiraCalApi.Application;
 
-/// <summary>Lists and creates the containers (calendars + address books) a principal can access. Creation grants the caller <c>owner</c>.</summary>
-public sealed class CalendarService(IDocumentSession session)
+/// <summary>Lists and creates the containers (calendars + address books) a principal can access, and shares them by
+/// granting/revoking co-owners. Creation grants the caller <c>owner</c>; sharing is owner-only and targets a member by email.</summary>
+public sealed class CalendarService(IDocumentSession session, PrincipalDirectory principals, AccessResolver access)
 {
     public async Task<OpResult<List<ContainerDto>>> ListContainersAsync(Guid principalId, CancellationToken ct = default)
     {
@@ -42,5 +44,86 @@ public sealed class CalendarService(IDocumentSession session)
         session.Store(new CalendarOwner { Id = CalendarOwner.MakeId(c.Id, principalId), CalendarId = c.Id, PrincipalId = principalId, Access = Access.Owner });
         await session.SaveChangesAsync(ct);
         return OpResult<ContainerDto>.Ok(new ContainerDto(c.Id, "calendar", c.Slug, c.DisplayName, nameof(Access.Owner)));
+    }
+
+    /// <summary>Ensures the caller has a <c>personal</c> calendar and a <c>personal</c> address book; idempotent
+    /// (a second call creates nothing). Returns both containers.</summary>
+    public async Task<OpResult<List<ContainerDto>>> BootstrapPersonalAsync(Guid principalId, CancellationToken ct = default)
+    {
+        var existing = (await ListContainersAsync(principalId, ct)).Value!;
+
+        var cal = existing.FirstOrDefault(c => c.Kind == "calendar" && c.Slug == "personal")
+            ?? (await CreateAsync(principalId, new CreateCalendarRequest("personal", "Personal", "calendar", null, "UTC"), ct)).Value!;
+        var book = existing.FirstOrDefault(c => c.Kind == "addressbook" && c.Slug == "personal")
+            ?? (await CreateAsync(principalId, new CreateCalendarRequest("personal", "Personal", "addressbook", null, null), ct)).Value!;
+
+        return OpResult<List<ContainerDto>>.Ok([cal, book]);
+    }
+
+    public async Task<OpResult<OwnerGrantDto>> GrantCalendarOwnerAsync(Guid callerId, Guid calendarId, GrantOwnerRequest r, CancellationToken ct = default)
+    {
+        if (await session.LoadAsync<Calendar>(calendarId, ct) is null) return OpResult<OwnerGrantDto>.NotFound();
+        if (!await access.IsCalendarOwnerAsync(callerId, calendarId, ct)) return OpResult<OwnerGrantDto>.Forbidden("Only an owner may grant access.");
+        var email = (r.Email ?? "").Trim();
+        if (email.Length == 0) return OpResult<OwnerGrantDto>.Invalid("Email is required.");
+        var (ok, level) = AccessParsing.Parse(r.Access);
+        if (!ok) return OpResult<OwnerGrantDto>.Invalid("Access must be owner, read-write, or read.");
+
+        var target = await principals.ResolveOrProvisionAsync(null, email, null, ct);
+        // Deterministic id → re-granting upserts the access level instead of duplicating the grant.
+        session.Store(new CalendarOwner { Id = CalendarOwner.MakeId(calendarId, target.Id), CalendarId = calendarId, PrincipalId = target.Id, Access = level });
+        await session.SaveChangesAsync(ct);
+        return OpResult<OwnerGrantDto>.Ok(new OwnerGrantDto(calendarId, "calendar", target.Id, target.Email, level.ToString()));
+    }
+
+    public async Task<OpResult> RevokeCalendarOwnerAsync(Guid callerId, Guid calendarId, string email, CancellationToken ct = default)
+    {
+        if (await session.LoadAsync<Calendar>(calendarId, ct) is null) return OpResult.NotFound();
+        if (!await access.IsCalendarOwnerAsync(callerId, calendarId, ct)) return OpResult.Forbidden("Only an owner may revoke access.");
+        var target = await principals.FindByEmailAsync(email, ct);
+        if (target is null) return OpResult.NotFound();
+
+        var grants = await session.Query<CalendarOwner>().Where(o => o.CalendarId == calendarId).ToListAsync(ct);
+        var targetGrant = grants.FirstOrDefault(o => o.PrincipalId == target.Id);
+        if (targetGrant is null) return OpResult.NotFound();
+        if (OwnerGrants.WouldOrphan(targetGrant.Access, [.. grants.Where(o => o.PrincipalId != target.Id).Select(o => o.Access)]))
+            return OpResult.Conflict("Cannot remove the last owner.");
+
+        session.Delete(targetGrant);
+        await session.SaveChangesAsync(ct);
+        return OpResult.Ok();
+    }
+
+    public async Task<OpResult<OwnerGrantDto>> GrantAddressBookOwnerAsync(Guid callerId, Guid addressBookId, GrantOwnerRequest r, CancellationToken ct = default)
+    {
+        if (await session.LoadAsync<AddressBook>(addressBookId, ct) is null) return OpResult<OwnerGrantDto>.NotFound();
+        if (!await access.IsAddressBookOwnerAsync(callerId, addressBookId, ct)) return OpResult<OwnerGrantDto>.Forbidden("Only an owner may grant access.");
+        var email = (r.Email ?? "").Trim();
+        if (email.Length == 0) return OpResult<OwnerGrantDto>.Invalid("Email is required.");
+        var (ok, level) = AccessParsing.Parse(r.Access);
+        if (!ok) return OpResult<OwnerGrantDto>.Invalid("Access must be owner, read-write, or read.");
+
+        var target = await principals.ResolveOrProvisionAsync(null, email, null, ct);
+        session.Store(new AddressBookOwner { Id = AddressBookOwner.MakeId(addressBookId, target.Id), AddressBookId = addressBookId, PrincipalId = target.Id, Access = level });
+        await session.SaveChangesAsync(ct);
+        return OpResult<OwnerGrantDto>.Ok(new OwnerGrantDto(addressBookId, "addressbook", target.Id, target.Email, level.ToString()));
+    }
+
+    public async Task<OpResult> RevokeAddressBookOwnerAsync(Guid callerId, Guid addressBookId, string email, CancellationToken ct = default)
+    {
+        if (await session.LoadAsync<AddressBook>(addressBookId, ct) is null) return OpResult.NotFound();
+        if (!await access.IsAddressBookOwnerAsync(callerId, addressBookId, ct)) return OpResult.Forbidden("Only an owner may revoke access.");
+        var target = await principals.FindByEmailAsync(email, ct);
+        if (target is null) return OpResult.NotFound();
+
+        var grants = await session.Query<AddressBookOwner>().Where(o => o.AddressBookId == addressBookId).ToListAsync(ct);
+        var targetGrant = grants.FirstOrDefault(o => o.PrincipalId == target.Id);
+        if (targetGrant is null) return OpResult.NotFound();
+        if (OwnerGrants.WouldOrphan(targetGrant.Access, [.. grants.Where(o => o.PrincipalId != target.Id).Select(o => o.Access)]))
+            return OpResult.Conflict("Cannot remove the last owner.");
+
+        session.Delete(targetGrant);
+        await session.SaveChangesAsync(ct);
+        return OpResult.Ok();
     }
 }

@@ -1,3 +1,4 @@
+using LupiraCalApi.Dtos.Calendars;
 using LupiraCalApi.Dtos.Me;
 using LupiraCalApi.Handlers;
 
@@ -12,6 +13,13 @@ public static class MeEndpoints
             .WithTags("Me")
             .WithSummary("The caller's resolved local identity (JIT-provisioned on first login).")
             .Produces<MeDto>(StatusCodes.Status200OK)
+            .Produces(StatusCodes.Status401Unauthorized);
+
+        app.MapPost("/api/me/bootstrap", (MeHandler h, CancellationToken ct) => h.BootstrapAsync(ct))
+            .RequireAuthorization("ApiPolicy")
+            .WithTags("Me")
+            .WithSummary("Idempotently ensure the caller has a personal calendar + address book; returns both.")
+            .Produces<List<ContainerDto>>(StatusCodes.Status200OK)
             .Produces(StatusCodes.Status401Unauthorized);
         return app;
     }

@@ -10,6 +10,15 @@ namespace LupiraCalApi.Application;
 /// </summary>
 public sealed class PrincipalDirectory(IDocumentSession session)
 {
+    /// <summary>Looks up an existing principal by login email without provisioning. Used where a missing principal
+    /// is a "not found" (e.g. revoking a grant), not a reason to create a placeholder.</summary>
+    public async Task<Principal?> FindByEmailAsync(string email, CancellationToken ct = default)
+    {
+        email = email.Trim().ToLowerInvariant();
+        if (email.Length == 0) return null;
+        return await session.Query<Principal>().FirstOrDefaultAsync(x => x.Email == email, ct);
+    }
+
     public async Task<Principal> ResolveOrProvisionAsync(string? sub, string email, string? name, CancellationToken ct = default)
     {
         email = email.Trim().ToLowerInvariant();

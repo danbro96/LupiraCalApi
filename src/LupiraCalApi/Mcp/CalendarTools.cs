@@ -66,6 +66,57 @@ public sealed class CalendarTools
         return Require(await calendars.ListContainersAsync(u.Id));
     }
 
+    [McpServerTool, Description("Ensure the caller has a personal calendar + address book (idempotent); returns both.")]
+    public static async Task<IReadOnlyList<ContainerDto>> bootstrap_me(CalendarService calendars, CurrentUser user)
+    {
+        var u = await user.GetAsync();
+        return Require(await calendars.BootstrapPersonalAsync(u.Id));
+    }
+
+    [McpServerTool, Description("Grant a member access to a calendar, by email. access = owner|read-write|read (default owner).")]
+    public static async Task<OwnerGrantDto> grant_calendar_owner(
+        CalendarService calendars, CurrentUser user,
+        [Description("Calendar id.")] Guid calendarId,
+        [Description("The member's login email.")] string email,
+        [Description("owner|read-write|read.")] string access = "owner")
+    {
+        var u = await user.GetAsync();
+        return Require(await calendars.GrantCalendarOwnerAsync(u.Id, calendarId, new GrantOwnerRequest(email, access)));
+    }
+
+    [McpServerTool, Description("Revoke a member's access to a calendar, by email. Fails if it would remove the last owner.")]
+    public static async Task<string> revoke_calendar_owner(
+        CalendarService calendars, CurrentUser user,
+        [Description("Calendar id.")] Guid calendarId,
+        [Description("The member's login email.")] string email)
+    {
+        var u = await user.GetAsync();
+        Require(await calendars.RevokeCalendarOwnerAsync(u.Id, calendarId, email));
+        return $"Revoked {email}'s access to calendar {calendarId}.";
+    }
+
+    [McpServerTool, Description("Grant a member access to an address book, by email. access = owner|read-write|read (default owner).")]
+    public static async Task<OwnerGrantDto> grant_addressbook_owner(
+        CalendarService calendars, CurrentUser user,
+        [Description("Address book id.")] Guid addressBookId,
+        [Description("The member's login email.")] string email,
+        [Description("owner|read-write|read.")] string access = "owner")
+    {
+        var u = await user.GetAsync();
+        return Require(await calendars.GrantAddressBookOwnerAsync(u.Id, addressBookId, new GrantOwnerRequest(email, access)));
+    }
+
+    [McpServerTool, Description("Revoke a member's access to an address book, by email. Fails if it would remove the last owner.")]
+    public static async Task<string> revoke_addressbook_owner(
+        CalendarService calendars, CurrentUser user,
+        [Description("Address book id.")] Guid addressBookId,
+        [Description("The member's login email.")] string email)
+    {
+        var u = await user.GetAsync();
+        Require(await calendars.RevokeAddressBookOwnerAsync(u.Id, addressBookId, email));
+        return $"Revoked {email}'s access to address book {addressBookId}.";
+    }
+
     [McpServerTool, Description("Link a calendar item to an external item (e.g. a LupiraTasks item) by reference id.")]
     public static async Task<RelationDto> link_item_to_task(
         RelationService relations, CurrentUser user,
@@ -96,4 +147,18 @@ public sealed class CalendarTools
         OpStatus.Conflict => throw new McpException(r.Error ?? "Conflict."),
         _ => throw new McpException("Unexpected result."),
     };
+
+    /// <summary>Asserts a no-content outcome succeeded, surfacing non-Ok statuses as an MCP tool error.</summary>
+    private static void Require(OpResult r)
+    {
+        if (r.IsOk) return;
+        throw r.Status switch
+        {
+            OpStatus.NotFound => new McpException("Not found."),
+            OpStatus.Forbidden => new McpException(r.Error ?? "Forbidden."),
+            OpStatus.Invalid => new McpException(r.Error ?? "Invalid request."),
+            OpStatus.Conflict => new McpException(r.Error ?? "Conflict."),
+            _ => new McpException("Unexpected result."),
+        };
+    }
 }

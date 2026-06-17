@@ -116,6 +116,7 @@ app.MapHealthChecks("/readyz", new HealthCheckOptions { Predicate = c => c.Tags.
 // REST surface (/api), one MapXxx per resource.
 app.MapMe();
 app.MapCalendars();
+app.MapOwners();
 app.MapCalendarItems();
 app.MapContacts();
 app.MapRelations();
