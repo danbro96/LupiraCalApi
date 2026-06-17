@@ -38,21 +38,8 @@ public sealed class DavBasicAuthHandler : AuthenticationHandler<AuthenticationSc
         var value = header.ToString();
         if (!value.StartsWith("Basic ", StringComparison.OrdinalIgnoreCase)) return Task.FromResult(AuthenticateResult.NoResult());
 
-        string email, password;
-        try
-        {
-            var decoded = Encoding.UTF8.GetString(Convert.FromBase64String(value["Basic ".Length..].Trim()));
-            var sep = decoded.IndexOf(':');
-            if (sep < 0) return Task.FromResult(AuthenticateResult.Fail("Malformed Basic credentials."));
-            email = decoded[..sep].Trim().ToLowerInvariant();
-            password = decoded[(sep + 1)..];
-        }
-        catch
-        {
-            return Task.FromResult(AuthenticateResult.Fail("Malformed Basic credentials."));
-        }
-
-        if (email.Length == 0 || password.Length == 0) return Task.FromResult(AuthenticateResult.Fail("Missing credentials."));
+        if (!TryParseBasicCredentials(value, out var email, out var password))
+            return Task.FromResult(AuthenticateResult.Fail("Malformed or missing Basic credentials."));
 
         var bound = _env.IsDevelopment() || LdapBind(email, password);
         if (!bound) return Task.FromResult(AuthenticateResult.Fail("Invalid credentials."));
@@ -108,14 +95,38 @@ public sealed class DavBasicAuthHandler : AuthenticationHandler<AuthenticationSc
         }
     }
 
-    private static (string Host, int Port) ParseLdapUri(string uri)
+    /// <summary>Decodes an HTTP <c>Basic</c> authorization header into a (lowercased, trimmed) email + password.
+    /// Returns false on a non-<c>Basic</c> header, invalid base64, a missing <c>:</c> separator, or an empty
+    /// email/password. The split is on the <em>first</em> colon, so passwords may themselves contain colons.</summary>
+    internal static bool TryParseBasicCredentials(string authorizationHeaderValue, out string email, out string password)
+    {
+        email = "";
+        password = "";
+        if (string.IsNullOrEmpty(authorizationHeaderValue) ||
+            !authorizationHeaderValue.StartsWith("Basic ", StringComparison.OrdinalIgnoreCase)) return false;
+        try
+        {
+            var decoded = Encoding.UTF8.GetString(Convert.FromBase64String(authorizationHeaderValue["Basic ".Length..].Trim()));
+            var sep = decoded.IndexOf(':');
+            if (sep < 0) return false;
+            email = decoded[..sep].Trim().ToLowerInvariant();
+            password = decoded[(sep + 1)..];
+        }
+        catch
+        {
+            return false;
+        }
+        return email.Length > 0 && password.Length > 0;
+    }
+
+    internal static (string Host, int Port) ParseLdapUri(string uri)
     {
         var u = new Uri(uri);
         return (u.Host, u.Port > 0 ? u.Port : 389);
     }
 
     // RFC 4515 filter-value escaping to prevent LDAP filter injection via the username.
-    private static string EscapeLdapFilter(string s) => s
+    internal static string EscapeLdapFilter(string s) => s
         .Replace("\\", "\\5c").Replace("*", "\\2a").Replace("(", "\\28").Replace(")", "\\29").Replace("\0", "\\00");
 
     protected override Task HandleChallengeAsync(AuthenticationProperties properties)

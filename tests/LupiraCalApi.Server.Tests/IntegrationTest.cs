@@ -1,8 +1,8 @@
+﻿using LupiraCalApi.Dtos.Calendars;
+using LupiraCalApi.Dtos.Me;
 using System.Net.Http.Json;
 using System.Text;
 using System.Xml.Linq;
-using LupiraCalApi.Dtos.Calendars;
-using LupiraCalApi.Dtos.Me;
 using Xunit;
 
 namespace LupiraCalApi.Server.Tests;

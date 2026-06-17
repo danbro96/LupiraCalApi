@@ -8,6 +8,11 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <!-- Expose internal pure helpers (DavProtocol, DavBasicAuthHandler credential/LDAP parsing) for unit testing. -->
+    <InternalsVisibleTo Include="LupiraCalApi.Server.Tests" />
+  </ItemGroup>
+
+  <ItemGroup>
     <!-- The bounded context (Domain + Application + Data). The host is a thin transport/composition
          layer over it; the project boundary keeps ASP.NET out of the core. EF Core / Npgsql / Ical.Net /
          FolkerKinzel flow in transitively from Core. -->

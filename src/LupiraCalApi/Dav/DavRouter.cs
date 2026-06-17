@@ -72,7 +72,7 @@ public static class DavRouter
                 }
                 if (rest.Length == 5)
                 {
-                    var calId = Guid.Parse(rest[3]); var uid = StripExt(rest[4]);
+                    var calId = Guid.Parse(rest[3]); var uid = DavProtocol.StripExt(rest[4]);
                     if (method is "GET" or "HEAD") { await GetItem(ctx, session, access, user, calId, uid); return; }
                     if (method == "PUT") { await HandlePutItem(ctx, user, calId, uid); return; }
                     if (method == "DELETE") { await HandleDeleteItem(ctx, user, calId, uid); return; }
@@ -89,7 +89,7 @@ public static class DavRouter
                 }
                 if (rest.Length == 5)
                 {
-                    var abId = Guid.Parse(rest[3]); var uid = StripExt(rest[4]);
+                    var abId = Guid.Parse(rest[3]); var uid = DavProtocol.StripExt(rest[4]);
                     if (method is "GET" or "HEAD") { await GetContact(ctx, session, access, user, abId, uid); return; }
                     if (method == "PUT") { await HandlePutContact(ctx, user, abId, uid); return; }
                     if (method == "DELETE") { await HandleDeleteContact(ctx, user, abId, uid); return; }
@@ -221,20 +221,20 @@ public static class DavRouter
         var ct = ctx.RequestAborted;
         if (!await access.CanReadCalendarAsync(user.Id, calId, ct)) { ctx.Response.StatusCode = 404; return; }
         var body = await ReadBody(ctx);
-        var doc = TryParseXml(body);
+        var doc = DavProtocol.TryParseXml(body);
 
         if (doc?.Root?.Name == D + "sync-collection") { await CalendarSync(ctx, session, baseUrl, user, calId, doc); return; }
 
         var items = await AcceptedItemsAsync(session, calId, ct);
-        var requested = ExtractHrefUids(body, ".ics");
+        var requested = DavProtocol.ExtractHrefUids(body, ".ics");
         if (requested.Count > 0)
         {
             items = [.. items.Where(i => requested.Contains(i.IcalUid))];                  // calendar-multiget
         }
-        else if (ParseTimeRange(doc) is { } range)                                          // calendar-query time-range
+        else if (DavProtocol.ParseTimeRange(doc) is { } range)                              // calendar-query time-range
         {
             var exp = ctx.RequestServices.GetRequiredService<RecurrenceExpander>();
-            items = [.. items.Where(i => OverlapsWindow(i, range.Start, range.End, exp))];
+            items = [.. items.Where(i => DavProtocol.OverlapsWindow(i, range.Start, range.End, exp))];
         }
 
         var responses = items.Select(i => Response($"{baseUrl}/dav/u/{user.Id}/cal/{calId}/{i.IcalUid}.ics",
@@ -246,7 +246,7 @@ public static class DavRouter
     static async Task CalendarSync(HttpContext ctx, IQuerySession session, string baseUrl, Principal user, Guid calId, XDocument doc)
     {
         var ct = ctx.RequestAborted;
-        var token = ParseSyncToken(doc);
+        var token = DavProtocol.ParseSyncToken(doc);
         var newToken = await CurrentTokenAsync(session, ct);
         var responses = new List<XElement>();
         string Href(string uid) => $"{baseUrl}/dav/u/{user.Id}/cal/{calId}/{uid}.ics";
@@ -278,12 +278,12 @@ public static class DavRouter
         var ct = ctx.RequestAborted;
         if (!await access.CanReadAddressBookAsync(user.Id, abId, ct)) { ctx.Response.StatusCode = 404; return; }
         var body = await ReadBody(ctx);
-        var doc = TryParseXml(body);
+        var doc = DavProtocol.TryParseXml(body);
 
         if (doc?.Root?.Name == D + "sync-collection") { await AddressbookSync(ctx, session, baseUrl, user, abId, doc); return; }
 
         var contacts = await session.Query<Contact>().Where(x => x.AddressBookId == abId && x.DeletedAt == null).ToListAsync(ct);
-        var requested = ExtractHrefUids(body, ".vcf");
+        var requested = DavProtocol.ExtractHrefUids(body, ".vcf");
         if (requested.Count > 0) contacts = [.. contacts.Where(x => requested.Contains(x.VcardUid))];
 
         var responses = contacts.Select(x => Response($"{baseUrl}/dav/u/{user.Id}/card/{abId}/{x.VcardUid}.vcf",
@@ -295,7 +295,7 @@ public static class DavRouter
     static async Task AddressbookSync(HttpContext ctx, IQuerySession session, string baseUrl, Principal user, Guid abId, XDocument doc)
     {
         var ct = ctx.RequestAborted;
-        var token = ParseSyncToken(doc);
+        var token = DavProtocol.ParseSyncToken(doc);
         var newToken = await CurrentTokenAsync(session, ct);
         var responses = new List<XElement>();
         string Href(string uid) => $"{baseUrl}/dav/u/{user.Id}/card/{abId}/{uid}.vcf";
@@ -388,31 +388,16 @@ public static class DavRouter
             ctx.Response.StatusCode = w.Created ? StatusCodes.Status201Created : StatusCodes.Status204NoContent;
             return;
         }
-        ctx.Response.StatusCode = DavStatus(r.Status);
+        ctx.Response.StatusCode = DavProtocol.DavStatus(r.Status);
     }
 
-    static void WriteDavStatus(HttpContext ctx, OpResult r) => ctx.Response.StatusCode = DavStatus(r.Status);
-
-    static int DavStatus(OpStatus status) => status switch
-    {
-        OpStatus.Ok => StatusCodes.Status204NoContent,
-        OpStatus.Forbidden => StatusCodes.Status403Forbidden,
-        OpStatus.NotFound => StatusCodes.Status404NotFound,
-        OpStatus.Conflict => StatusCodes.Status412PreconditionFailed,
-        OpStatus.Invalid => StatusCodes.Status400BadRequest,
-        _ => StatusCodes.Status500InternalServerError,
-    };
+    static void WriteDavStatus(HttpContext ctx, OpResult r) => ctx.Response.StatusCode = DavProtocol.DavStatus(r.Status);
 
     static (string? IfMatch, bool IfNoneMatchStar) Preconditions(HttpContext ctx)
     {
-        string? ifMatch = null;
-        if (ctx.Request.Headers.TryGetValue("If-Match", out var im) && im.Count > 0)
-        {
-            var v = im.ToString().Trim();
-            if (v.Length > 0 && v != "*") ifMatch = v.Trim('"');
-        }
-        var inm = ctx.Request.Headers.TryGetValue("If-None-Match", out var n) ? n.ToString().Trim() : "";
-        return (ifMatch, inm == "*");
+        var ifMatch = ctx.Request.Headers.TryGetValue("If-Match", out var im) && im.Count > 0 ? im.ToString() : null;
+        var ifNoneMatch = ctx.Request.Headers.TryGetValue("If-None-Match", out var n) ? n.ToString() : null;
+        return DavProtocol.ParsePreconditions(ifMatch, ifNoneMatch);
     }
 
     // ---------- helpers ----------
@@ -459,45 +444,6 @@ public static class DavRouter
     static XElement SupportedReports(params XName[] reports) => new(D + "supported-report-set",
         reports.Select(r => new XElement(D + "supported-report", new XElement(D + "report", new XElement(r)))));
 
-    static long? ParseSyncToken(XDocument doc)
-    {
-        var el = doc.Descendants(D + "sync-token").FirstOrDefault();
-        var v = el?.Value.Trim();
-        if (string.IsNullOrEmpty(v)) return null;
-        return long.TryParse(v, NumberStyles.Integer, CultureInfo.InvariantCulture, out var t) ? t : null;
-    }
-
-    static (DateTimeOffset Start, DateTimeOffset End)? ParseTimeRange(XDocument? doc)
-    {
-        var tr = doc?.Descendants().FirstOrDefault(x => x.Name.LocalName == "time-range");
-        if (tr is null) return null;
-        var s = ParseICalUtc(tr.Attribute("start")?.Value);
-        var e = ParseICalUtc(tr.Attribute("end")?.Value);
-        return s is { } start && e is { } end ? (start, end) : null;
-    }
-
-    static DateTimeOffset? ParseICalUtc(string? s) =>
-        !string.IsNullOrEmpty(s) && DateTimeOffset.TryParseExact(
-            s, "yyyyMMdd'T'HHmmss'Z'", CultureInfo.InvariantCulture,
-            DateTimeStyles.AssumeUniversal | DateTimeStyles.AdjustToUniversal, out var d) ? d : null;
-
-    static bool OverlapsWindow(CalendarItem i, DateTimeOffset start, DateTimeOffset end, RecurrenceExpander exp)
-    {
-        if (!string.IsNullOrWhiteSpace(i.RecurrenceRule)) return exp.Expand(i.SourceIcalendar, start, end).Count > 0;
-        DateTimeOffset? s = i.IsAllDay && i.StartDate is { } d
-            ? new DateTimeOffset(d.Year, d.Month, d.Day, 0, 0, 0, TimeSpan.Zero) : i.StartsAt;
-        if (s is null) return false;
-        var en = i.EndsAt ?? (i.IsAllDay && i.EndDate is { } ed
-            ? new DateTimeOffset(ed.Year, ed.Month, ed.Day, 0, 0, 0, TimeSpan.Zero) : s.Value);
-        return s.Value < end && en >= start;
-    }
-
-    static XDocument? TryParseXml(string body)
-    {
-        if (string.IsNullOrWhiteSpace(body)) return null;
-        try { return XDocument.Parse(body); } catch { return null; }
-    }
-
     static XElement Response(string href, params XElement[] props) => new(D + "response",
         new XElement(D + "href", href),
         new XElement(D + "propstat",
@@ -508,35 +454,9 @@ public static class DavRouter
 
     static string Etag(string contentHash) => $"\"{contentHash}\"";
 
-    static string StripExt(string file)
-    {
-        var dot = file.LastIndexOf('.');
-        return dot > 0 ? file[..dot] : file;
-    }
-
     static async Task<string> ReadBody(HttpContext ctx)
     {
         using var reader = new StreamReader(ctx.Request.Body);
         return await reader.ReadToEndAsync(ctx.RequestAborted);
-    }
-
-    static List<string> ExtractHrefUids(string body, string ext)
-    {
-        var uids = new HashSet<string>();
-        if (string.IsNullOrWhiteSpace(body)) return [];
-        try
-        {
-            var doc = XDocument.Parse(body);
-            foreach (var href in doc.Descendants(D + "href"))
-            {
-                var name = href.Value.TrimEnd('/');
-                var slash = name.LastIndexOf('/');
-                if (slash >= 0) name = name[(slash + 1)..];
-                if (name.EndsWith(ext, StringComparison.OrdinalIgnoreCase)) name = name[..^ext.Length];
-                if (name.Length > 0) uids.Add(name);
-            }
-        }
-        catch { /* malformed → treat as query (return all) */ }
-        return [.. uids];
     }
 }

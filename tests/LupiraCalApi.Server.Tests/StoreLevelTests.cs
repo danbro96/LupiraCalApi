@@ -1,9 +1,8 @@
-using LupiraCalApi.Application;
+﻿using LupiraCalApi.Application;
 using LupiraCalApi.Auth;
 using LupiraCalApi.Domain;
 using LupiraCalApi.Dtos.CalendarItems;
 using LupiraCalApi.Dtos.Calendars;
-using Marten;
 using Microsoft.Extensions.DependencyInjection;
 using Xunit;
 

@@ -1,10 +1,10 @@
-using System.Net.Http.Headers;
-using System.Text;
-using Marten;
+﻿using Marten;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
+using System.Net.Http.Headers;
+using System.Text;
 using Testcontainers.PostgreSql;
 
 namespace LupiraCalApi.Server.Tests;

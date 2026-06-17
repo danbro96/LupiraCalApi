@@ -1,7 +1,7 @@
-using System.Net.Http.Json;
-using LupiraCalApi.Dtos.CalendarItems;
+﻿using LupiraCalApi.Dtos.CalendarItems;
 using LupiraCalApi.Dtos.Calendars;
 using LupiraCalApi.Dtos.Me;
+using System.Net.Http.Json;
 using Xunit;
 
 namespace LupiraCalApi.Server.Tests;

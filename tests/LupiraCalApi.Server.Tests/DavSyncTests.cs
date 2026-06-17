@@ -1,5 +1,4 @@
-using System.Net;
-using System.Xml.Linq;
+﻿using System.Xml.Linq;
 using Xunit;
 
 namespace LupiraCalApi.Server.Tests;
