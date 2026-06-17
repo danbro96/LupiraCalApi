@@ -10,6 +10,7 @@ using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Diagnostics.HealthChecks;
 using Microsoft.AspNetCore.HttpOverrides;
+using OpenTelemetry.Logs;
 using OpenTelemetry.Metrics;
 using OpenTelemetry.Resources;
 using OpenTelemetry.Trace;
@@ -74,6 +75,17 @@ builder.Services.AddOpenTelemetry()
         m.AddRuntimeInstrumentation();
         if (!string.IsNullOrWhiteSpace(otlpEndpoint)) m.AddOtlpExporter();
     });
+
+// Logs -> OpenObserve via OTLP, same env gate as traces/metrics. Without this the app's ILogger output
+// only reaches stdout/`docker logs` and never the OpenObserve `default` logs stream — so the debug-logs
+// skill can't see lupira-cal-api (the exact gap that hid the DAV bind failures during stand-up).
+builder.Logging.AddOpenTelemetry(o =>
+{
+    o.SetResourceBuilder(ResourceBuilder.CreateDefault().AddService("lupira-cal-api"));
+    o.IncludeScopes = true;
+    o.IncludeFormattedMessage = true;
+    if (!string.IsNullOrWhiteSpace(otlpEndpoint)) o.AddOtlpExporter();
+});
 
 builder.Services.AddHealthChecks()
     .AddCheck<DatabaseReadyCheck>("postgres", tags: ["ready"]);
