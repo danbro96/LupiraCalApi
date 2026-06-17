@@ -157,6 +157,14 @@ public sealed class CalendarItemService(IDocumentSession session, AccessResolver
         var id = DeterministicGuid.From(icalUid);
         var stream = await session.Events.FetchForWriting<CalendarItem>(id, ct);
         var existing = stream.Aggregate;
+        // Streams are keyed by iCal UID alone, so a UID can resolve to another principal's item. Only allow writing
+        // an item already associated with this calendar (incl. resurrecting one removed from it), an unclaimed item
+        // (no accepted membership anywhere), or one the caller can already write — never overwrite a foreign item.
+        var mayWrite = existing is null
+            || existing.Calendars.Any(m => m.CalendarId == calendarId)
+            || !existing.Calendars.Any(m => m.Status == CalendarEntryStatus.Accepted)
+            || await CanWriteItemAsync(principalId, existing, ct);
+        if (!mayWrite) return OpResult<DavWriteResult>.Forbidden("This resource belongs to another collection.");
         var liveInCal = existing is { DeletedAt: null } && existing.IsAcceptedIn(calendarId);
         if (ifNoneMatchStar && liveInCal) return OpResult<DavWriteResult>.Conflict("Resource already exists.");
         if (ifMatch is not null && (!liveInCal || existing!.ContentHash != ifMatch)) return OpResult<DavWriteResult>.Conflict("ETag mismatch.");

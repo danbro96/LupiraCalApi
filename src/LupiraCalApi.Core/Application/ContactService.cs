@@ -74,6 +74,10 @@ public sealed class ContactService(IDocumentSession session, AccessResolver acce
         var id = DeterministicGuid.From(vcardUid);
         var stream = await session.Events.FetchForWriting<Contact>(id, ct);
         var existing = stream.Aggregate;
+        // Streams are keyed by vCard UID alone, so a UID can resolve to a contact in another address book; applying
+        // a PUT would move it. Refuse unless the caller can also write the book the contact currently lives in.
+        if (existing is not null && existing.AddressBookId != addressBookId && !await access.CanWriteAddressBookAsync(principalId, existing.AddressBookId, ct))
+            return OpResult<DavWriteResult>.Forbidden("This resource belongs to another collection.");
         var live = existing is { DeletedAt: null };
         if (ifNoneMatchStar && live) return OpResult<DavWriteResult>.Conflict("Resource already exists.");
         if (ifMatch is not null && (!live || existing!.ContentHash != ifMatch)) return OpResult<DavWriteResult>.Conflict("ETag mismatch.");
@@ -92,7 +96,8 @@ public sealed class ContactService(IDocumentSession session, AccessResolver acce
         var id = DeterministicGuid.From(vcardUid);
         var stream = await session.Events.FetchForWriting<Contact>(id, ct);
         var c = stream.Aggregate;
-        if (c is null || c.DeletedAt is not null) return OpResult.NotFound();
+        // c.AddressBookId != addressBookId guards the UID-collision case (the contact lives in another book).
+        if (c is null || c.DeletedAt is not null || c.AddressBookId != addressBookId) return OpResult.NotFound();
         if (ifMatch is not null && c.ContentHash != ifMatch) return OpResult.Conflict("ETag mismatch.");
         stream.AppendOne(new ContactDeleted(id));
         await session.SaveChangesAsync(ct);

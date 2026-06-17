@@ -33,6 +33,14 @@ public sealed class CurationService(IDocumentSession session, AccessResolver acc
         var stream = await session.Events.FetchForWriting<CalendarItem>(itemId, ct);
         var item = stream.Aggregate;
         if (item is null || item.DeletedAt is not null) return OpResult<CalendarItemDto>.NotFound();
+        // Object-level guard. Item streams carry no owner, and read/write access is derived from membership, so a
+        // bare CanWriteCalendar check would let a caller file ANY item into a calendar they control and thereby
+        // self-grant access. Only allow curating an item already associated with this calendar (proposed/filed
+        // here), an unclaimed item (no accepted membership anywhere), or one the caller can already read.
+        var mayCurate = item.Calendars.Any(m => m.CalendarId == calendarId)
+            || !item.Calendars.Any(m => m.Status == CalendarEntryStatus.Accepted)
+            || await access.CanReadItemAsync(principalId, item, ct);
+        if (!mayCurate) return OpResult<CalendarItemDto>.NotFound();
         stream.AppendOne(@event);
         await session.SaveChangesAsync(ct);
         var updated = await session.LoadAsync<CalendarItem>(itemId, ct);
