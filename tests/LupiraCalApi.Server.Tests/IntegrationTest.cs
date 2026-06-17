@@ -1,4 +1,5 @@
 ﻿using LupiraCalApi.Dtos.Calendars;
+using LupiraCalApi.Dtos.Contacts;
 using LupiraCalApi.Dtos.Me;
 using System.Net.Http.Json;
 using System.Text;
@@ -16,6 +17,7 @@ public abstract class IntegrationTest(CalApiTestFactory factory) : IAsyncLifetim
 
     protected static readonly XNamespace D = "DAV:";
     protected static readonly XNamespace C = "urn:ietf:params:xml:ns:caldav";
+    protected static readonly XNamespace CR = "urn:ietf:params:xml:ns:carddav";
     protected static readonly XNamespace CS = "http://calendarserver.org/ns/";
 
     public async Task InitializeAsync() => await Factory.ResetAsync();
@@ -43,6 +45,14 @@ public abstract class IntegrationTest(CalApiTestFactory factory) : IAsyncLifetim
         resp.EnsureSuccessStatusCode();
         var dto = await resp.Content.ReadFromJsonAsync<ContainerDto>();
         return dto!.Id;
+    }
+
+    protected static async Task<ContactDto> CreateContactAsync(HttpClient api, Guid addressBookId, string given = "Jane", string family = "Doe", string? email = null)
+    {
+        var req = new CreateContactRequest(addressBookId, null, given, null, family, null, null, email is null ? null : [email], null, null, null);
+        var resp = await api.PostAsJsonAsync("/api/contacts", req);
+        resp.EnsureSuccessStatusCode();
+        return (await resp.Content.ReadFromJsonAsync<ContactDto>())!;
     }
 
     // ---- DAV request helper (custom verbs + preconditions) ----
@@ -76,6 +86,23 @@ public abstract class IntegrationTest(CalApiTestFactory factory) : IAsyncLifetim
         return sb.ToString();
     }
 
+    protected static string MinimalIcsAllDay(string uid, string summary, DateOnly start)
+    {
+        var d = start.ToString("yyyyMMdd");
+        var end = start.AddDays(1).ToString("yyyyMMdd");
+        return $"BEGIN:VCALENDAR\r\nVERSION:2.0\r\nPRODID:-//lupira-test//EN\r\nBEGIN:VEVENT\r\nUID:{uid}\r\nSUMMARY:{summary}\r\nDTSTART;VALUE=DATE:{d}\r\nDTEND;VALUE=DATE:{end}\r\nEND:VEVENT\r\nEND:VCALENDAR\r\n";
+    }
+
+    protected static string MinimalVcf(string uid, string fullName, string? email = null)
+    {
+        var sb = new StringBuilder();
+        sb.Append("BEGIN:VCARD\r\nVERSION:3.0\r\n");
+        sb.Append($"UID:{uid}\r\nFN:{fullName}\r\nN:{fullName};;;;\r\n");
+        if (email is not null) sb.Append($"EMAIL:{email}\r\n");
+        sb.Append("END:VCARD\r\n");
+        return sb.ToString();
+    }
+
     protected static string SyncCollectionBody(string? token) =>
         $"""<?xml version="1.0" encoding="utf-8"?><d:sync-collection xmlns:d="DAV:"><d:sync-token>{token}</d:sync-token><d:sync-level>1</d:sync-level><d:prop><d:getetag/></d:prop></d:sync-collection>""";
 
@@ -92,6 +119,15 @@ public abstract class IntegrationTest(CalApiTestFactory factory) : IAsyncLifetim
         sb.Append("""<?xml version="1.0" encoding="utf-8"?><c:calendar-multiget xmlns:d="DAV:" xmlns:c="urn:ietf:params:xml:ns:caldav"><d:prop><d:getetag/><c:calendar-data/></d:prop>""");
         foreach (var h in hrefs) sb.Append($"<d:href>{h}</d:href>");
         sb.Append("</c:calendar-multiget>");
+        return sb.ToString();
+    }
+
+    protected static string AddressbookMultigetBody(params string[] hrefs)
+    {
+        var sb = new StringBuilder();
+        sb.Append("""<?xml version="1.0" encoding="utf-8"?><c:addressbook-multiget xmlns:d="DAV:" xmlns:c="urn:ietf:params:xml:ns:carddav"><d:prop><d:getetag/><c:address-data/></d:prop>""");
+        foreach (var h in hrefs) sb.Append($"<d:href>{h}</d:href>");
+        sb.Append("</c:addressbook-multiget>");
         return sb.ToString();
     }
 

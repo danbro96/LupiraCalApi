@@ -46,4 +46,24 @@ public sealed class AccessTests(CalApiTestFactory factory) : IntegrationTest(fac
         var resp = await SendDav(bDav, "PROPFIND", $"/dav/u/{aId}/cal/{calId}/", depth: "1");
         Assert.Equal(HttpStatusCode.Forbidden, resp.StatusCode);
     }
+
+    [Fact]
+    public async Task Unauthenticated_requests_are_rejected()
+    {
+        var anon = Factory.CreateClient();   // no auth header
+        Assert.Equal(HttpStatusCode.Unauthorized, (await anon.GetAsync("/api/me")).StatusCode);
+        Assert.Equal(HttpStatusCode.Unauthorized, (await SendDav(anon, "PROPFIND", "/dav/", depth: "0")).StatusCode);
+    }
+
+    [Fact]
+    public async Task Other_user_cannot_read_a_private_contact()
+    {
+        var a = Factory.ApiClient("a@x.test");
+        var abId = await CreateAddressBookAsync(a);
+        var contact = await CreateContactAsync(a, abId);
+
+        var b = Factory.ApiClient("b@x.test");
+        var resp = await b.GetAsync($"/api/contacts/{contact.Id}");
+        Assert.Equal(HttpStatusCode.Forbidden, resp.StatusCode);
+    }
 }
