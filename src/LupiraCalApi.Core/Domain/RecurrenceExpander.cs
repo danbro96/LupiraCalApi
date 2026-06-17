@@ -1,5 +1,5 @@
-using Ical.Net;
 using Ical.Net.DataTypes;
+using IcalCalendar = Ical.Net.Calendar;
 
 namespace LupiraCalApi.Domain;
 
@@ -12,7 +12,7 @@ public sealed class RecurrenceExpander
 {
     public IReadOnlyList<DateTimeOffset> Expand(string sourceIcalendar, DateTimeOffset windowStart, DateTimeOffset windowEnd)
     {
-        var calendar = Calendar.Load(sourceIcalendar);
+        var calendar = IcalCalendar.Load(sourceIcalendar);
         if (calendar is null) return [];
 
         // GetOccurrences returns a lazy, ascending (possibly infinite) sequence from the given start; the

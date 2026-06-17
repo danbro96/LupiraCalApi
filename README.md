@@ -6,24 +6,15 @@ Unified personal + family **calendar and contacts** service. One ASP.NET Core (.
 - `/dav/*` — CalDAV/CardDAV so phones/desktops (iOS/macOS, Android via DAVx5, Thunderbird) sync natively (HTTP Basic → Authentik LDAP outpost).
 - `/livez` + `/readyz` — health probes.
 
-Both surfaces sit over one EF Core database (schema `cal`). Deployed as a TrueNAS Custom App at `https://cal.lupira.com` → MedelyNAS `:40880`. Supersedes the never-deployed Radicale plan.
+Both surfaces sit over one **Marten event-sourced store** in Postgres (schema `cal`). Deployed as a TrueNAS Custom App at `https://cal.lupira.com` → MedelyNAS `:40880`. Supersedes the never-deployed Radicale plan.
 
-> Ops + deployment docs live in the DevOps repo: `Websites/lupira-cal-api/` (deployment.md, operations.md). The approved architecture plan drives the phased build.
+> **Architecture & data model:** see [docs/data-model.md](docs/data-model.md) — the agreed boundaries, class diagrams, and event-sourcing shape.
+>
+> Ops + deployment docs live in the DevOps repo: `Websites/lupira-cal-api/` (deployment.md, operations.md).
 
-## Status: Phase 0 (scaffold)
+## Status: event-sourced rebuild (in progress)
 
-Buildable skeleton: host wiring (OTel, auth schemes, health), the full EF Core model for the `cal` schema, and stubbed `/api` + `/dav` surfaces. **Not yet functional** — handlers return `501`. Build order:
-
-| Phase | What |
-|---|---|
-| **0** | Scaffold (this) — model + host + stubs |
-| **1** | REST/MCP core: EventService/ContactService, CRUD, MCP server, recurrence expansion |
-| **2** | Search + metadata: tsvector + pg_trgm, JSONB metadata/tags, LupiraTasks cross-links |
-| **3** | Read-only CalDAV/CardDAV (PROPFIND/REPORT/GET, etag/ctag) |
-| **4** | Two-way DAV (PUT/DELETE + If-Match, dual-representation) |
-| **5** | sync-collection + interop hardening (iOS/DAVx5/Thunderbird) |
-| **6** | Google migration + birthdays/holidays seeding |
-| **7** | Shared-calendar visibility under one DAV login |
+Converting from the original EF Core scaffold to the all-Marten, event-sourced model in [docs/data-model.md](docs/data-model.md): `CalendarItem`/`Contact`/`ContactGroup` aggregates, projection read models, derived `*ChangeFeed` sync (token = Marten event `Sequence`), many-to-many `CalendarItem`↔`Calendar` with `proposed`/`accepted` curation, hierarchical `Place`, first-class `Participation`, and table-per-type item kinds. The CalDAV/CardDAV contract is preserved throughout.
 
 ## Layout
 
@@ -51,16 +42,16 @@ curl -s localhost:8080/openapi/v1.json | head
 curl -s -o /dev/null -w "%{http_code}\n" localhost:8080/api/me   # 401 without a token
 ```
 
-### Migrations (when the model stabilizes)
+### Schema
+
+Marten manages the `cal` schema (event tables + projection/document tables). No EF migrations — apply the configured schema directly:
 
 ```bash
-dotnet tool install --global dotnet-ef
-dotnet ef migrations add Initial --project src/LupiraCalApi
-dotnet ef database update --project src/LupiraCalApi      # or run the image with --apply-schema in prod
+dotnet run --project src/LupiraCalApi -- --apply-schema    # ApplyAllConfiguredChangesToDatabase
 ```
 
 ## Key dependencies
 
-- **EF Core 10** + Npgsql + `EFCore.NamingConventions` (snake_case) — relational source of truth.
+- **Marten** (event store + document store on Postgres) — `CalendarItem`/`Contact`/`ContactGroup` are event-sourced aggregates; collections + projections are documents. Schema apply via `--apply-schema` (`ApplyAllConfiguredChangesToDatabase`), no EF migrations.
 - **Ical.Net** (iCalendar payloads + recurrence) and **FolkerKinzel.VCards** (vCard) — payloads only; the DAV protocol layer is hand-rolled.
 - **OpenTelemetry** → OpenObserve; **JwtBearer** for OIDC.

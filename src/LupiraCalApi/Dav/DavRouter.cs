@@ -1,25 +1,20 @@
-﻿using LupiraCalApi.Application;
+using LupiraCalApi.Application;
 using LupiraCalApi.Auth;
-using LupiraCalApi.Data;
-using LupiraCalApi.Data.Entities;
 using LupiraCalApi.Domain;
-using Microsoft.EntityFrameworkCore;
+using Marten;
 using System.Globalization;
 using System.Xml.Linq;
-using DataCalendar = LupiraCalApi.Data.Entities.Calendar;   // disambiguate from System.Globalization.Calendar
+using DavCalendar = LupiraCalApi.Domain.Calendar;   // disambiguate from System.Globalization.Calendar
 
 namespace LupiraCalApi.Dav;
 
 /// <summary>
-/// Read-only CalDAV (RFC 4791) + CardDAV (RFC 6352) over the shared Postgres model (Phase 3). Writes
-/// (PUT/DELETE/MKCALENDAR/PROPPATCH) return 403 until Phase 4. URL layout (all discovered, never typed):
-///   /dav/                                  → service root (current-user-principal)
-///   /dav/u/{userId}/                       → principal (calendar-home-set, addressbook-home-set)
-///   /dav/u/{userId}/cal/                    → calendar home (lists owned calendars)
-///   /dav/u/{userId}/cal/{calId}/            → a calendar (lists event resources; REPORT)
-///   /dav/u/{userId}/cal/{calId}/{uid}.ics   → an event (GET)
-///   /dav/u/{userId}/card/...                → address books + contacts (.vcf)
-/// Two-account model for now: a principal sees only the containers it owns (shared-calendar visibility is Phase 7).
+/// CalDAV (RFC 4791) + CardDAV (RFC 6352) over the Marten store. Reads come from the inline <see cref="CalendarItem"/>
+/// / <see cref="Contact"/> snapshots; writes append events via the Core services. The sync-token + ctag are derived
+/// from Marten's global event <c>Sequence</c> (opaque, monotonic) — no Revision column. Only items <em>accepted</em>
+/// into a calendar are exposed. URL layout (all discovered, never typed):
+///   /dav/ → root; /dav/u/{userId}/ → principal; /dav/u/{userId}/cal/{calId}/{uid}.ics → an item; .../card/{abId}/{uid}.vcf → a contact.
+/// Two-account model: a principal addresses only its own /u/{id}/ tree (sharing is enforced by AccessResolver).
 /// </summary>
 public static class DavRouter
 {
@@ -31,25 +26,24 @@ public static class DavRouter
     public static async Task Handle(HttpContext ctx)
     {
         var method = ctx.Request.Method.ToUpperInvariant();
+        var ct = ctx.RequestAborted;
 
         if (method == "OPTIONS") { WriteOptions(ctx); return; }
 
-        // Collection-level writes / locking aren't supported (object PUT/DELETE are handled in routing below).
         if (method is "MKCALENDAR" or "MKCOL" or "PROPPATCH" or "MOVE" or "COPY" or "LOCK" or "UNLOCK")
         {
             ctx.Response.StatusCode = StatusCodes.Status403Forbidden;
             return;
         }
 
-        var db = ctx.RequestServices.GetRequiredService<CalDbContext>();
-        var user = await ctx.RequestServices.GetRequiredService<CurrentUser>().GetAsync(ctx.RequestAborted);
+        var session = ctx.RequestServices.GetRequiredService<IQuerySession>();
+        var access = ctx.RequestServices.GetRequiredService<AccessResolver>();
+        var user = await ctx.RequestServices.GetRequiredService<CurrentUser>().GetAsync(ct);
 
         var baseUrl = $"{ctx.Request.Scheme}://{ctx.Request.Host}";
         var segments = (ctx.Request.Path.Value ?? "").Trim('/').Split('/', StringSplitOptions.RemoveEmptyEntries);
-        // segments[0] == "dav"
-        var rest = segments.Skip(1).ToArray();
+        var rest = segments.Skip(1).ToArray();   // segments[0] == "dav"
 
-        // Only the caller's own principal tree is addressable (two-account model).
         if (rest.Length >= 2 && rest[0] == "u" && rest[1] != user.Id.ToString())
         {
             ctx.Response.StatusCode = StatusCodes.Status403Forbidden;
@@ -59,8 +53,7 @@ public static class DavRouter
         var depth = ctx.Request.Headers.TryGetValue("Depth", out var dh) ? dh.ToString() : "0";
         var deep = depth is "1" or "infinity";
 
-        // ---- routing ----
-        if (rest.Length == 0)                                   // /dav/
+        if (rest.Length == 0)
         {
             if (method == "PROPFIND") { await WriteMultiStatus(ctx, RootPropfind(baseUrl, user)); return; }
         }
@@ -70,34 +63,34 @@ public static class DavRouter
 
             if (rest.Length >= 3 && rest[2] == "cal")
             {
-                if (rest.Length == 3 && method == "PROPFIND") { await WriteMultiStatus(ctx, await CalendarHomePropfind(db, baseUrl, user, deep, ctx.RequestAborted)); return; }
+                if (rest.Length == 3 && method == "PROPFIND") { await WriteMultiStatus(ctx, await CalendarHomePropfind(session, access, baseUrl, user, deep, ct)); return; }
                 if (rest.Length == 4)
                 {
                     var calId = Guid.Parse(rest[3]);
-                    if (method == "PROPFIND") { await WriteMultiStatus(ctx, await CalendarPropfind(db, baseUrl, user, calId, deep, ctx.RequestAborted)); return; }
-                    if (method == "REPORT") { await HandleCalendarReport(ctx, db, baseUrl, user, calId); return; }
+                    if (method == "PROPFIND") { await WriteMultiStatus(ctx, await CalendarPropfind(session, access, baseUrl, user, calId, deep, ct)); return; }
+                    if (method == "REPORT") { await HandleCalendarReport(ctx, session, access, baseUrl, user, calId); return; }
                 }
                 if (rest.Length == 5)
                 {
                     var calId = Guid.Parse(rest[3]); var uid = StripExt(rest[4]);
-                    if (method is "GET" or "HEAD") { await GetEvent(ctx, db, user, calId, uid); return; }
-                    if (method == "PUT") { await HandlePutEvent(ctx, user, calId, uid); return; }
-                    if (method == "DELETE") { await HandleDeleteEvent(ctx, user, calId, uid); return; }
+                    if (method is "GET" or "HEAD") { await GetItem(ctx, session, access, user, calId, uid); return; }
+                    if (method == "PUT") { await HandlePutItem(ctx, user, calId, uid); return; }
+                    if (method == "DELETE") { await HandleDeleteItem(ctx, user, calId, uid); return; }
                 }
             }
             else if (rest.Length >= 3 && rest[2] == "card")
             {
-                if (rest.Length == 3 && method == "PROPFIND") { await WriteMultiStatus(ctx, await AddressbookHomePropfind(db, baseUrl, user, deep, ctx.RequestAborted)); return; }
+                if (rest.Length == 3 && method == "PROPFIND") { await WriteMultiStatus(ctx, await AddressbookHomePropfind(session, access, baseUrl, user, deep, ct)); return; }
                 if (rest.Length == 4)
                 {
                     var abId = Guid.Parse(rest[3]);
-                    if (method == "PROPFIND") { await WriteMultiStatus(ctx, await AddressbookPropfind(db, baseUrl, user, abId, deep, ctx.RequestAborted)); return; }
-                    if (method == "REPORT") { await HandleAddressbookReport(ctx, db, baseUrl, user, abId); return; }
+                    if (method == "PROPFIND") { await WriteMultiStatus(ctx, await AddressbookPropfind(session, access, baseUrl, user, abId, deep, ct)); return; }
+                    if (method == "REPORT") { await HandleAddressbookReport(ctx, session, access, baseUrl, user, abId); return; }
                 }
                 if (rest.Length == 5)
                 {
                     var abId = Guid.Parse(rest[3]); var uid = StripExt(rest[4]);
-                    if (method is "GET" or "HEAD") { await GetContact(ctx, db, user, abId, uid); return; }
+                    if (method is "GET" or "HEAD") { await GetContact(ctx, session, access, user, abId, uid); return; }
                     if (method == "PUT") { await HandlePutContact(ctx, user, abId, uid); return; }
                     if (method == "DELETE") { await HandleDeleteContact(ctx, user, abId, uid); return; }
                 }
@@ -107,14 +100,22 @@ public static class DavRouter
         ctx.Response.StatusCode = StatusCodes.Status404NotFound;
     }
 
+    // ---------- token (opaque, monotonic) = Marten's current global event sequence ----------
+
+    static async Task<long> CurrentTokenAsync(IQuerySession session, CancellationToken ct)
+    {
+        var last = await session.Events.QueryAllRawEvents().OrderByDescending(e => e.Sequence).Take(1).ToListAsync(ct);
+        return last.Count > 0 ? last[0].Sequence : 0L;
+    }
+
     // ---------- PROPFIND builders ----------
 
-    static XElement RootPropfind(string baseUrl, User user) => MultiStatus(
+    static XElement RootPropfind(string baseUrl, Principal user) => MultiStatus(
         Response($"{baseUrl}/dav/",
             new XElement(D + "resourcetype", new XElement(D + "collection")),
             new XElement(D + "current-user-principal", Href($"{baseUrl}/dav/u/{user.Id}/"))));
 
-    static XElement PrincipalPropfind(string baseUrl, User user) => MultiStatus(
+    static XElement PrincipalPropfind(string baseUrl, Principal user) => MultiStatus(
         Response($"{baseUrl}/dav/u/{user.Id}/",
             new XElement(D + "resourcetype", new XElement(D + "collection"), new XElement(D + "principal")),
             new XElement(D + "displayname", user.DisplayName ?? user.Email),
@@ -123,7 +124,7 @@ public static class DavRouter
             new XElement(C + "calendar-home-set", Href($"{baseUrl}/dav/u/{user.Id}/cal/")),
             new XElement(CR + "addressbook-home-set", Href($"{baseUrl}/dav/u/{user.Id}/card/"))));
 
-    static async Task<XElement> CalendarHomePropfind(CalDbContext db, string baseUrl, User user, bool deep, CancellationToken ct)
+    static async Task<XElement> CalendarHomePropfind(IQuerySession session, AccessResolver access, string baseUrl, Principal user, bool deep, CancellationToken ct)
     {
         var responses = new List<XElement>
         {
@@ -131,41 +132,44 @@ public static class DavRouter
         };
         if (deep)
         {
-            var cals = await db.Calendars.Where(c => c.OwnerId == user.Id).ToListAsync(ct);
+            var ids = await access.AccessibleCalendarIdsAsync(user.Id, ct);
+            var cals = await session.Query<DavCalendar>().Where(c => ids.Contains(c.Id)).ToListAsync(ct);
+            var token = await CurrentTokenAsync(session, ct);
             foreach (var c in cals)
-                responses.Add(Response($"{baseUrl}/dav/u/{user.Id}/cal/{c.Id}/", CalendarProps(c)));
+                responses.Add(Response($"{baseUrl}/dav/u/{user.Id}/cal/{c.Id}/", CalendarProps(c, token)));
         }
         return MultiStatus([.. responses]);
     }
 
-    static async Task<XElement> CalendarPropfind(CalDbContext db, string baseUrl, User user, Guid calId, bool deep, CancellationToken ct)
+    static async Task<XElement> CalendarPropfind(IQuerySession session, AccessResolver access, string baseUrl, Principal user, Guid calId, bool deep, CancellationToken ct)
     {
-        var cal = await db.Calendars.FirstOrDefaultAsync(c => c.Id == calId && c.OwnerId == user.Id, ct);
+        if (!await access.CanReadCalendarAsync(user.Id, calId, ct)) return MultiStatus();
+        var cal = await session.LoadAsync<DavCalendar>(calId, ct);
         if (cal is null) return MultiStatus();
 
-        var responses = new List<XElement> { Response($"{baseUrl}/dav/u/{user.Id}/cal/{cal.Id}/", CalendarProps(cal)) };
+        var token = await CurrentTokenAsync(session, ct);
+        var responses = new List<XElement> { Response($"{baseUrl}/dav/u/{user.Id}/cal/{cal.Id}/", CalendarProps(cal, token)) };
         if (deep)
         {
-            var events = await db.Events.Where(e => e.CalendarId == calId && e.DeletedAt == null).ToListAsync(ct);
-            foreach (var e in events)
-                responses.Add(Response($"{baseUrl}/dav/u/{user.Id}/cal/{cal.Id}/{e.IcalUid}.ics",
-                    new XElement(D + "getetag", Etag(e.ContentHash)),
+            foreach (var i in await AcceptedItemsAsync(session, calId, ct))
+                responses.Add(Response($"{baseUrl}/dav/u/{user.Id}/cal/{cal.Id}/{i.IcalUid}.ics",
+                    new XElement(D + "getetag", Etag(i.ContentHash)),
                     new XElement(D + "getcontenttype", "text/calendar; charset=utf-8")));
         }
         return MultiStatus([.. responses]);
     }
 
-    static XElement[] CalendarProps(DataCalendar c) =>
+    static XElement[] CalendarProps(DavCalendar c, long token) =>
     [
         new XElement(D + "resourcetype", new XElement(D + "collection"), new XElement(C + "calendar")),
         new XElement(D + "displayname", c.DisplayName ?? c.Slug),
-        new XElement(CS + "getctag", $"\"rev-{c.Revision}\""),
-        new XElement(D + "sync-token", $"{c.Revision}"),
+        new XElement(CS + "getctag", $"\"seq-{token}\""),
+        new XElement(D + "sync-token", $"{token}"),
         new XElement(C + "supported-calendar-component-set", new XElement(C + "comp", new XAttribute("name", "VEVENT"))),
         SupportedReports(C + "calendar-query", C + "calendar-multiget", D + "sync-collection"),
     ];
 
-    static async Task<XElement> AddressbookHomePropfind(CalDbContext db, string baseUrl, User user, bool deep, CancellationToken ct)
+    static async Task<XElement> AddressbookHomePropfind(IQuerySession session, AccessResolver access, string baseUrl, Principal user, bool deep, CancellationToken ct)
     {
         var responses = new List<XElement>
         {
@@ -173,22 +177,26 @@ public static class DavRouter
         };
         if (deep)
         {
-            var books = await db.AddressBooks.Where(a => a.OwnerId == user.Id).ToListAsync(ct);
+            var ids = await access.AccessibleAddressBookIdsAsync(user.Id, ct);
+            var books = await session.Query<AddressBook>().Where(a => ids.Contains(a.Id)).ToListAsync(ct);
+            var token = await CurrentTokenAsync(session, ct);
             foreach (var a in books)
-                responses.Add(Response($"{baseUrl}/dav/u/{user.Id}/card/{a.Id}/", AddressbookProps(a)));
+                responses.Add(Response($"{baseUrl}/dav/u/{user.Id}/card/{a.Id}/", AddressbookProps(a, token)));
         }
         return MultiStatus([.. responses]);
     }
 
-    static async Task<XElement> AddressbookPropfind(CalDbContext db, string baseUrl, User user, Guid abId, bool deep, CancellationToken ct)
+    static async Task<XElement> AddressbookPropfind(IQuerySession session, AccessResolver access, string baseUrl, Principal user, Guid abId, bool deep, CancellationToken ct)
     {
-        var book = await db.AddressBooks.FirstOrDefaultAsync(a => a.Id == abId && a.OwnerId == user.Id, ct);
+        if (!await access.CanReadAddressBookAsync(user.Id, abId, ct)) return MultiStatus();
+        var book = await session.LoadAsync<AddressBook>(abId, ct);
         if (book is null) return MultiStatus();
 
-        var responses = new List<XElement> { Response($"{baseUrl}/dav/u/{user.Id}/card/{book.Id}/", AddressbookProps(book)) };
+        var token = await CurrentTokenAsync(session, ct);
+        var responses = new List<XElement> { Response($"{baseUrl}/dav/u/{user.Id}/card/{book.Id}/", AddressbookProps(book, token)) };
         if (deep)
         {
-            var contacts = await db.Contacts.Where(x => x.AddressBookId == abId && x.DeletedAt == null).ToListAsync(ct);
+            var contacts = await session.Query<Contact>().Where(x => x.AddressBookId == abId && x.DeletedAt == null).ToListAsync(ct);
             foreach (var x in contacts)
                 responses.Add(Response($"{baseUrl}/dav/u/{user.Id}/card/{book.Id}/{x.VcardUid}.vcf",
                     new XElement(D + "getetag", Etag(x.ContentHash)),
@@ -197,76 +205,84 @@ public static class DavRouter
         return MultiStatus([.. responses]);
     }
 
-    static XElement[] AddressbookProps(AddressBook a) =>
+    static XElement[] AddressbookProps(AddressBook a, long token) =>
     [
         new XElement(D + "resourcetype", new XElement(D + "collection"), new XElement(CR + "addressbook")),
         new XElement(D + "displayname", a.DisplayName ?? a.Slug),
-        new XElement(CS + "getctag", $"\"rev-{a.Revision}\""),
-        new XElement(D + "sync-token", $"{a.Revision}"),
+        new XElement(CS + "getctag", $"\"seq-{token}\""),
+        new XElement(D + "sync-token", $"{token}"),
         SupportedReports(CR + "addressbook-query", CR + "addressbook-multiget", D + "sync-collection"),
     ];
 
-    // ---------- REPORT (calendar-query / calendar-multiget / addressbook-*) ----------
+    // ---------- REPORT ----------
 
-    static async Task HandleCalendarReport(HttpContext ctx, CalDbContext db, string baseUrl, User user, Guid calId)
+    static async Task HandleCalendarReport(HttpContext ctx, IQuerySession session, AccessResolver access, string baseUrl, Principal user, Guid calId)
     {
-        var cal = await db.Calendars.FirstOrDefaultAsync(c => c.Id == calId && c.OwnerId == user.Id, ctx.RequestAborted);
-        if (cal is null) { ctx.Response.StatusCode = 404; return; }
+        var ct = ctx.RequestAborted;
+        if (!await access.CanReadCalendarAsync(user.Id, calId, ct)) { ctx.Response.StatusCode = 404; return; }
         var body = await ReadBody(ctx);
         var doc = TryParseXml(body);
 
-        if (doc?.Root?.Name == D + "sync-collection") { await CalendarSync(ctx, db, baseUrl, user, cal, doc); return; }
+        if (doc?.Root?.Name == D + "sync-collection") { await CalendarSync(ctx, session, baseUrl, user, calId, doc); return; }
 
-        var events = await db.Events.Where(e => e.CalendarId == calId && e.DeletedAt == null).ToListAsync(ctx.RequestAborted);
+        var items = await AcceptedItemsAsync(session, calId, ct);
         var requested = ExtractHrefUids(body, ".ics");
         if (requested.Count > 0)
         {
-            events = [.. events.Where(e => requested.Contains(e.IcalUid))];           // calendar-multiget
+            items = [.. items.Where(i => requested.Contains(i.IcalUid))];                  // calendar-multiget
         }
-        else if (ParseTimeRange(doc) is { } range)                                    // calendar-query time-range
+        else if (ParseTimeRange(doc) is { } range)                                          // calendar-query time-range
         {
             var exp = ctx.RequestServices.GetRequiredService<RecurrenceExpander>();
-            events = [.. events.Where(e => OverlapsWindow(e, range.Start, range.End, exp))];
+            items = [.. items.Where(i => OverlapsWindow(i, range.Start, range.End, exp))];
         }
 
-        var responses = events.Select(e => Response($"{baseUrl}/dav/u/{user.Id}/cal/{calId}/{e.IcalUid}.ics",
-            new XElement(D + "getetag", Etag(e.ContentHash)),
-            new XElement(C + "calendar-data", e.SourceIcalendar)));
+        var responses = items.Select(i => Response($"{baseUrl}/dav/u/{user.Id}/cal/{calId}/{i.IcalUid}.ics",
+            new XElement(D + "getetag", Etag(i.ContentHash)),
+            new XElement(C + "calendar-data", i.SourceIcalendar)));
         await WriteMultiStatus(ctx, MultiStatus([.. responses]));
     }
 
-    static async Task CalendarSync(HttpContext ctx, CalDbContext db, string baseUrl, User user, DataCalendar cal, XDocument doc)
+    static async Task CalendarSync(HttpContext ctx, IQuerySession session, string baseUrl, Principal user, Guid calId, XDocument doc)
     {
+        var ct = ctx.RequestAborted;
         var token = ParseSyncToken(doc);
+        var newToken = await CurrentTokenAsync(session, ct);
         var responses = new List<XElement>();
-        string Href(string uid) => $"{baseUrl}/dav/u/{user.Id}/cal/{cal.Id}/{uid}.ics";
+        string Href(string uid) => $"{baseUrl}/dav/u/{user.Id}/cal/{calId}/{uid}.ics";
 
-        if (token is null)   // initial sync: every live resource
+        if (token is null)   // initial sync: every accepted live resource
         {
-            foreach (var e in await db.Events.Where(e => e.CalendarId == cal.Id && e.DeletedAt == null).ToListAsync(ctx.RequestAborted))
-                responses.Add(Response(Href(e.IcalUid), new XElement(D + "getetag", Etag(e.ContentHash))));
+            foreach (var i in await AcceptedItemsAsync(session, calId, ct))
+                responses.Add(Response(Href(i.IcalUid), new XElement(D + "getetag", Etag(i.ContentHash))));
         }
-        else                 // diffs since token: latest change per resource (saved -> 200 getetag, deleted -> 404 tombstone)
+        else                 // diffs since token: items whose stream changed, that are/were in this calendar
         {
-            var changes = await db.CalendarChanges.Where(c => c.CalendarId == cal.Id && c.Revision > token).ToListAsync(ctx.RequestAborted);
-            foreach (var ch in changes.GroupBy(c => c.ItemIcalUid).Select(g => g.OrderByDescending(x => x.Revision).First()))
-                responses.Add(ch.ChangeType == "deleted"
-                    ? DeletedResponse(Href(ch.ItemIcalUid))
-                    : Response(Href(ch.ItemIcalUid), new XElement(D + "getetag", Etag(ch.ContentHash ?? ""))));
+            var changedIds = (await session.Events.QueryAllRawEvents().Where(e => e.Sequence > token).ToListAsync(ct))
+                .Select(e => e.StreamId).Distinct().ToList();
+            var items = await session.Query<CalendarItem>().Where(i => changedIds.Contains(i.Id)).ToListAsync(ct);
+            foreach (var i in items)
+            {
+                var membership = i.Calendars.FirstOrDefault(m => m.CalendarId == calId);
+                if (membership is null) continue;   // never been in this calendar
+                responses.Add(i.DeletedAt is not null || membership.Status != CalendarEntryStatus.Accepted
+                    ? DeletedResponse(Href(i.IcalUid))
+                    : Response(Href(i.IcalUid), new XElement(D + "getetag", Etag(i.ContentHash))));
+            }
         }
-        await WriteMultiStatus(ctx, MultiStatusWithToken(cal.Revision, [.. responses]));
+        await WriteMultiStatus(ctx, MultiStatusWithToken(newToken, [.. responses]));
     }
 
-    static async Task HandleAddressbookReport(HttpContext ctx, CalDbContext db, string baseUrl, User user, Guid abId)
+    static async Task HandleAddressbookReport(HttpContext ctx, IQuerySession session, AccessResolver access, string baseUrl, Principal user, Guid abId)
     {
-        var book = await db.AddressBooks.FirstOrDefaultAsync(a => a.Id == abId && a.OwnerId == user.Id, ctx.RequestAborted);
-        if (book is null) { ctx.Response.StatusCode = 404; return; }
+        var ct = ctx.RequestAborted;
+        if (!await access.CanReadAddressBookAsync(user.Id, abId, ct)) { ctx.Response.StatusCode = 404; return; }
         var body = await ReadBody(ctx);
         var doc = TryParseXml(body);
 
-        if (doc?.Root?.Name == D + "sync-collection") { await AddressbookSync(ctx, db, baseUrl, user, book, doc); return; }
+        if (doc?.Root?.Name == D + "sync-collection") { await AddressbookSync(ctx, session, baseUrl, user, abId, doc); return; }
 
-        var contacts = await db.Contacts.Where(x => x.AddressBookId == abId && x.DeletedAt == null).ToListAsync(ctx.RequestAborted);
+        var contacts = await session.Query<Contact>().Where(x => x.AddressBookId == abId && x.DeletedAt == null).ToListAsync(ct);
         var requested = ExtractHrefUids(body, ".vcf");
         if (requested.Count > 0) contacts = [.. contacts.Where(x => requested.Contains(x.VcardUid))];
 
@@ -276,74 +292,78 @@ public static class DavRouter
         await WriteMultiStatus(ctx, MultiStatus([.. responses]));
     }
 
-    static async Task AddressbookSync(HttpContext ctx, CalDbContext db, string baseUrl, User user, AddressBook book, XDocument doc)
+    static async Task AddressbookSync(HttpContext ctx, IQuerySession session, string baseUrl, Principal user, Guid abId, XDocument doc)
     {
+        var ct = ctx.RequestAborted;
         var token = ParseSyncToken(doc);
+        var newToken = await CurrentTokenAsync(session, ct);
         var responses = new List<XElement>();
-        string Href(string uid) => $"{baseUrl}/dav/u/{user.Id}/card/{book.Id}/{uid}.vcf";
+        string Href(string uid) => $"{baseUrl}/dav/u/{user.Id}/card/{abId}/{uid}.vcf";
 
         if (token is null)
         {
-            foreach (var x in await db.Contacts.Where(c => c.AddressBookId == book.Id && c.DeletedAt == null).ToListAsync(ctx.RequestAborted))
+            foreach (var x in await session.Query<Contact>().Where(c => c.AddressBookId == abId && c.DeletedAt == null).ToListAsync(ct))
                 responses.Add(Response(Href(x.VcardUid), new XElement(D + "getetag", Etag(x.ContentHash))));
         }
         else
         {
-            var changes = await db.ContactChanges.Where(c => c.AddressBookId == book.Id && c.Revision > token).ToListAsync(ctx.RequestAborted);
-            foreach (var ch in changes.GroupBy(c => c.ItemVcardUid).Select(g => g.OrderByDescending(x => x.Revision).First()))
-                responses.Add(ch.ChangeType == "deleted"
-                    ? DeletedResponse(Href(ch.ItemVcardUid))
-                    : Response(Href(ch.ItemVcardUid), new XElement(D + "getetag", Etag(ch.ContentHash ?? ""))));
+            var changedIds = (await session.Events.QueryAllRawEvents().Where(e => e.Sequence > token).ToListAsync(ct))
+                .Select(e => e.StreamId).Distinct().ToList();
+            var contacts = await session.Query<Contact>().Where(c => changedIds.Contains(c.Id) && c.AddressBookId == abId).ToListAsync(ct);
+            foreach (var x in contacts)
+                responses.Add(x.DeletedAt is not null
+                    ? DeletedResponse(Href(x.VcardUid))
+                    : Response(Href(x.VcardUid), new XElement(D + "getetag", Etag(x.ContentHash))));
         }
-        await WriteMultiStatus(ctx, MultiStatusWithToken(book.Revision, [.. responses]));
+        await WriteMultiStatus(ctx, MultiStatusWithToken(newToken, [.. responses]));
     }
 
     // ---------- GET object ----------
 
-    static async Task GetEvent(HttpContext ctx, CalDbContext db, User user, Guid calId, string icalUid)
+    static async Task GetItem(HttpContext ctx, IQuerySession session, AccessResolver access, Principal user, Guid calId, string icalUid)
     {
-        var e = await db.Events.FirstOrDefaultAsync(
-            x => x.CalendarId == calId && x.IcalUid == icalUid && x.DeletedAt == null
-                 && db.Calendars.Any(c => c.Id == calId && c.OwnerId == user.Id), ctx.RequestAborted);
-        if (e is null) { ctx.Response.StatusCode = 404; return; }
-        ctx.Response.Headers.ETag = Etag(e.ContentHash);
+        var ct = ctx.RequestAborted;
+        if (!await access.CanReadCalendarAsync(user.Id, calId, ct)) { ctx.Response.StatusCode = 404; return; }
+        var item = await session.LoadAsync<CalendarItem>(DeterministicGuid.From(icalUid), ct);
+        if (item is null || item.DeletedAt is not null || !item.IsAcceptedIn(calId)) { ctx.Response.StatusCode = 404; return; }
+        ctx.Response.Headers.ETag = Etag(item.ContentHash);
         ctx.Response.ContentType = "text/calendar; charset=utf-8";
         if (ctx.Request.Method == "HEAD") return;
-        await ctx.Response.WriteAsync(e.SourceIcalendar);
+        await ctx.Response.WriteAsync(item.SourceIcalendar, ct);
     }
 
-    static async Task GetContact(HttpContext ctx, CalDbContext db, User user, Guid abId, string vcardUid)
+    static async Task GetContact(HttpContext ctx, IQuerySession session, AccessResolver access, Principal user, Guid abId, string vcardUid)
     {
-        var x = await db.Contacts.FirstOrDefaultAsync(
-            c => c.AddressBookId == abId && c.VcardUid == vcardUid && c.DeletedAt == null
-                 && db.AddressBooks.Any(a => a.Id == abId && a.OwnerId == user.Id), ctx.RequestAborted);
-        if (x is null) { ctx.Response.StatusCode = 404; return; }
-        ctx.Response.Headers.ETag = Etag(x.ContentHash);
+        var ct = ctx.RequestAborted;
+        if (!await access.CanReadAddressBookAsync(user.Id, abId, ct)) { ctx.Response.StatusCode = 404; return; }
+        var c = await session.LoadAsync<Contact>(DeterministicGuid.From(vcardUid), ct);
+        if (c is null || c.DeletedAt is not null || c.AddressBookId != abId) { ctx.Response.StatusCode = 404; return; }
+        ctx.Response.Headers.ETag = Etag(c.ContentHash);
         ctx.Response.ContentType = "text/vcard; charset=utf-8";
         if (ctx.Request.Method == "HEAD") return;
-        await ctx.Response.WriteAsync(x.SourceVcard);
+        await ctx.Response.WriteAsync(c.SourceVcard, ct);
     }
 
-    // ---------- write path (Phase 4): object PUT / DELETE with ETag preconditions ----------
+    // ---------- write path: object PUT / DELETE with ETag preconditions ----------
 
-    static async Task HandlePutEvent(HttpContext ctx, User user, Guid calId, string uid)
+    static async Task HandlePutItem(HttpContext ctx, Principal user, Guid calId, string uid)
     {
         var raw = await ReadBody(ctx);
         var (ifMatch, ifNoneMatchStar) = Preconditions(ctx);
-        var result = await ctx.RequestServices.GetRequiredService<EventService>()
+        var result = await ctx.RequestServices.GetRequiredService<CalendarItemService>()
             .PutIcsAsync(user.Id, calId, uid, raw, ifMatch, ifNoneMatchStar, ctx.RequestAborted);
         WriteDavWrite(ctx, result);
     }
 
-    static async Task HandleDeleteEvent(HttpContext ctx, User user, Guid calId, string uid)
+    static async Task HandleDeleteItem(HttpContext ctx, Principal user, Guid calId, string uid)
     {
         var (ifMatch, _) = Preconditions(ctx);
-        var result = await ctx.RequestServices.GetRequiredService<EventService>()
+        var result = await ctx.RequestServices.GetRequiredService<CalendarItemService>()
             .DeleteByUidAsync(user.Id, calId, uid, ifMatch, ctx.RequestAborted);
         WriteDavStatus(ctx, result);
     }
 
-    static async Task HandlePutContact(HttpContext ctx, User user, Guid abId, string uid)
+    static async Task HandlePutContact(HttpContext ctx, Principal user, Guid abId, string uid)
     {
         var raw = await ReadBody(ctx);
         var (ifMatch, ifNoneMatchStar) = Preconditions(ctx);
@@ -352,7 +372,7 @@ public static class DavRouter
         WriteDavWrite(ctx, result);
     }
 
-    static async Task HandleDeleteContact(HttpContext ctx, User user, Guid abId, string uid)
+    static async Task HandleDeleteContact(HttpContext ctx, Principal user, Guid abId, string uid)
     {
         var (ifMatch, _) = Preconditions(ctx);
         var result = await ctx.RequestServices.GetRequiredService<ContactService>()
@@ -360,7 +380,6 @@ public static class DavRouter
         WriteDavStatus(ctx, result);
     }
 
-    // Map the service OpResult to the DAV wire status (412 for the If-Match/If-None-Match precondition).
     static void WriteDavWrite(HttpContext ctx, OpResult<DavWriteResult> r)
     {
         if (r.Status == OpStatus.Ok && r.Value is { } w)
@@ -398,19 +417,25 @@ public static class DavRouter
 
     // ---------- helpers ----------
 
+    static async Task<List<CalendarItem>> AcceptedItemsAsync(IQuerySession session, Guid calId, CancellationToken ct)
+    {
+        var live = await session.Query<CalendarItem>().Where(i => i.DeletedAt == null).ToListAsync(ct);
+        return [.. live.Where(i => i.IsAcceptedIn(calId))];
+    }
+
     static void WriteOptions(HttpContext ctx)
     {
         ctx.Response.Headers["DAV"] = "1, 2, 3, calendar-access, addressbook";
-        ctx.Response.Headers["Allow"] = "OPTIONS, GET, HEAD, PROPFIND, REPORT";
+        ctx.Response.Headers["Allow"] = "OPTIONS, GET, HEAD, PUT, DELETE, PROPFIND, REPORT";
         ctx.Response.StatusCode = StatusCodes.Status200OK;
     }
 
     static async Task WriteMultiStatus(HttpContext ctx, XElement multistatus)
     {
-        ctx.Response.StatusCode = 207;   // Multi-Status
+        ctx.Response.StatusCode = 207;
         ctx.Response.ContentType = "application/xml; charset=utf-8";
         var doc = new XDocument(new XDeclaration("1.0", "utf-8", null), multistatus);
-        await ctx.Response.WriteAsync(doc.Declaration + "\n" + doc.ToString(SaveOptions.DisableFormatting));
+        await ctx.Response.WriteAsync(doc.Declaration + "\n" + doc.ToString(SaveOptions.DisableFormatting), ctx.RequestAborted);
     }
 
     static XElement MultiStatus(params XElement[] responses) => new(D + "multistatus",
@@ -438,7 +463,7 @@ public static class DavRouter
     {
         var el = doc.Descendants(D + "sync-token").FirstOrDefault();
         var v = el?.Value.Trim();
-        if (string.IsNullOrEmpty(v)) return null;                    // empty/absent => initial sync
+        if (string.IsNullOrEmpty(v)) return null;
         return long.TryParse(v, NumberStyles.Integer, CultureInfo.InvariantCulture, out var t) ? t : null;
     }
 
@@ -456,13 +481,13 @@ public static class DavRouter
             s, "yyyyMMdd'T'HHmmss'Z'", CultureInfo.InvariantCulture,
             DateTimeStyles.AssumeUniversal | DateTimeStyles.AdjustToUniversal, out var d) ? d : null;
 
-    static bool OverlapsWindow(Event e, DateTimeOffset start, DateTimeOffset end, RecurrenceExpander exp)
+    static bool OverlapsWindow(CalendarItem i, DateTimeOffset start, DateTimeOffset end, RecurrenceExpander exp)
     {
-        if (!string.IsNullOrWhiteSpace(e.RecurrenceRule)) return exp.Expand(e.SourceIcalendar, start, end).Count > 0;
-        DateTimeOffset? s = e.IsAllDay && e.StartDate is { } d
-            ? new DateTimeOffset(d.Year, d.Month, d.Day, 0, 0, 0, TimeSpan.Zero) : e.StartsAt;
+        if (!string.IsNullOrWhiteSpace(i.RecurrenceRule)) return exp.Expand(i.SourceIcalendar, start, end).Count > 0;
+        DateTimeOffset? s = i.IsAllDay && i.StartDate is { } d
+            ? new DateTimeOffset(d.Year, d.Month, d.Day, 0, 0, 0, TimeSpan.Zero) : i.StartsAt;
         if (s is null) return false;
-        var en = e.EndsAt ?? (e.IsAllDay && e.EndDate is { } ed
+        var en = i.EndsAt ?? (i.IsAllDay && i.EndDate is { } ed
             ? new DateTimeOffset(ed.Year, ed.Month, ed.Day, 0, 0, 0, TimeSpan.Zero) : s.Value);
         return s.Value < end && en >= start;
     }
@@ -495,7 +520,6 @@ public static class DavRouter
         return await reader.ReadToEndAsync(ctx.RequestAborted);
     }
 
-    /// <summary>Pulls the resource UIDs out of multiget &lt;D:href&gt; entries (the {uid}.ics / {uid}.vcf tail).</summary>
     static List<string> ExtractHrefUids(string body, string ext)
     {
         var uids = new HashSet<string>();
@@ -512,7 +536,7 @@ public static class DavRouter
                 if (name.Length > 0) uids.Add(name);
             }
         }
-        catch { /* malformed body → treat as query (return all) */ }
+        catch { /* malformed → treat as query (return all) */ }
         return [.. uids];
     }
 }

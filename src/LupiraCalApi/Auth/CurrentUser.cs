@@ -1,18 +1,17 @@
-﻿using LupiraCalApi.Application;
-using LupiraCalApi.Data.Entities;
+using LupiraCalApi.Application;
+using LupiraCalApi.Domain;
 using System.Security.Claims;
 
 namespace LupiraCalApi.Auth;
 
 /// <summary>
 /// The ASP.NET half of identity: reads the calling principal's claims (OIDC JWT, or the DAV Basic email)
-/// and resolves them — JIT-provisioning on first login — to the local <see cref="User"/> via the Core
-/// <see cref="UserDirectory"/>. Both surfaces (REST handlers + DAV) go through this so they converge on
-/// one users row.
+/// and resolves them — JIT-provisioning on first login — to the local <see cref="Principal"/> via the Core
+/// <see cref="PrincipalDirectory"/>. Both surfaces (REST handlers + DAV) go through this so they converge on one row.
 /// </summary>
-public sealed class CurrentUser(IHttpContextAccessor http, UserDirectory directory)
+public sealed class CurrentUser(IHttpContextAccessor http, PrincipalDirectory directory)
 {
-    public async Task<User> GetAsync(CancellationToken ct = default)
+    public async Task<Principal> GetAsync(CancellationToken ct = default)
     {
         var principal = http.HttpContext?.User
             ?? throw new InvalidOperationException("No HTTP context available.");

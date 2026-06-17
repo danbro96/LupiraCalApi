@@ -1,18 +1,18 @@
-﻿using LupiraCalApi.Data;
+using Marten;
 using Microsoft.Extensions.Diagnostics.HealthChecks;
 
 namespace LupiraCalApi.Health;
 
-/// <summary>Readiness probe (/readyz): the service is ready only when its Postgres DB is reachable.</summary>
-public sealed class DatabaseReadyCheck(CalDbContext db) : IHealthCheck
+/// <summary>Readiness probe (/readyz): the service is ready only when its Postgres (Marten) store is reachable.</summary>
+public sealed class DatabaseReadyCheck(IDocumentStore store) : IHealthCheck
 {
     public async Task<HealthCheckResult> CheckHealthAsync(HealthCheckContext context, CancellationToken ct = default)
     {
         try
         {
-            return await db.Database.CanConnectAsync(ct)
-                ? HealthCheckResult.Healthy()
-                : HealthCheckResult.Unhealthy("postgres unreachable");
+            await using var session = store.LightweightSession();
+            await session.QueryAsync<int>("select 1", ct);
+            return HealthCheckResult.Healthy();
         }
         catch (Exception ex)
         {

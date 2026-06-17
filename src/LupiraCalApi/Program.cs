@@ -1,5 +1,4 @@
 ﻿using LupiraCalApi.Auth;
-using LupiraCalApi.Data;
 using LupiraCalApi.Dav;
 using LupiraCalApi.Domain;
 using LupiraCalApi.Endpoints;
@@ -10,26 +9,28 @@ using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Diagnostics.HealthChecks;
 using Microsoft.AspNetCore.HttpOverrides;
-using Microsoft.EntityFrameworkCore;
+using Marten;
 using OpenTelemetry.Metrics;
 using OpenTelemetry.Resources;
 using OpenTelemetry.Trace;
 
 var builder = WebApplication.CreateBuilder(args);
 
-// --- Bounded context (data + transport-neutral services), registered from the Core class library. ---
-var connectionString = builder.Configuration.GetConnectionString("Postgres")
-    ?? "Host=localhost;Port=5432;Database=lupira_cal;Username=lupira_cal_user;Password=devpassword";
-builder.Services.AddCalCore(connectionString);
+// --- Bounded context (data + transport-neutral services), registered from the Core class library.
+// The connection string is read lazily from configuration (ConnectionStrings:Postgres) inside AddCalCore. ---
+builder.Services.AddCalCore();
 
 // --- Host-only services: identity (claims -> Core UserDirectory) + the thin REST handlers. ---
 builder.Services.AddHttpContextAccessor();
 builder.Services.AddScoped<CurrentUser>();
 builder.Services.AddScoped<MeHandler>();
 builder.Services.AddScoped<CalendarsHandler>();
-builder.Services.AddScoped<EventsHandler>();
+builder.Services.AddScoped<CalendarItemsHandler>();
 builder.Services.AddScoped<ContactsHandler>();
 builder.Services.AddScoped<RelationsHandler>();
+builder.Services.AddScoped<CurationHandler>();
+builder.Services.AddScoped<ParticipationHandler>();
+builder.Services.AddScoped<ContactGroupsHandler>();
 
 // --- Auth: OIDC JWT for /api (the agent obtains a member-scoped token via Authentik token-exchange);
 //           HTTP Basic -> LDAP outpost for /dav. One identity authority (Authentik). ---
@@ -87,8 +88,8 @@ var app = builder.Build();
 // Deliberate, one-shot schema apply (used as a deploy step: `dotnet LupiraCalApi.dll --apply-schema`).
 if (args.Contains("--apply-schema"))
 {
-    using var scope = app.Services.CreateScope();
-    await scope.ServiceProvider.GetRequiredService<CalDbContext>().Database.MigrateAsync();
+    var store = app.Services.GetRequiredService<IDocumentStore>();
+    await store.Storage.ApplyAllConfiguredChangesToDatabaseAsync();
     return;
 }
 
@@ -115,9 +116,12 @@ app.MapHealthChecks("/readyz", new HealthCheckOptions { Predicate = c => c.Tags.
 // REST surface (/api), one MapXxx per resource.
 app.MapMe();
 app.MapCalendars();
-app.MapEvents();
+app.MapCalendarItems();
 app.MapContacts();
 app.MapRelations();
+app.MapCuration();
+app.MapParticipation();
+app.MapContactGroups();
 
 // DAV service discovery (anonymous): clients probe these before auth, then follow to /dav/.
 app.MapMethods("/.well-known/caldav", ["GET", "PROPFIND", "OPTIONS"], () => Results.Redirect("/dav/", permanent: true));
@@ -131,3 +135,6 @@ app.MapMcp("/api/mcp").RequireAuthorization("ApiPolicy");
 app.Map("/dav/{**path}", (RequestDelegate)DavRouter.Handle).RequireAuthorization("DavPolicy");
 
 app.Run();
+
+// Exposes the implicit Program entry point to the integration test assembly (WebApplicationFactory<Program>).
+public partial class Program;

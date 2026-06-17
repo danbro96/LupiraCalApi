@@ -1,8 +1,8 @@
-﻿using LupiraCalApi.Application;
+using LupiraCalApi.Application;
 using LupiraCalApi.Auth;
+using LupiraCalApi.Dtos.CalendarItems;
 using LupiraCalApi.Dtos.Calendars;
 using LupiraCalApi.Dtos.Contacts;
-using LupiraCalApi.Dtos.Events;
 using LupiraCalApi.Dtos.Relations;
 using ModelContextProtocol;
 using ModelContextProtocol.Server;
@@ -13,48 +13,47 @@ namespace LupiraCalApi.Mcp;
 
 /// <summary>
 /// The agent's MCP tool surface, mounted at /api/mcp. Each tool resolves the caller via <see cref="CurrentUser"/>
-/// and delegates to the same Core services as REST, so results are scoped to the member's own + shared
-/// containers. Non-Ok outcomes surface as a structured <see cref="McpException"/> tool error.
+/// and delegates to the same Core services as REST, so results are scoped to the member's accessible containers.
+/// Non-Ok outcomes surface as a structured <see cref="McpException"/> tool error.
 /// </summary>
 [McpServerToolType]
 public sealed class CalendarTools
 {
-    [McpServerTool, Description("Search calendar events the caller can access, optionally by text and/or time window.")]
-    public static async Task<IReadOnlyList<EventOccurrenceDto>> search_events(
-        EventService events, CurrentUser user,
-        [Description("Free-text query over title/description/location.")] string? query = null,
+    [McpServerTool, Description("Search calendar items the caller can access, optionally by text and/or time window.")]
+    public static async Task<IReadOnlyList<CalendarItemOccurrenceDto>> search_items(
+        CalendarItemService items, CurrentUser user,
+        [Description("Free-text query over title/description.")] string? query = null,
         [Description("Window start, ISO 8601.")] DateTimeOffset? from = null,
         [Description("Window end, ISO 8601.")] DateTimeOffset? to = null,
         [Description("Restrict to one calendar id.")] Guid? calendarId = null,
-        [Description("Filter to events carrying this tag.")] string? tag = null,
-        [Description("Filter to events whose metadata JSON contains this object, e.g. {\"trip\":\"tokyo-2026\"}.")] string? metadataContains = null)
+        [Description("Filter to items carrying this tag.")] string? tag = null)
     {
         var u = await user.GetAsync();
-        return Require(await events.SearchAsync(u.Id, query, from, to, calendarId, tag, metadataContains));
+        return Require(await items.SearchAsync(u.Id, query, from, to, calendarId, tag));
     }
 
-    [McpServerTool, Description("Create a calendar event in a calendar the caller can write.")]
-    public static async Task<EventDto> create_event(EventService events, CurrentUser user, CreateEventRequest request)
+    [McpServerTool, Description("Create a calendar item; file it into a calendar (CalendarId) or leave it unfiled for curation.")]
+    public static async Task<CalendarItemDto> create_item(CalendarItemService items, CurrentUser user, CreateCalendarItemRequest request)
     {
         var u = await user.GetAsync();
-        return Require(await events.CreateAsync(u.Id, request));
+        return Require(await items.CreateAsync(u.Id, request));
     }
 
-    [McpServerTool, Description("Merge an arbitrary JSON object of metadata into an event.")]
-    public static async Task<EventDto> attach_metadata(
-        EventService events, CurrentUser user,
-        [Description("Event id.")] Guid eventId,
+    [McpServerTool, Description("Merge an arbitrary JSON object of metadata into a calendar item.")]
+    public static async Task<CalendarItemDto> attach_metadata(
+        CalendarItemService items, CurrentUser user,
+        [Description("Calendar item id.")] Guid itemId,
         [Description("A JSON object of metadata keys to merge.")] string metadataJson)
     {
         var u = await user.GetAsync();
         var node = JsonNode.Parse(metadataJson) ?? new JsonObject();
-        return Require(await events.AttachMetadataAsync(u.Id, eventId, node));
+        return Require(await items.AttachMetadataAsync(u.Id, itemId, node));
     }
 
-    [McpServerTool, Description("Find contacts the caller can access, optionally by name/organization.")]
+    [McpServerTool, Description("Find contacts the caller can access, optionally by name.")]
     public static async Task<IReadOnlyList<ContactDto>> query_contacts(
         ContactService contacts, CurrentUser user,
-        [Description("Free-text query over name/organization.")] string? query = null)
+        [Description("Free-text query over the contact's name.")] string? query = null)
     {
         var u = await user.GetAsync();
         return Require(await contacts.QueryAsync(u.Id, query, null));
@@ -67,24 +66,24 @@ public sealed class CalendarTools
         return Require(await calendars.ListContainersAsync(u.Id));
     }
 
-    [McpServerTool, Description("Link an event to an external item (e.g. a LupiraTasks item) by reference id.")]
-    public static async Task<RelationDto> link_event_to_task(
+    [McpServerTool, Description("Link a calendar item to an external item (e.g. a LupiraTasks item) by reference id.")]
+    public static async Task<RelationDto> link_item_to_task(
         RelationService relations, CurrentUser user,
-        [Description("Event id.")] Guid eventId,
+        [Description("Calendar item id.")] Guid itemId,
         [Description("The LupiraTasks item id.")] string taskId,
         [Description("Relation type, e.g. 'derived-from'.")] string relationType = "derived-from")
     {
         var u = await user.GetAsync();
-        return Require(await relations.LinkEventAsync(u.Id, eventId, new CreateRelationRequest("task", taskId, relationType, null)));
+        return Require(await relations.LinkItemAsync(u.Id, itemId, new CreateRelationRequest("task", taskId, relationType, null)));
     }
 
-    [McpServerTool, Description("Find events the caller can access that are linked to a given LupiraTasks item.")]
-    public static async Task<IReadOnlyList<EventDto>> find_events_linked_to_task(
+    [McpServerTool, Description("Find calendar items the caller can access that are linked to a given LupiraTasks item.")]
+    public static async Task<IReadOnlyList<CalendarItemDto>> find_items_linked_to_task(
         RelationService relations, CurrentUser user,
         [Description("The LupiraTasks item id.")] string taskId)
     {
         var u = await user.GetAsync();
-        return Require(await relations.FindEventsLinkedToAsync(u.Id, "task", taskId));
+        return Require(await relations.FindItemsLinkedToAsync(u.Id, "task", taskId));
     }
 
     /// <summary>Unwraps a service outcome to its value, surfacing non-Ok statuses as an MCP tool error.</summary>

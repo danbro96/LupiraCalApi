@@ -9,11 +9,10 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <!-- The bounded context + data: Domain, Application (services + OpResult), Dtos, Mappers,
-         Serialization, Auth/AccessResolver, Data (EF Core + entities + migrations).
-         No ASP.NET dependency — that lives in the host. -->
-    <PackageReference Include="EFCore.NamingConventions" Version="10.0.1" />
-    <PackageReference Include="Npgsql.EntityFrameworkCore.PostgreSQL" Version="10.0.2" />
+    <!-- The bounded context + data: Domain (event-sourced aggregates + events + projections),
+         Application (services + OpResult), Dtos, Mappers, Serialization, Auth/AccessResolver.
+         Marten is the event store + document store on Postgres. No ASP.NET dependency — that lives in the host. -->
+    <PackageReference Include="Marten" Version="9.6.0" />
     <PackageReference Include="Ical.Net" Version="5.2.2" />
     <PackageReference Include="FolkerKinzel.VCards" Version="8.1.3" />
   </ItemGroup>

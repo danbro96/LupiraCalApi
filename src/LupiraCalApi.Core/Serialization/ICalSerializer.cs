@@ -1,39 +1,49 @@
-﻿using Ical.Net.CalendarComponents;
+using Ical.Net.CalendarComponents;
 using Ical.Net.DataTypes;
 using Ical.Net.Serialization;
-using LupiraCalApi.Data.Entities;
+using LupiraCalApi.Domain;
 using System.Text.RegularExpressions;
 using IcalCalendar = Ical.Net.Calendar;
 
 namespace LupiraCalApi.Serialization;
 
-/// <summary>iCalendar (VEVENT) author + parse via Ical.Net. GET serves the stored raw blob verbatim;
-/// the parsed projection feeds REST/MCP queries + search. Unknown properties survive in the raw blob.</summary>
+/// <summary>iCalendar (VEVENT) author + parse via Ical.Net. GET serves the stored raw blob verbatim; the parsed
+/// projection feeds REST/MCP queries + search. Works in primitives so it stays decoupled from the domain aggregates.
+/// (Location is a free string here; the service resolves it to/from a <see cref="Place"/>.)</summary>
 public static class ICalSerializer
 {
-    public static string ToICalendar(Event e)
+    public static string ToICalendar(
+        string uid, string? title, string? description, string? location, ItemStatus? status,
+        bool isAllDay, DateTimeOffset? startsAt, DateTimeOffset? endsAt,
+        DateOnly? startDate, DateOnly? endDate, string? recurrenceRule)
     {
         var calendar = new IcalCalendar();
-        var ev = new CalendarEvent { Uid = e.IcalUid };
+        var ev = new CalendarEvent { Uid = uid };
 
-        if (!string.IsNullOrWhiteSpace(e.Title)) ev.Summary = e.Title;
-        if (!string.IsNullOrWhiteSpace(e.Description)) ev.Description = e.Description;
-        if (!string.IsNullOrWhiteSpace(e.Location)) ev.Location = e.Location;
+        if (!string.IsNullOrWhiteSpace(title)) ev.Summary = title;
+        if (!string.IsNullOrWhiteSpace(description)) ev.Description = description;
+        if (!string.IsNullOrWhiteSpace(location)) ev.Location = location;
+        if (status is { } s) ev.Status = s switch
+        {
+            ItemStatus.Confirmed => "CONFIRMED",
+            ItemStatus.Cancelled => "CANCELLED",
+            _ => "TENTATIVE",
+        };
 
-        if (e.IsAllDay && e.StartDate is { } sd)
+        if (isAllDay && startDate is { } sd)
         {
             ev.Start = new CalDateTime(sd.Year, sd.Month, sd.Day);
-            var end = e.EndDate ?? sd;
+            var end = endDate ?? sd;
             ev.End = new CalDateTime(end.Year, end.Month, end.Day);
         }
-        else if (e.StartsAt is { } sa)
+        else if (startsAt is { } sa)
         {
             ev.Start = new CalDateTime(sa.UtcDateTime, "UTC");
-            if (e.EndsAt is { } ea) ev.End = new CalDateTime(ea.UtcDateTime, "UTC");
+            if (endsAt is { } ea) ev.End = new CalDateTime(ea.UtcDateTime, "UTC");
         }
 
-        if (!string.IsNullOrWhiteSpace(e.RecurrenceRule))
-            ev.RecurrenceRule = new RecurrencePattern(e.RecurrenceRule);
+        if (!string.IsNullOrWhiteSpace(recurrenceRule))
+            ev.RecurrenceRule = new RecurrencePattern(recurrenceRule);
 
         calendar.Events.Add(ev);
         return new CalendarSerializer().SerializeToString(calendar) ?? string.Empty;

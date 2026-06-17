@@ -1,10 +1,10 @@
-﻿using LupiraCalApi.Data.Entities;
+using LupiraCalApi.Domain;
 using LupiraCalApi.Dtos.Relations;
 using System.Text.Json.Nodes;
 
 namespace LupiraCalApi.Mappers;
 
-/// <summary>Maps the <see cref="Relation"/> entity to its response DTO.</summary>
+/// <summary>Maps the <see cref="Relation"/> document to its response DTO.</summary>
 internal static class RelationMapper
 {
     public static RelationDto ToResponse(this Relation r) => new(

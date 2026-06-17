@@ -1,33 +1,44 @@
-using LupiraCalApi.Data;
-using LupiraCalApi.Data.Entities;
-using Microsoft.EntityFrameworkCore;
+using LupiraCalApi.Domain;
+using Marten;
 
 namespace LupiraCalApi.Auth;
 
-/// <summary>Container-scoped authorization: a user may touch a calendar/address book they own OR are shared into.</summary>
-public sealed class AccessResolver(CalDbContext db)
+/// <summary>Container-scoped authorization over the multi-owner membership docs: a principal may read a collection it
+/// has any grant on, and write one it owns or has a read-write grant on.</summary>
+public sealed class AccessResolver(IQuerySession session)
 {
-    public IQueryable<Calendar> AccessibleCalendars(Guid userId) =>
-        db.Calendars.Where(c => c.OwnerId == userId
-            || db.CalendarShares.Any(s => s.CalendarId == c.Id && s.UserId == userId));
+    public async Task<List<Guid>> AccessibleCalendarIdsAsync(Guid principalId, CancellationToken ct = default) =>
+        await session.Query<CalendarOwner>().Where(o => o.PrincipalId == principalId).Select(o => o.CalendarId).ToListAsync(ct) is { } l ? [.. l] : [];
 
-    public IQueryable<AddressBook> AccessibleAddressBooks(Guid userId) =>
-        db.AddressBooks.Where(a => a.OwnerId == userId
-            || db.AddressBookShares.Any(s => s.AddressBookId == a.Id && s.UserId == userId));
+    public async Task<List<Guid>> AccessibleAddressBookIdsAsync(Guid principalId, CancellationToken ct = default) =>
+        await session.Query<AddressBookOwner>().Where(o => o.PrincipalId == principalId).Select(o => o.AddressBookId).ToListAsync(ct) is { } l ? [.. l] : [];
 
-    public async Task<bool> CanReadCalendarAsync(Guid userId, Guid calendarId, CancellationToken ct = default) =>
-        await db.Calendars.AnyAsync(c => c.Id == calendarId && c.OwnerId == userId, ct)
-        || await db.CalendarShares.AnyAsync(s => s.CalendarId == calendarId && s.UserId == userId, ct);
+    public async Task<bool> CanReadCalendarAsync(Guid principalId, Guid calendarId, CancellationToken ct = default) =>
+        await session.Query<CalendarOwner>().AnyAsync(o => o.CalendarId == calendarId && o.PrincipalId == principalId, ct);
 
-    public async Task<bool> CanWriteCalendarAsync(Guid userId, Guid calendarId, CancellationToken ct = default) =>
-        await db.Calendars.AnyAsync(c => c.Id == calendarId && c.OwnerId == userId, ct)
-        || await db.CalendarShares.AnyAsync(s => s.CalendarId == calendarId && s.UserId == userId && s.Access == "read-write", ct);
+    public async Task<bool> CanWriteCalendarAsync(Guid principalId, Guid calendarId, CancellationToken ct = default) =>
+        await session.Query<CalendarOwner>().AnyAsync(
+            o => o.CalendarId == calendarId && o.PrincipalId == principalId && (o.Access == Access.Owner || o.Access == Access.ReadWrite), ct);
 
-    public async Task<bool> CanReadAddressBookAsync(Guid userId, Guid addressBookId, CancellationToken ct = default) =>
-        await db.AddressBooks.AnyAsync(a => a.Id == addressBookId && a.OwnerId == userId, ct)
-        || await db.AddressBookShares.AnyAsync(s => s.AddressBookId == addressBookId && s.UserId == userId, ct);
+    public async Task<bool> CanReadAddressBookAsync(Guid principalId, Guid addressBookId, CancellationToken ct = default) =>
+        await session.Query<AddressBookOwner>().AnyAsync(o => o.AddressBookId == addressBookId && o.PrincipalId == principalId, ct);
 
-    public async Task<bool> CanWriteAddressBookAsync(Guid userId, Guid addressBookId, CancellationToken ct = default) =>
-        await db.AddressBooks.AnyAsync(a => a.Id == addressBookId && a.OwnerId == userId, ct)
-        || await db.AddressBookShares.AnyAsync(s => s.AddressBookId == addressBookId && s.UserId == userId && s.Access == "read-write", ct);
+    public async Task<bool> CanWriteAddressBookAsync(Guid principalId, Guid addressBookId, CancellationToken ct = default) =>
+        await session.Query<AddressBookOwner>().AnyAsync(
+            o => o.AddressBookId == addressBookId && o.PrincipalId == principalId && (o.Access == Access.Owner || o.Access == Access.ReadWrite), ct);
+
+    /// <summary>An item is readable/writable if the principal can read/write any calendar it is accepted into.</summary>
+    public async Task<bool> CanReadItemAsync(Guid principalId, CalendarItem item, CancellationToken ct = default)
+    {
+        foreach (var m in item.Calendars.Where(x => x.Status == CalendarEntryStatus.Accepted))
+            if (await CanReadCalendarAsync(principalId, m.CalendarId, ct)) return true;
+        return false;
+    }
+
+    public async Task<bool> CanWriteItemAsync(Guid principalId, CalendarItem item, CancellationToken ct = default)
+    {
+        foreach (var m in item.Calendars.Where(x => x.Status == CalendarEntryStatus.Accepted))
+            if (await CanWriteCalendarAsync(principalId, m.CalendarId, ct)) return true;
+        return false;
+    }
 }
