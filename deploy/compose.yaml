@@ -1,28 +1,31 @@
-# lupira-cal-api — TrueNAS Custom App `lupira-cal-api`.
-# Single .NET 10 service: REST + MCP (/api) and CalDAV/CardDAV (/dav) over one Postgres (lupira_cal). No filesystem state.
+# Reference Compose service for LupiraCalApi.
+# Single .NET 10 service: REST + MCP (/api) and CalDAV/CardDAV (/dav) over one Postgres. No filesystem state.
+#
+# Every host, port, and identity-provider URL below is an OVERRIDABLE SAMPLE wired to a ${VAR:-default}
+# env var — the defaults are illustrative, not required. Set them for your own environment.
 services:
   lupira-cal-api:
     image: danbro96/lupira-cal-api:${IMAGE_TAG:-latest}
     container_name: lupira-cal-api
     environment:
-      # Postgres — EF Core source of truth (schema `cal`). Both /api and /dav read/write this one DB.
+      # Postgres — the Marten event store + documents (one schema). Both /api and /dav read/write this one DB.
       ConnectionStrings__Postgres: "Host=postgres;Port=5432;Database=lupira_cal;Username=lupira_cal_user;Password=${LUPIRA_CAL_DB_PASSWORD:?required}"
 
-      # /api auth — Authentik OIDC (JWT). The headless agent obtains a member-scoped token via
-      # token-exchange (RFC 8693) at Authentik — no agent secret lives here.
+      # /api auth — OIDC (JWT). The service only validates tokens (issuer + audience); no client secret
+      # lives here. Any OIDC provider works — the default is just a sample issuer URL.
       Auth__Authority: ${AUTH_AUTHORITY:-https://auth.lupira.com/application/o/lupira-cal/}
       Auth__Audience: ${AUTH_AUDIENCE:-lupira-cal}
 
-      # /dav auth — Basic -> LDAP bind against the Authentik LDAP outpost (reused from the Radicale plan).
+      # /dav auth — HTTP Basic resolved by an LDAP search+bind. Point Ldap__* at your directory.
       Ldap__Uri: ${LDAP_URI:-ldap://authentik-ldap:3389}
       Ldap__BaseDn: dc=ldap,dc=goauthentik,dc=io
       Ldap__ReaderDn: cn=ldapservice,ou=users,dc=ldap,dc=goauthentik,dc=io
       Ldap__ReaderSecret: ${LUPIRA_CAL_LDAP_SECRET:?required}
       Ldap__Filter: "(&(objectClass=user)(mail={0}))"   # login by email
 
-      # MCP surface (/api/mcp) is LAN/WireGuard-only — it is NOT added to the Cloudflare Tunnel.
+      # MCP surface (/api/mcp) is the most powerful surface — keep it off the public internet.
 
-      # OTEL — same Basic Auth header convention as the other .NET apps (http/protobuf; 5-min metric cadence).
+      # OTEL — optional OTLP export (http/protobuf; 5-min metric cadence). Unset endpoint = silent no-op.
       OTEL_EXPORTER_OTLP_ENDPOINT: ${OTEL_EXPORTER_OTLP_ENDPOINT:-}
       OTEL_EXPORTER_OTLP_PROTOCOL: ${OTEL_EXPORTER_OTLP_PROTOCOL:-http/protobuf}
       OTEL_EXPORTER_OTLP_HEADERS: ${OTEL_EXPORTER_OTLP_HEADERS:-}

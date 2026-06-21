@@ -1,57 +1,173 @@
 # LupiraCalApi
 
-Unified personal + family **calendar and contacts** service. One ASP.NET Core (.NET 10) app that is the single source of truth in Postgres and exposes **both**:
+A single self-hosted **calendar and contacts** service that is the source of truth in Postgres and exposes
+two complementary surfaces over the same data:
 
-- `/api/*` — clean REST + **MCP** (`/api/mcp`) for the agent and a future web UI (Authentik OIDC; the agent gets a member-scoped token via token-exchange, RFC 8693).
-- `/dav/*` — CalDAV/CardDAV so phones/desktops (iOS/macOS, Android via DAVx5, Thunderbird) sync natively (HTTP Basic → Authentik LDAP outpost).
-- `/livez` + `/readyz` — health probes.
+- **`/api/*`** — a clean REST API plus a **Model Context Protocol (MCP)** server at `/api/mcp`, for
+  programmatic and agent use (text/time search, rich metadata, sharing). Authenticated with OIDC JWTs.
+- **`/dav/*`** — **CalDAV/CardDAV**, so phones and desktops (iOS/macOS, Android via DAVx5, Thunderbird, eM
+  Client) sync natively. Authenticated with HTTP Basic, verified by an LDAP bind.
 
-Both surfaces sit over one **Marten event-sourced store** in Postgres (schema `cal`). Deployed as a TrueNAS Custom App at `https://cal.lupira.com` → MedelyNAS `:40880`. Supersedes the never-deployed Radicale plan.
+Unlike off-the-shelf CalDAV servers, the REST/MCP surface offers structured search and arbitrary JSON
+metadata that the DAV protocol can't express — while still syncing to any standard client over the one
+database. Calendars and address books are **multi-owner**, so they can be shared.
 
-> **Architecture & data model:** see [docs/data-model.md](docs/data-model.md) — the agreed boundaries, class diagrams, and event-sourcing shape.
->
-> Ops + deployment docs live in the DevOps repo: `Websites/lupira-cal-api/` (deployment.md, operations.md).
+Interactive API docs: **`/scalar/v1`** (Scalar UI) over the OpenAPI document at **`/openapi/v1.json`**.
 
-## Status: event-sourced rebuild (in progress)
+## Tech stack
 
-Converting from the original EF Core scaffold to the all-Marten, event-sourced model in [docs/data-model.md](docs/data-model.md): `CalendarItem`/`Contact`/`ContactGroup` aggregates, projection read models, derived `*ChangeFeed` sync (token = Marten event `Sequence`), many-to-many `CalendarItem`↔`Calendar` with `proposed`/`accepted` curation, hierarchical `Place`, first-class `Participation`, and table-per-type item kinds. The CalDAV/CardDAV contract is preserved throughout.
+| | |
+|---|---|
+| Runtime | .NET 10 (`net10.0`), ASP.NET Core Minimal APIs |
+| Store | **Marten 9.6.0** — event sourcing + document store on PostgreSQL |
+| iCalendar / vCard | **Ical.Net 5.2.2**, **FolkerKinzel.VCards 8.1.3** (payloads + recurrence; the DAV protocol layer is hand-rolled) |
+| MCP | **ModelContextProtocol.AspNetCore 1.4.0** |
+| API docs | **Scalar.AspNetCore 2.16.4** + `Microsoft.AspNetCore.OpenApi 10.0.9` |
+| Auth | `Microsoft.AspNetCore.Authentication.JwtBearer 10.0.9` (OIDC); `System.DirectoryServices.Protocols 10.0.9` (LDAP for DAV) |
+| Telemetry | OpenTelemetry 1.16.0 (OTLP exporter; traces, metrics, logs) |
+| Tests | xUnit 2.9.3 + **Testcontainers.PostgreSql** (ephemeral Postgres) |
 
-## Layout
+## Run locally
 
-```
-src/LupiraCalApi/
-  Program.cs            host: config, OTel, auth, health, route groups
-  Data/                 CalDbContext + entities (schema `cal`, snake_case)
-  Api/                  REST + MCP endpoints (/api)
-  Dav/                  CalDAV/CardDAV catch-all router (/dav)
-  Auth/                 DavBasicAuthHandler (Basic -> LDAP)
-  Domain/               RecurrenceExpander, Telemetry (services land in Phase 1)
-  Serialization/        iCalendar / vCard mappers (Ical.Net, FolkerKinzel.VCards)
-  Health/               DatabaseReadyCheck (/readyz)
-deploy/                 compose.yaml + db/grants.sql (TrueNAS Custom App + DB provisioning)
-```
-
-## Develop
-
-```bash
-# Needs a local Postgres reachable via ConnectionStrings:Postgres (defaults to localhost lupira_cal).
-dotnet run --project src/LupiraCalApi
-
-curl -s localhost:8080/livez          # 200
-curl -s localhost:8080/openapi/v1.json | head
-curl -s -o /dev/null -w "%{http_code}\n" localhost:8080/api/me   # 401 without a token
-```
-
-### Schema
-
-Marten manages the `cal` schema (event tables + projection/document tables). No EF migrations — apply the configured schema directly:
+**Prerequisites:** the .NET 10 SDK, and Docker (for a local Postgres, and for the integration tests, which
+spin up Postgres via Testcontainers).
 
 ```bash
-dotnet run --project src/LupiraCalApi -- --apply-schema    # ApplyAllConfiguredChangesToDatabase
+# 1. A Postgres to point at
+docker run -d --name lupira-cal-pg -e POSTGRES_USER=lupira_cal_user \
+  -e POSTGRES_PASSWORD=devpw -e POSTGRES_DB=lupira_cal -p 5432:5432 postgres:17
+
+export ConnectionStrings__Postgres="Host=localhost;Port=5432;Database=lupira_cal;Username=lupira_cal_user;Password=devpw"
+
+# 2. Build & test
+dotnet build LupiraCalApi.slnx -c Release
+dotnet test  LupiraCalApi.slnx          # unit + Testcontainers integration suite
+
+# 3. Apply the schema (see below), then run
+dotnet run --project src/LupiraCalApi -- --apply-schema
+dotnet run --project src/LupiraCalApi    # listens on http://localhost:8080
 ```
 
-## Key dependencies
+**Exercising the API without an identity provider.** In the `Development` environment the app accepts an
+`X-Dev-User` header naming the caller's email — no OIDC needed:
 
-- **Marten** (event store + document store on Postgres) — `CalendarItem`/`Contact`/`ContactGroup` are event-sourced aggregates; collections + projections are documents. Schema apply via `--apply-schema` (`ApplyAllConfiguredChangesToDatabase`), no EF migrations.
-- **Ical.Net** (iCalendar payloads + recurrence) and **FolkerKinzel.VCards** (vCard) — payloads only; the DAV protocol layer is hand-rolled.
-- **OpenTelemetry** → OpenObserve; **JwtBearer** for OIDC.
+```bash
+curl localhost:8080/livez                                    # 200 (no auth)
+curl localhost:8080/api/me                                   # 401 without auth
+curl -H "X-Dev-User: dev@example.com" localhost:8080/api/me  # 200, JIT-provisions the principal
+```
+
+This header handler is registered **only** when the environment is `Development`; it does nothing in
+production.
+
+## Configuration
+
+All configuration is environment-driven (ASP.NET `Section__Key` convention — use `:` in JSON, `__` in env
+vars). Nothing host-specific is baked in.
+
+| Variable | Purpose | Example |
+|---|---|---|
+| `ConnectionStrings__Postgres` | PostgreSQL connection (Marten store) — **required** | `Host=localhost;Port=5432;Database=lupira_cal;Username=lupira_cal_user;Password=…` |
+| `Auth__Authority` | OIDC issuer/authority for `/api` JWT validation | `https://idp.example.com/application/o/lupira-cal/` |
+| `Auth__Audience` | Expected JWT `aud` | `lupira-cal` |
+| `Ldap__Uri` | LDAP server for `/dav` Basic-auth bind | `ldap://ldap.example.com:3389` |
+| `Ldap__BaseDn` | Search base DN | `dc=example,dc=com` |
+| `Ldap__ReaderDn` | Service-account DN used to search for the user | `cn=reader,ou=users,dc=example,dc=com` |
+| `Ldap__ReaderSecret` | Service-account password | _(secret)_ |
+| `Ldap__Filter` | User search filter (`{0}` = login email) | `(&(objectClass=user)(mail={0}))` |
+| `OTEL_EXPORTER_OTLP_ENDPOINT` | OTLP collector URL. **Unset ⇒ telemetry export is a silent no-op** | `http://otel-collector:4318` |
+| `OTEL_EXPORTER_OTLP_PROTOCOL` | OTLP protocol | `http/protobuf` |
+| `OTEL_EXPORTER_OTLP_HEADERS` | OTLP auth header(s) | `Authorization=Basic …` |
+
+OIDC (`/api`) and LDAP-Basic (`/dav`) logins for the same person **converge on one principal** (matched by
+OIDC `sub`, then email), so a user signs in to both surfaces with the same account.
+
+## Schema
+
+Marten owns its schema; there are **no EF migrations**. The schema is applied **deliberately**, not on boot —
+run the app once with `--apply-schema` (it calls Marten's `ApplyAllConfiguredChangesToDatabaseAsync()` and
+exits), then start it normally:
+
+```bash
+dotnet run --project src/LupiraCalApi -- --apply-schema
+```
+
+## API surface
+
+All `/api/*` routes require an authenticated caller (OIDC JWT, or the dev header in `Development`); results
+are scoped to the caller's accessible containers.
+
+| Area | Routes |
+|---|---|
+| **Me** | `GET /api/me` · `POST /api/me/bootstrap` (idempotently create a personal calendar + address book) |
+| **Calendars** | `GET /api/calendars` · `POST /api/calendars` (create a calendar or address book) |
+| **Sharing** | `POST`/`DELETE /api/calendars/{id}/owners` · `POST`/`DELETE /api/address-books/{id}/owners` |
+| **Items** | `GET /api/items` (text/time/tag search, recurrence-expanded) · `POST /api/items` · `GET`/`PUT`/`DELETE /api/items/{id}` · `POST /api/items/{id}/metadata` (merge JSON) |
+| **Participation** | `POST /api/items/{id}/participants` (invite) · `…/{participationId}/respond` · `…/attend` · `…/leave` · `DELETE …/{participationId}` |
+| **Curation** | `GET /api/calendars/{id}/proposed` · `POST /api/items/{itemId}/calendars/{calId}/accept` · `POST /api/items/{itemId}/calendars/{calId}` · `DELETE /api/items/{itemId}/calendars/{calId}` |
+| **Contacts** | `GET /api/contacts` (name search) · `POST /api/contacts` · `GET`/`DELETE /api/contacts/{id}` |
+| **Groups** | `GET`/`POST /api/address-books/{id}/groups` · `PUT /api/groups/{id}` · `POST`/`DELETE /api/groups/{id}/members…` · `DELETE /api/groups/{id}` |
+| **Relations** | `POST`/`GET /api/items/{id}/relations` (link to an external service) · `GET /api/relations` (reverse lookup) |
+| **DAV** | `/.well-known/caldav` · `/.well-known/carddav` (discovery) · `/dav/{**path}` (CalDAV/CardDAV, HTTP Basic) |
+| **Health** | `GET /livez` (liveness) · `GET /readyz` (readiness — Postgres reachable) |
+
+### MCP tools (`/api/mcp`)
+
+The agent surface mirrors REST and is scoped to the caller's access:
+
+`search_items` · `create_item` · `attach_metadata` · `query_contacts` · `list_calendars` ·
+`bootstrap_me` · `grant_calendar_owner` · `revoke_calendar_owner` · `grant_addressbook_owner` ·
+`revoke_addressbook_owner` · `link_item_to_task` · `find_items_linked_to_task`
+
+## Docker & Compose
+
+The repository root `Dockerfile` is a multi-stage build (SDK → ASP.NET runtime) that listens on `8080` and
+installs `libldap2` (for the DAV LDAP bind). A reference Compose service is in
+[`deploy/compose.yaml`](deploy/compose.yaml) and a Postgres role/grant script in
+[`deploy/db/grants.sql`](deploy/db/grants.sql).
+
+```bash
+docker build -t lupira-cal-api .
+```
+
+> The hostnames, ports, and identity-provider URLs in `deploy/compose.yaml` are **overridable samples** —
+> every one is wired to a `${VAR:-default}` env var. Set them for your own environment.
+
+## CI
+
+GitHub Actions ([`.github/workflows`](.github/workflows)):
+
+- **`ci.yml`** — on every PR/branch: restore, build (`Release`), and run the full unit + Testcontainers
+  integration suite.
+- **`release.yml`** — on merge to `main` / `v*` tags: re-runs CI, then builds and pushes a container image
+  (tagged `latest`, `sha-<short>`, and the semantic version for tags).
+
+## Project layout
+
+```
+src/
+  LupiraCalApi.Core/        bounded context (no ASP.NET dependency)
+    Domain/                 event-sourced aggregates, events, value objects, enums, Marten registration
+    Application/            services + transport-neutral OpResult
+    Auth/                   AccessResolver (container-scoped authorization)
+    Dtos/ Mappers/ Serialization/
+  LupiraCalApi/             thin web host
+    Endpoints/ Handlers/    REST routes → handlers → Core services
+    Http/                   OpResult → HTTP (TypedResults, RFC 7807)
+    Dav/                    CalDAV/CardDAV router
+    Mcp/                    MCP agent tools
+    Auth/ Health/ Program.cs
+tests/
+  LupiraCalApi.Core.Tests/      domain + application unit tests
+  LupiraCalApi.Server.Tests/    integration tests (WebApplicationFactory + Testcontainers)
+deploy/                          Dockerfile is at the repo root; compose.yaml + db/grants.sql here
+docs/architecture.md             design, domain model, ownership, transport mapping
+```
+
+See [docs/architecture.md](docs/architecture.md) for the persistence model, domain diagram, ownership/identity
+model, and error-to-transport mapping. Deployment and day-2 operations are environment-specific and kept in
+private ops notes.
+
+## License
+
+[MIT](LICENSE) © 2026 Daniel Broström.
