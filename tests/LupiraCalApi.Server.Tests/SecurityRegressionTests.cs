@@ -25,17 +25,17 @@ public sealed class SecurityRegressionTests(CalApiTestFactory factory) : Integra
     {
         var a = Factory.ApiClient("a@x.test");
         var calA = await CreateCalendarAsync(a, "a-cal");
-        var item = (await (await a.PostAsJsonAsync("/api/items", Event(calA, "A secret"))).Content.ReadFromJsonAsync<CalendarItemDto>())!;
+        var item = (await (await a.PostAsJsonAsync("/items", Event(calA, "A secret"))).Content.ReadFromJsonAsync<CalendarItemDto>())!;
 
         var b = Factory.ApiClient("b@x.test");
         var calB = await CreateCalendarAsync(b, "b-cal");
 
         // B tries to file A's item into B's own calendar to self-grant read/write access.
-        var add = await b.PostAsync($"/api/items/{item.Id}/calendars/{calB}?status=accepted", null);
+        var add = await b.PostAsync($"/items/{item.Id}/calendars/{calB}?status=accepted", null);
         Assert.Equal(HttpStatusCode.NotFound, add.StatusCode);
 
         // B still cannot read A's item.
-        Assert.Equal(HttpStatusCode.Forbidden, (await b.GetAsync($"/api/items/{item.Id}")).StatusCode);
+        Assert.Equal(HttpStatusCode.Forbidden, (await b.GetAsync($"/items/{item.Id}")).StatusCode);
     }
 
     [Fact]
@@ -43,12 +43,12 @@ public sealed class SecurityRegressionTests(CalApiTestFactory factory) : Integra
     {
         var a = Factory.ApiClient("a@x.test");
         var calA = await CreateCalendarAsync(a, "a-cal");
-        var item = (await (await a.PostAsJsonAsync("/api/items", Event(calA, "A secret"))).Content.ReadFromJsonAsync<CalendarItemDto>())!;
+        var item = (await (await a.PostAsJsonAsync("/items", Event(calA, "A secret"))).Content.ReadFromJsonAsync<CalendarItemDto>())!;
 
         var b = Factory.ApiClient("b@x.test");
         var calB = await CreateCalendarAsync(b, "b-cal");
 
-        var accept = await b.PostAsync($"/api/items/{item.Id}/calendars/{calB}/accept", null);
+        var accept = await b.PostAsync($"/items/{item.Id}/calendars/{calB}/accept", null);
         Assert.Equal(HttpStatusCode.NotFound, accept.StatusCode);
     }
 
@@ -57,11 +57,11 @@ public sealed class SecurityRegressionTests(CalApiTestFactory factory) : Integra
     {
         var a = Factory.ApiClient("a@x.test");
         var calA = await CreateCalendarAsync(a, "a-cal");
-        var item = (await (await a.PostAsJsonAsync("/api/items", Event(null, "Unfiled"))).Content.ReadFromJsonAsync<CalendarItemDto>())!;
+        var item = (await (await a.PostAsJsonAsync("/items", Event(null, "Unfiled"))).Content.ReadFromJsonAsync<CalendarItemDto>())!;
 
-        var add = await a.PostAsync($"/api/items/{item.Id}/calendars/{calA}?status=accepted", null);
+        var add = await a.PostAsync($"/items/{item.Id}/calendars/{calA}?status=accepted", null);
         Assert.Equal(HttpStatusCode.OK, add.StatusCode);
-        Assert.Equal(HttpStatusCode.OK, (await a.GetAsync($"/api/items/{item.Id}")).StatusCode);
+        Assert.Equal(HttpStatusCode.OK, (await a.GetAsync($"/items/{item.Id}")).StatusCode);
     }
 
     // ---------- Vuln 2: DAV cross-tenant by UID ----------

@@ -40,9 +40,9 @@ public sealed class DavEdgeCaseTests(CalApiTestFactory factory) : IntegrationTes
         var dav = Factory.DavClient(Email);
 
         var start = new DateTimeOffset(2026, 7, 1, 9, 0, 0, TimeSpan.Zero);
-        var create = await api.PostAsJsonAsync("/api/items", new CreateCalendarItemRequest { CalendarId = cal1, Title = "Shared", IsAllDay = false, StartsAt = start, EndsAt = start.AddHours(1), StartTimezone = "UTC" });
+        var create = await api.PostAsJsonAsync("/items", new CreateCalendarItemRequest { CalendarId = cal1, Title = "Shared", IsAllDay = false, StartsAt = start, EndsAt = start.AddHours(1), StartTimezone = "UTC" });
         var item = (await create.Content.ReadFromJsonAsync<CalendarItemDto>())!;
-        (await api.PostAsync($"/api/items/{item.Id}/calendars/{cal2}/accept", null)).EnsureSuccessStatusCode();
+        (await api.PostAsync($"/items/{item.Id}/calendars/{cal2}/accept", null)).EnsureSuccessStatusCode();
 
         var url1 = $"/dav/u/{uid}/cal/{cal1}/{item.IcalUid}.ics";
         var url2 = $"/dav/u/{uid}/cal/{cal2}/{item.IcalUid}.ics";

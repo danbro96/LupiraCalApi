@@ -7,7 +7,7 @@ public static class CurationEndpoints
 {
     public static IEndpointRouteBuilder MapCuration(this IEndpointRouteBuilder app)
     {
-        var group = app.MapGroup("/api").RequireAuthorization("ApiPolicy").WithTags("Curation");
+        var group = app.MapGroup("").RequireAuthorization("ApiPolicy").WithTags("Curation");
 
         group.MapGet("/calendars/{calendarId:guid}/proposed", (Guid calendarId, CurationHandler h, CancellationToken ct) => h.ListProposedAsync(calendarId, ct))
             .WithSummary("List items proposed into a calendar (awaiting accept/reject).")

@@ -19,11 +19,11 @@ public sealed class CurationTests(CalApiTestFactory factory) : IntegrationTest(f
 
         // Create an unfiled item, then PROPOSE it into the calendar.
         var start = new DateTimeOffset(2026, 7, 1, 9, 0, 0, TimeSpan.Zero);
-        var create = await api.PostAsJsonAsync("/api/items", new CreateCalendarItemRequest { Title = "Proposed", IsAllDay = false, StartsAt = start, EndsAt = start.AddHours(1), StartTimezone = "UTC" });
+        var create = await api.PostAsJsonAsync("/items", new CreateCalendarItemRequest { Title = "Proposed", IsAllDay = false, StartsAt = start, EndsAt = start.AddHours(1), StartTimezone = "UTC" });
         var item = (await create.Content.ReadFromJsonAsync<CalendarItemDto>())!;
         var itemUrl = $"/dav/u/{uid}/cal/{calId}/{item.IcalUid}.ics";
 
-        (await api.PostAsync($"/api/items/{item.Id}/calendars/{calId}?status=proposed", null)).EnsureSuccessStatusCode();
+        (await api.PostAsync($"/items/{item.Id}/calendars/{calId}?status=proposed", null)).EnsureSuccessStatusCode();
 
         // Proposed → not visible over DAV.
         Assert.Equal(HttpStatusCode.NotFound, (await dav.GetAsync(itemUrl)).StatusCode);
@@ -31,7 +31,7 @@ public sealed class CurationTests(CalApiTestFactory factory) : IntegrationTest(f
         Assert.DoesNotContain(listed.Descendants(D + "href"), h => h.Value.Contains(item.IcalUid));
 
         // Accept → now visible.
-        (await api.PostAsync($"/api/items/{item.Id}/calendars/{calId}/accept", null)).EnsureSuccessStatusCode();
+        (await api.PostAsync($"/items/{item.Id}/calendars/{calId}/accept", null)).EnsureSuccessStatusCode();
         Assert.Equal(HttpStatusCode.OK, (await dav.GetAsync(itemUrl)).StatusCode);
         var after = await ReadXml(await SendDav(dav, "PROPFIND", $"/dav/u/{uid}/cal/{calId}/", depth: "1"));
         Assert.Contains(after.Descendants(D + "href"), h => h.Value.Contains(item.IcalUid));
@@ -47,10 +47,10 @@ public sealed class CurationTests(CalApiTestFactory factory) : IntegrationTest(f
         var dav = Factory.DavClient(Email);
 
         var start = new DateTimeOffset(2026, 7, 1, 9, 0, 0, TimeSpan.Zero);
-        var create = await api.PostAsJsonAsync("/api/items", new CreateCalendarItemRequest { CalendarId = cal1, Title = "Shared", IsAllDay = false, StartsAt = start, EndsAt = start.AddHours(1), StartTimezone = "UTC" });
+        var create = await api.PostAsJsonAsync("/items", new CreateCalendarItemRequest { CalendarId = cal1, Title = "Shared", IsAllDay = false, StartsAt = start, EndsAt = start.AddHours(1), StartTimezone = "UTC" });
         var item = (await create.Content.ReadFromJsonAsync<CalendarItemDto>())!;
 
-        (await api.PostAsync($"/api/items/{item.Id}/calendars/{cal2}/accept", null)).EnsureSuccessStatusCode();
+        (await api.PostAsync($"/items/{item.Id}/calendars/{cal2}/accept", null)).EnsureSuccessStatusCode();
 
         Assert.Equal(HttpStatusCode.OK, (await dav.GetAsync($"/dav/u/{uid}/cal/{cal1}/{item.IcalUid}.ics")).StatusCode);
         Assert.Equal(HttpStatusCode.OK, (await dav.GetAsync($"/dav/u/{uid}/cal/{cal2}/{item.IcalUid}.ics")).StatusCode);
@@ -62,9 +62,9 @@ public sealed class CurationTests(CalApiTestFactory factory) : IntegrationTest(f
         var api = Factory.ApiClient(Email);
         var calId = await CreateCalendarAsync(api);
         var item = await CreateUnfiledAsync(api);
-        (await api.PostAsync($"/api/items/{item.Id}/calendars/{calId}?status=proposed", null)).EnsureSuccessStatusCode();
+        (await api.PostAsync($"/items/{item.Id}/calendars/{calId}?status=proposed", null)).EnsureSuccessStatusCode();
 
-        var proposed = await api.GetFromJsonAsync<List<CalendarItemDto>>($"/api/calendars/{calId}/proposed");
+        var proposed = await api.GetFromJsonAsync<List<CalendarItemDto>>($"/calendars/{calId}/proposed");
         Assert.Contains(proposed!, i => i.Id == item.Id);
     }
 
@@ -77,12 +77,12 @@ public sealed class CurationTests(CalApiTestFactory factory) : IntegrationTest(f
         var dav = Factory.DavClient(Email);
 
         var start = new DateTimeOffset(2026, 7, 1, 9, 0, 0, TimeSpan.Zero);
-        var create = await api.PostAsJsonAsync("/api/items", new CreateCalendarItemRequest { CalendarId = calId, Title = "Filed", IsAllDay = false, StartsAt = start, EndsAt = start.AddHours(1), StartTimezone = "UTC" });
+        var create = await api.PostAsJsonAsync("/items", new CreateCalendarItemRequest { CalendarId = calId, Title = "Filed", IsAllDay = false, StartsAt = start, EndsAt = start.AddHours(1), StartTimezone = "UTC" });
         var item = (await create.Content.ReadFromJsonAsync<CalendarItemDto>())!;
         var url = $"/dav/u/{uid}/cal/{calId}/{item.IcalUid}.ics";
         Assert.Equal(HttpStatusCode.OK, (await dav.GetAsync(url)).StatusCode);
 
-        (await api.DeleteAsync($"/api/items/{item.Id}/calendars/{calId}")).EnsureSuccessStatusCode();
+        (await api.DeleteAsync($"/items/{item.Id}/calendars/{calId}")).EnsureSuccessStatusCode();
         Assert.Equal(HttpStatusCode.NotFound, (await dav.GetAsync(url)).StatusCode);
     }
 
@@ -95,14 +95,14 @@ public sealed class CurationTests(CalApiTestFactory factory) : IntegrationTest(f
         var dav = Factory.DavClient(Email);
         var item = await CreateUnfiledAsync(api);
 
-        (await api.PostAsync($"/api/items/{item.Id}/calendars/{calId}?status=accepted", null)).EnsureSuccessStatusCode();
+        (await api.PostAsync($"/items/{item.Id}/calendars/{calId}?status=accepted", null)).EnsureSuccessStatusCode();
         Assert.Equal(HttpStatusCode.OK, (await dav.GetAsync($"/dav/u/{uid}/cal/{calId}/{item.IcalUid}.ics")).StatusCode);
     }
 
     private static async Task<CalendarItemDto> CreateUnfiledAsync(HttpClient api)
     {
         var start = new DateTimeOffset(2026, 7, 1, 9, 0, 0, TimeSpan.Zero);
-        var create = await api.PostAsJsonAsync("/api/items", new CreateCalendarItemRequest { Title = "Unfiled", IsAllDay = false, StartsAt = start, EndsAt = start.AddHours(1), StartTimezone = "UTC" });
+        var create = await api.PostAsJsonAsync("/items", new CreateCalendarItemRequest { Title = "Unfiled", IsAllDay = false, StartsAt = start, EndsAt = start.AddHours(1), StartTimezone = "UTC" });
         create.EnsureSuccessStatusCode();
         return (await create.Content.ReadFromJsonAsync<CalendarItemDto>())!;
     }

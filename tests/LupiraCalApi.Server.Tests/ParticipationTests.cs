@@ -20,17 +20,17 @@ public sealed class ParticipationTests(CalApiTestFactory factory) : IntegrationT
         var contact = await CreateContactAsync(api, abId);
 
         var start = new DateTimeOffset(2026, 7, 1, 9, 0, 0, TimeSpan.Zero);
-        var create = await api.PostAsJsonAsync("/api/items", new CreateCalendarItemRequest { CalendarId = calId, Title = "Mtg", IsAllDay = false, StartsAt = start, EndsAt = start.AddHours(1), StartTimezone = "UTC" });
+        var create = await api.PostAsJsonAsync("/items", new CreateCalendarItemRequest { CalendarId = calId, Title = "Mtg", IsAllDay = false, StartsAt = start, EndsAt = start.AddHours(1), StartTimezone = "UTC" });
         var itemId = (await create.Content.ReadFromJsonAsync<CalendarItemDto>())!.Id;
 
-        (await api.PostAsync($"/api/items/{itemId}/participants?contactId={contact.Id}&role=req-participant", null)).EnsureSuccessStatusCode();
+        (await api.PostAsync($"/items/{itemId}/participants?contactId={contact.Id}&role=req-participant", null)).EnsureSuccessStatusCode();
 
         Guid participationId;
         await using (var s = Factory.Store.LightweightSession())
             participationId = (await s.LoadAsync<CalendarItem>(itemId))!.Attendees.Single().ParticipationId;
 
-        (await api.PostAsync($"/api/items/{itemId}/participants/{participationId}/respond?status=accepted", null)).EnsureSuccessStatusCode();
-        (await api.PostAsync($"/api/items/{itemId}/participants/{participationId}/attend", null)).EnsureSuccessStatusCode();
+        (await api.PostAsync($"/items/{itemId}/participants/{participationId}/respond?status=accepted", null)).EnsureSuccessStatusCode();
+        (await api.PostAsync($"/items/{itemId}/participants/{participationId}/attend", null)).EnsureSuccessStatusCode();
 
         await using var session = Factory.Store.LightweightSession();
         var att = (await session.LoadAsync<CalendarItem>(itemId))!.Attendees.Single();
@@ -45,7 +45,7 @@ public sealed class ParticipationTests(CalApiTestFactory factory) : IntegrationT
     public async Task Invite_on_a_missing_item_is_not_found()
     {
         var api = Factory.ApiClient(Email);
-        var resp = await api.PostAsync($"/api/items/{Guid.NewGuid()}/participants?contactId={Guid.NewGuid()}&role=req-participant", null);
+        var resp = await api.PostAsync($"/items/{Guid.NewGuid()}/participants?contactId={Guid.NewGuid()}&role=req-participant", null);
         Assert.Equal(HttpStatusCode.NotFound, resp.StatusCode);
     }
 }

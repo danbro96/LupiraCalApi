@@ -3,7 +3,7 @@
 A single self-hosted **calendar and contacts** service that is the source of truth in Postgres and exposes
 two complementary surfaces over the same data:
 
-- **`/api/*`** — a clean REST API plus a **Model Context Protocol (MCP)** server at `/api/mcp`, for
+- **REST at root** — a clean REST API plus a **Model Context Protocol (MCP)** server at `/mcp`, for
   programmatic and agent use (text/time search, rich metadata, sharing). Authenticated with OIDC JWTs.
 - **`/dav/*`** — **CalDAV/CardDAV**, so phones and desktops (iOS/macOS, Android via DAVx5, Thunderbird, eM
   Client) sync natively. Authenticated with HTTP Basic, verified by an LDAP bind.
@@ -53,8 +53,8 @@ dotnet run --project src/LupiraCalApi    # listens on http://localhost:8080
 
 ```bash
 curl localhost:8080/livez                                    # 200 (no auth)
-curl localhost:8080/api/me                                   # 401 without auth
-curl -H "X-Dev-User: dev@example.com" localhost:8080/api/me  # 200, JIT-provisions the principal
+curl localhost:8080/me                                   # 401 without auth
+curl -H "X-Dev-User: dev@example.com" localhost:8080/me  # 200, JIT-provisions the principal
 ```
 
 This header handler is registered **only** when the environment is `Development`; it does nothing in
@@ -94,24 +94,24 @@ dotnet run --project src/LupiraCalApi -- --apply-schema
 
 ## API surface
 
-All `/api/*` routes require an authenticated caller (OIDC JWT, or the dev header in `Development`); results
+All REST routes require an authenticated caller (OIDC JWT, or the dev header in `Development`); results
 are scoped to the caller's accessible containers.
 
 | Area | Routes |
 |---|---|
-| **Me** | `GET /api/me` · `POST /api/me/bootstrap` (idempotently create a personal calendar + address book) |
-| **Calendars** | `GET /api/calendars` · `POST /api/calendars` (create a calendar or address book) |
-| **Sharing** | `POST`/`DELETE /api/calendars/{id}/owners` · `POST`/`DELETE /api/address-books/{id}/owners` |
-| **Items** | `GET /api/items` (text/time/tag search, recurrence-expanded) · `POST /api/items` · `GET`/`PUT`/`DELETE /api/items/{id}` · `POST /api/items/{id}/metadata` (merge JSON) |
-| **Participation** | `POST /api/items/{id}/participants` (invite) · `…/{participationId}/respond` · `…/attend` · `…/leave` · `DELETE …/{participationId}` |
-| **Curation** | `GET /api/calendars/{id}/proposed` · `POST /api/items/{itemId}/calendars/{calId}/accept` · `POST /api/items/{itemId}/calendars/{calId}` · `DELETE /api/items/{itemId}/calendars/{calId}` |
-| **Contacts** | `GET /api/contacts` (name search) · `POST /api/contacts` · `GET`/`DELETE /api/contacts/{id}` |
-| **Groups** | `GET`/`POST /api/address-books/{id}/groups` · `PUT /api/groups/{id}` · `POST`/`DELETE /api/groups/{id}/members…` · `DELETE /api/groups/{id}` |
-| **Relations** | `POST`/`GET /api/items/{id}/relations` (link to an external service) · `GET /api/relations` (reverse lookup) |
+| **Me** | `GET /me` · `POST /me/bootstrap` (idempotently create a personal calendar + address book) |
+| **Calendars** | `GET /calendars` · `POST /calendars` (create a calendar or address book) |
+| **Sharing** | `POST`/`DELETE /calendars/{id}/owners` · `POST`/`DELETE /address-books/{id}/owners` |
+| **Items** | `GET /items` (text/time/tag search, recurrence-expanded) · `POST /items` · `GET`/`PUT`/`DELETE /items/{id}` · `POST /items/{id}/metadata` (merge JSON) |
+| **Participation** | `POST /items/{id}/participants` (invite) · `…/{participationId}/respond` · `…/attend` · `…/leave` · `DELETE …/{participationId}` |
+| **Curation** | `GET /calendars/{id}/proposed` · `POST /items/{itemId}/calendars/{calId}/accept` · `POST /items/{itemId}/calendars/{calId}` · `DELETE /items/{itemId}/calendars/{calId}` |
+| **Contacts** | `GET /contacts` (name search) · `POST /contacts` · `GET`/`DELETE /contacts/{id}` |
+| **Groups** | `GET`/`POST /address-books/{id}/groups` · `PUT /groups/{id}` · `POST`/`DELETE /groups/{id}/members…` · `DELETE /groups/{id}` |
+| **Relations** | `POST`/`GET /items/{id}/relations` (link to an external service) · `GET /relations` (reverse lookup) |
 | **DAV** | `/.well-known/caldav` · `/.well-known/carddav` (discovery) · `/dav/{**path}` (CalDAV/CardDAV, HTTP Basic) |
 | **Health** | `GET /livez` (liveness) · `GET /readyz` (readiness — Postgres reachable) |
 
-### MCP tools (`/api/mcp`)
+### MCP tools (`/mcp`)
 
 The agent surface mirrors REST and is scoped to the caller's access:
 

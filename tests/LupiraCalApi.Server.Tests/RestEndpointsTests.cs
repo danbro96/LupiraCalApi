@@ -15,7 +15,7 @@ public sealed class RestEndpointsTests(CalApiTestFactory factory) : IntegrationT
     public async Task Me_returns_the_dev_user()
     {
         var api = Factory.ApiClient(Email);
-        var me = await api.GetFromJsonAsync<MeDto>("/api/me");
+        var me = await api.GetFromJsonAsync<MeDto>("/me");
         Assert.NotNull(me);
         Assert.Equal(Email, me!.Email);
     }
@@ -26,7 +26,7 @@ public sealed class RestEndpointsTests(CalApiTestFactory factory) : IntegrationT
         var api = Factory.ApiClient(Email);
         var calId = await CreateCalendarAsync(api, "work", "Work");
 
-        var containers = await api.GetFromJsonAsync<List<ContainerDto>>("/api/calendars");
+        var containers = await api.GetFromJsonAsync<List<ContainerDto>>("/calendars");
         var cal = Assert.Single(containers!, c => c.Id == calId);
         Assert.Equal("calendar", cal.Kind);
         Assert.Equal(Access.Owner, cal.Access);
@@ -40,7 +40,7 @@ public sealed class RestEndpointsTests(CalApiTestFactory factory) : IntegrationT
         var start = new DateTimeOffset(2026, 7, 1, 9, 0, 0, TimeSpan.Zero);
 
         var req = new CreateCalendarItemRequest { CalendarId = calId, Title = "Standup", Description = "daily", Location = "Zoom", Status = "Confirmed", IsAllDay = false, StartsAt = start, EndsAt = start.AddMinutes(30), StartTimezone = "UTC", Kind = "Generic", Tags = ["work"] };
-        var create = await api.PostAsJsonAsync("/api/items", req);
+        var create = await api.PostAsJsonAsync("/items", req);
         create.EnsureSuccessStatusCode();
         var dto = await create.Content.ReadFromJsonAsync<CalendarItemDto>();
         Assert.NotNull(dto);
@@ -48,7 +48,7 @@ public sealed class RestEndpointsTests(CalApiTestFactory factory) : IntegrationT
 
         var from = Uri.EscapeDataString(start.AddDays(-1).ToString("o"));
         var to = Uri.EscapeDataString(start.AddDays(1).ToString("o"));
-        var occ = await api.GetFromJsonAsync<List<CalendarItemOccurrenceDto>>($"/api/items?calendarId={calId}&from={from}&to={to}");
+        var occ = await api.GetFromJsonAsync<List<CalendarItemOccurrenceDto>>($"/items?calendarId={calId}&from={from}&to={to}");
         Assert.Contains(occ!, o => o.Id == dto.Id);
     }
 
@@ -57,14 +57,14 @@ public sealed class RestEndpointsTests(CalApiTestFactory factory) : IntegrationT
     {
         var api = Factory.ApiClient(Email);
 
-        var first = await (await api.PostAsync("/api/me/bootstrap", null)).Content.ReadFromJsonAsync<List<ContainerDto>>();
+        var first = await (await api.PostAsync("/me/bootstrap", null)).Content.ReadFromJsonAsync<List<ContainerDto>>();
         Assert.Contains(first!, c => c is { Kind: "calendar", Slug: "personal" });
         Assert.Contains(first!, c => c is { Kind: "addressbook", Slug: "personal" });
 
-        var second = await (await api.PostAsync("/api/me/bootstrap", null)).Content.ReadFromJsonAsync<List<ContainerDto>>();
+        var second = await (await api.PostAsync("/me/bootstrap", null)).Content.ReadFromJsonAsync<List<ContainerDto>>();
         Assert.Equal(first!.Select(c => c.Id).OrderBy(x => x), second!.Select(c => c.Id).OrderBy(x => x));
 
-        var all = await api.GetFromJsonAsync<List<ContainerDto>>("/api/calendars");
+        var all = await api.GetFromJsonAsync<List<ContainerDto>>("/calendars");
         Assert.Equal(2, all!.Count);   // exactly the two personal containers — no duplicates
     }
 
@@ -74,7 +74,7 @@ public sealed class RestEndpointsTests(CalApiTestFactory factory) : IntegrationT
         var api = Factory.ApiClient(Email);
         var start = new DateTimeOffset(2026, 7, 1, 9, 0, 0, TimeSpan.Zero);
         var req = new CreateCalendarItemRequest { Title = "Idea", IsAllDay = false, StartsAt = start, EndsAt = start.AddHours(1), StartTimezone = "UTC" };
-        var create = await api.PostAsJsonAsync("/api/items", req);
+        var create = await api.PostAsJsonAsync("/items", req);
         create.EnsureSuccessStatusCode();
         var dto = await create.Content.ReadFromJsonAsync<CalendarItemDto>();
         Assert.Empty(dto!.Calendars);

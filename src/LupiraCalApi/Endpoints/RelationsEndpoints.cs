@@ -8,7 +8,7 @@ public static class RelationsEndpoints
 {
     public static IEndpointRouteBuilder MapRelations(this IEndpointRouteBuilder app)
     {
-        var group = app.MapGroup("/api").RequireAuthorization("ApiPolicy").WithTags("Relations");
+        var group = app.MapGroup("").RequireAuthorization("ApiPolicy").WithTags("Relations");
 
         group.MapPost("/items/{id:guid}/relations", (Guid id, CreateRelationRequest body, RelationsHandler h, CancellationToken ct) =>
                 h.LinkItemAsync(id, body, ct))

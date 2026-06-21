@@ -17,29 +17,29 @@ public sealed class ContactGroupsTests(CalApiTestFactory factory) : IntegrationT
         var abId = await CreateAddressBookAsync(api);
         var contact = await CreateContactAsync(api, abId);
 
-        var created = await api.PostAsync($"/api/address-books/{abId}/groups?kind=organization&name=Acme", null);
+        var created = await api.PostAsync($"/address-books/{abId}/groups?kind=organization&name=Acme", null);
         created.EnsureSuccessStatusCode();
         var group = (await created.Content.ReadFromJsonAsync<ContactGroupDto>())!;
         Assert.Equal(ContactGroupKind.Organization, group.Kind);
         Assert.Equal("Acme", group.Name);
 
-        var list = await api.GetFromJsonAsync<List<ContactGroupDto>>($"/api/address-books/{abId}/groups");
+        var list = await api.GetFromJsonAsync<List<ContactGroupDto>>($"/address-books/{abId}/groups");
         Assert.Contains(list!, g => g.Id == group.Id);
 
-        var added = await api.PostAsync($"/api/groups/{group.Id}/members?contactId={contact.Id}", null);
+        var added = await api.PostAsync($"/groups/{group.Id}/members?contactId={contact.Id}", null);
         added.EnsureSuccessStatusCode();
         Assert.Contains(contact.Id, (await added.Content.ReadFromJsonAsync<ContactGroupDto>())!.Members);
 
-        var removed = await api.DeleteAsync($"/api/groups/{group.Id}/members/{contact.Id}");
+        var removed = await api.DeleteAsync($"/groups/{group.Id}/members/{contact.Id}");
         removed.EnsureSuccessStatusCode();
         Assert.DoesNotContain(contact.Id, (await removed.Content.ReadFromJsonAsync<ContactGroupDto>())!.Members);
 
-        var renamed = await api.PutAsync($"/api/groups/{group.Id}?name=AcmeCorp", null);
+        var renamed = await api.PutAsync($"/groups/{group.Id}?name=AcmeCorp", null);
         renamed.EnsureSuccessStatusCode();
         Assert.Equal("AcmeCorp", (await renamed.Content.ReadFromJsonAsync<ContactGroupDto>())!.Name);
 
-        Assert.Equal(HttpStatusCode.NoContent, (await api.DeleteAsync($"/api/groups/{group.Id}")).StatusCode);
-        var after = await api.GetFromJsonAsync<List<ContactGroupDto>>($"/api/address-books/{abId}/groups");
+        Assert.Equal(HttpStatusCode.NoContent, (await api.DeleteAsync($"/groups/{group.Id}")).StatusCode);
+        var after = await api.GetFromJsonAsync<List<ContactGroupDto>>($"/address-books/{abId}/groups");
         Assert.DoesNotContain(after!, g => g.Id == group.Id);
     }
 }

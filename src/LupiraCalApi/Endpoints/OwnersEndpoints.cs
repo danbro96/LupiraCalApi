@@ -9,7 +9,7 @@ public static class OwnersEndpoints
 {
     public static IEndpointRouteBuilder MapOwners(this IEndpointRouteBuilder app)
     {
-        var group = app.MapGroup("/api").RequireAuthorization("ApiPolicy").WithTags("Owners");
+        var group = app.MapGroup("").RequireAuthorization("ApiPolicy").WithTags("Owners");
 
         group.MapPost("/calendars/{calendarId:guid}/owners", (Guid calendarId, GrantOwnerRequest body, CalendarsHandler h, CancellationToken ct) => h.GrantCalendarOwnerAsync(calendarId, body, ct))
             .WithSummary("Grant a member access to a calendar (access = owner|read-write|read; default owner).")

@@ -7,7 +7,7 @@ public static class ParticipationEndpoints
 {
     public static IEndpointRouteBuilder MapParticipation(this IEndpointRouteBuilder app)
     {
-        var group = app.MapGroup("/api/items/{id:guid}/participants").RequireAuthorization("ApiPolicy").WithTags("Participation");
+        var group = app.MapGroup("/items/{id:guid}/participants").RequireAuthorization("ApiPolicy").WithTags("Participation");
 
         group.MapPost("/", (Guid id, Guid contactId, string? role, ParticipationHandler h, CancellationToken ct) => h.InviteAsync(id, contactId, role, ct))
             .WithSummary("Invite a contact (must be a Contact id). role = chair|req-participant|opt-participant|non-participant.")

@@ -7,7 +7,7 @@ public static class ContactsEndpoints
 {
     public static IEndpointRouteBuilder MapContacts(this IEndpointRouteBuilder app)
     {
-        var group = app.MapGroup("/api/contacts").RequireAuthorization("ApiPolicy").WithTags("Contacts");
+        var group = app.MapGroup("/contacts").RequireAuthorization("ApiPolicy").WithTags("Contacts");
 
         group.MapGet("/", (string? query, Guid? addressBookId, ContactsHandler h, CancellationToken ct) =>
                 h.QueryAsync(query, addressBookId, ct))

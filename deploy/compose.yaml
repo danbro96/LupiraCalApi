@@ -23,7 +23,7 @@ services:
       Ldap__ReaderSecret: ${LUPIRA_CAL_LDAP_SECRET:?required}
       Ldap__Filter: "(&(objectClass=user)(mail={0}))"   # login by email
 
-      # MCP surface (/api/mcp) is the most powerful surface — keep it off the public internet.
+      # MCP surface (/mcp) is the most powerful surface — keep it off the public internet.
 
       # OTEL — optional OTLP export (http/protobuf; 5-min metric cadence). Unset endpoint = silent no-op.
       OTEL_EXPORTER_OTLP_ENDPOINT: ${OTEL_EXPORTER_OTLP_ENDPOINT:-}

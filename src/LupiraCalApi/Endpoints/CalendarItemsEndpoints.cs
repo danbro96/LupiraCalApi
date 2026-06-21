@@ -8,7 +8,7 @@ public static class CalendarItemsEndpoints
 {
     public static IEndpointRouteBuilder MapCalendarItems(this IEndpointRouteBuilder app)
     {
-        var group = app.MapGroup("/api/items").RequireAuthorization("ApiPolicy").WithTags("CalendarItems");
+        var group = app.MapGroup("/items").RequireAuthorization("ApiPolicy").WithTags("CalendarItems");
 
         group.MapGet("/", (string? query, DateTimeOffset? from, DateTimeOffset? to, Guid? calendarId,
                 string? tag, CalendarItemsHandler h, CancellationToken ct) =>

@@ -13,11 +13,11 @@ public sealed class AccessTests(CalApiTestFactory factory) : IntegrationTest(fac
         var a = Factory.ApiClient("a@x.test");
         var calId = await CreateCalendarAsync(a);
         var start = new DateTimeOffset(2026, 7, 1, 9, 0, 0, TimeSpan.Zero);
-        var create = await a.PostAsJsonAsync("/api/items", new CreateCalendarItemRequest { CalendarId = calId, Title = "Secret", IsAllDay = false, StartsAt = start, EndsAt = start.AddHours(1), StartTimezone = "UTC" });
+        var create = await a.PostAsJsonAsync("/items", new CreateCalendarItemRequest { CalendarId = calId, Title = "Secret", IsAllDay = false, StartsAt = start, EndsAt = start.AddHours(1), StartTimezone = "UTC" });
         var item = (await create.Content.ReadFromJsonAsync<CalendarItemDto>())!;
 
         var b = Factory.ApiClient("b@x.test");
-        var resp = await b.GetAsync($"/api/items/{item.Id}");
+        var resp = await b.GetAsync($"/items/{item.Id}");
         Assert.Equal(HttpStatusCode.Forbidden, resp.StatusCode);
     }
 
@@ -51,7 +51,7 @@ public sealed class AccessTests(CalApiTestFactory factory) : IntegrationTest(fac
     public async Task Unauthenticated_requests_are_rejected()
     {
         var anon = Factory.CreateClient();   // no auth header
-        Assert.Equal(HttpStatusCode.Unauthorized, (await anon.GetAsync("/api/me")).StatusCode);
+        Assert.Equal(HttpStatusCode.Unauthorized, (await anon.GetAsync("/me")).StatusCode);
         Assert.Equal(HttpStatusCode.Unauthorized, (await SendDav(anon, "PROPFIND", "/dav/", depth: "0")).StatusCode);
     }
 
@@ -63,7 +63,7 @@ public sealed class AccessTests(CalApiTestFactory factory) : IntegrationTest(fac
         var contact = await CreateContactAsync(a, abId);
 
         var b = Factory.ApiClient("b@x.test");
-        var resp = await b.GetAsync($"/api/contacts/{contact.Id}");
+        var resp = await b.GetAsync($"/contacts/{contact.Id}");
         Assert.Equal(HttpStatusCode.Forbidden, resp.StatusCode);
     }
 }

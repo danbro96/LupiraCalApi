@@ -7,7 +7,7 @@ public static class CalendarsEndpoints
 {
     public static IEndpointRouteBuilder MapCalendars(this IEndpointRouteBuilder app)
     {
-        var group = app.MapGroup("/api/calendars").RequireAuthorization("ApiPolicy").WithTags("Calendars");
+        var group = app.MapGroup("/calendars").RequireAuthorization("ApiPolicy").WithTags("Calendars");
 
         group.MapGet("/", (CalendarsHandler h, CancellationToken ct) => h.ListAsync(ct))
             .WithSummary("List the calendars and address books the caller can access.")

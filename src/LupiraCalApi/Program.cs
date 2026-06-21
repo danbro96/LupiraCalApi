@@ -35,7 +35,7 @@ builder.Services.AddScoped<CurationHandler>();
 builder.Services.AddScoped<ParticipationHandler>();
 builder.Services.AddScoped<ContactGroupsHandler>();
 
-// --- Auth: OIDC JWT for /api (the agent obtains a member-scoped token via Authentik token-exchange);
+// --- Auth: OIDC JWT for the REST surface (the agent obtains a member-scoped token via Authentik token-exchange);
 //           HTTP Basic -> LDAP outpost for /dav. One identity authority (Authentik). ---
 var authBuilder = builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
     .AddJwtBearer(options =>
@@ -97,7 +97,7 @@ builder.Services.ConfigureHttpJsonOptions(o => o.SerializerOptions.Converters.Ad
 
 builder.Services.AddOpenApi();
 
-// MCP server for the agent, mounted at /api/mcp (LAN/WireGuard-only — not published through the tunnel).
+// MCP server for the agent, mounted at /mcp (LAN/WireGuard-only — not published through the tunnel).
 builder.Services.AddMcpServer().WithHttpTransport().WithTools<CalendarTools>();
 
 var app = builder.Build();
@@ -111,7 +111,7 @@ if (args.Contains("--apply-schema"))
 }
 
 // Behind the Cloudflare Tunnel the public host differs from the container, so honor forwarded headers —
-// CalDAV discovery must emit absolute https://cal.lupira.com/... hrefs. Restrict KnownProxies in prod.
+// CalDAV discovery must emit absolute https://cal-api.lupira.com/... hrefs. Restrict KnownProxies in prod.
 var forwarded = new ForwardedHeadersOptions
 {
     ForwardedHeaders = ForwardedHeaders.XForwardedFor | ForwardedHeaders.XForwardedProto | ForwardedHeaders.XForwardedHost,
@@ -131,7 +131,7 @@ app.MapHealthChecks("/livez", new HealthCheckOptions { Predicate = _ => false })
 app.MapHealthChecks("/readyz", new HealthCheckOptions { Predicate = c => c.Tags.Contains("ready") })
     .DisableHttpMetrics();
 
-// REST surface (/api), one MapXxx per resource.
+// REST surface (at root), one MapXxx per resource.
 app.MapMe();
 app.MapCalendars();
 app.MapOwners();
@@ -147,7 +147,7 @@ app.MapMethods("/.well-known/caldav", ["GET", "PROPFIND", "OPTIONS"], () => Resu
 app.MapMethods("/.well-known/carddav", ["GET", "PROPFIND", "OPTIONS"], () => Results.Redirect("/dav/", permanent: true));
 
 // Agent MCP transport (LAN/WireGuard-only; excluded from the Cloudflare Tunnel at the edge).
-app.MapMcp("/api/mcp").RequireAuthorization("ApiPolicy");
+app.MapMcp("/mcp").RequireAuthorization("ApiPolicy");
 
 // CalDAV/CardDAV catch-all (Basic auth). All HTTP verbs — including PROPFIND/REPORT/MKCALENDAR — reach
 // DavRouter, which dispatches on the method. The cast picks the RequestDelegate Map overload.
