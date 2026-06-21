@@ -9,7 +9,7 @@
 
   <ItemGroup>
     <!-- Expose internal pure helpers (DavProtocol, DavBasicAuthHandler credential/LDAP parsing) for unit testing. -->
-    <InternalsVisibleTo Include="LupiraCalApi.Server.Tests" />
+    <InternalsVisibleTo Include="LupiraCalApi.IntegrationTests" />
   </ItemGroup>
 
   <ItemGroup>
