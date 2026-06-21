@@ -16,7 +16,7 @@ public sealed class SecurityRegressionTests(CalApiTestFactory factory) : Integra
     static readonly DateTimeOffset Start = new(2026, 7, 1, 9, 0, 0, TimeSpan.Zero);
 
     static CreateCalendarItemRequest Event(Guid? calId, string title) =>
-        new(calId, title, null, null, null, false, Start, Start.AddHours(1), "UTC", null, null, null, null, null);
+        new() { CalendarId = calId, Title = title, IsAllDay = false, StartsAt = Start, EndsAt = Start.AddHours(1), StartTimezone = "UTC" };
 
     // ---------- Vuln 1: curation IDOR (CurationService) ----------
 

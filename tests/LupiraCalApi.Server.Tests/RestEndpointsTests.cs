@@ -1,4 +1,5 @@
-﻿using LupiraCalApi.Dtos.CalendarItems;
+﻿using LupiraCalApi.Domain;
+using LupiraCalApi.Dtos.CalendarItems;
 using LupiraCalApi.Dtos.Calendars;
 using LupiraCalApi.Dtos.Me;
 using System.Net.Http.Json;
@@ -28,7 +29,7 @@ public sealed class RestEndpointsTests(CalApiTestFactory factory) : IntegrationT
         var containers = await api.GetFromJsonAsync<List<ContainerDto>>("/api/calendars");
         var cal = Assert.Single(containers!, c => c.Id == calId);
         Assert.Equal("calendar", cal.Kind);
-        Assert.Equal("Owner", cal.Access);
+        Assert.Equal(Access.Owner, cal.Access);
     }
 
     [Fact]
@@ -38,12 +39,12 @@ public sealed class RestEndpointsTests(CalApiTestFactory factory) : IntegrationT
         var calId = await CreateCalendarAsync(api);
         var start = new DateTimeOffset(2026, 7, 1, 9, 0, 0, TimeSpan.Zero);
 
-        var req = new CreateCalendarItemRequest(calId, "Standup", "daily", "Zoom", "Confirmed", false, start, start.AddMinutes(30), "UTC", null, null, null, "Generic", ["work"]);
+        var req = new CreateCalendarItemRequest { CalendarId = calId, Title = "Standup", Description = "daily", Location = "Zoom", Status = "Confirmed", IsAllDay = false, StartsAt = start, EndsAt = start.AddMinutes(30), StartTimezone = "UTC", Kind = "Generic", Tags = ["work"] };
         var create = await api.PostAsJsonAsync("/api/items", req);
         create.EnsureSuccessStatusCode();
         var dto = await create.Content.ReadFromJsonAsync<CalendarItemDto>();
         Assert.NotNull(dto);
-        Assert.Contains(dto!.Calendars, m => m.CalendarId == calId && m.Status == "Accepted");
+        Assert.Contains(dto!.Calendars, m => m.CalendarId == calId && m.Status == CalendarEntryStatus.Accepted);
 
         var from = Uri.EscapeDataString(start.AddDays(-1).ToString("o"));
         var to = Uri.EscapeDataString(start.AddDays(1).ToString("o"));
@@ -72,7 +73,7 @@ public sealed class RestEndpointsTests(CalApiTestFactory factory) : IntegrationT
     {
         var api = Factory.ApiClient(Email);
         var start = new DateTimeOffset(2026, 7, 1, 9, 0, 0, TimeSpan.Zero);
-        var req = new CreateCalendarItemRequest(null, "Idea", null, null, null, false, start, start.AddHours(1), "UTC", null, null, null, null, null);
+        var req = new CreateCalendarItemRequest { Title = "Idea", IsAllDay = false, StartsAt = start, EndsAt = start.AddHours(1), StartTimezone = "UTC" };
         var create = await api.PostAsJsonAsync("/api/items", req);
         create.EnsureSuccessStatusCode();
         var dto = await create.Content.ReadFromJsonAsync<CalendarItemDto>();

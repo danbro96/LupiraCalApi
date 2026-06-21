@@ -23,7 +23,7 @@ public sealed class StoreLevelTests(CalApiTestFactory factory) : IntegrationTest
         InScope(async sp => (await sp.GetRequiredService<PrincipalDirectory>().ResolveOrProvisionAsync(sub, email, null)).Id);
 
     private Task<OpResult<OwnerGrantDto>> GrantCalAsync(Guid caller, Guid calId, string email, string access = "owner") =>
-        InScope(sp => sp.GetRequiredService<CalendarService>().GrantCalendarOwnerAsync(caller, calId, new GrantOwnerRequest(email, access)));
+        InScope(sp => sp.GetRequiredService<CalendarService>().GrantCalendarOwnerAsync(caller, calId, new GrantOwnerRequest { Email = email, Access = access }));
 
     private Task<OpResult> RevokeCalAsync(Guid caller, Guid calId, string email) =>
         InScope(sp => sp.GetRequiredService<CalendarService>().RevokeCalendarOwnerAsync(caller, calId, email));
@@ -33,11 +33,11 @@ public sealed class StoreLevelTests(CalApiTestFactory factory) : IntegrationTest
     {
         var principal = Guid.NewGuid();
         var calId = (await InScope(sp => sp.GetRequiredService<CalendarService>()
-            .CreateAsync(principal, new CreateCalendarRequest("w", "W", "calendar", null, "UTC")))).Value!.Id;
+            .CreateAsync(principal, new CreateCalendarRequest { Slug = "w", DisplayName = "W", Kind = "calendar", DefaultTimezone = "UTC" }))).Value!.Id;
 
         var start = new DateTimeOffset(2026, 7, 1, 9, 0, 0, TimeSpan.Zero);
         var itemId = (await InScope(sp => sp.GetRequiredService<CalendarItemService>()
-            .CreateAsync(principal, new CreateCalendarItemRequest(calId, "Mtg", null, null, null, false, start, start.AddHours(1), "UTC", null, null, null, null, null)))).Value!.Id;
+            .CreateAsync(principal, new CreateCalendarItemRequest { CalendarId = calId, Title = "Mtg", IsAllDay = false, StartsAt = start, EndsAt = start.AddHours(1), StartTimezone = "UTC" }))).Value!.Id;
 
         var contact = Guid.NewGuid();
         _ = await InScope(sp => sp.GetRequiredService<ParticipationService>().InviteAsync(principal, itemId, contact, "req-participant"));
@@ -64,7 +64,7 @@ public sealed class StoreLevelTests(CalApiTestFactory factory) : IntegrationTest
     {
         var alice = await ProvisionAsync("sub-alice", "alice@x.test");
         var calId = (await InScope(sp => sp.GetRequiredService<CalendarService>()
-            .CreateAsync(alice, new CreateCalendarRequest("fam", "Family", "calendar", null, "UTC")))).Value!.Id;
+            .CreateAsync(alice, new CreateCalendarRequest { Slug = "fam", DisplayName = "Family", Kind = "calendar", DefaultTimezone = "UTC" }))).Value!.Id;
 
         var grant = await GrantCalAsync(alice, calId, "bob@x.test");
         Assert.Equal(OpStatus.Ok, grant.Status);
@@ -80,7 +80,7 @@ public sealed class StoreLevelTests(CalApiTestFactory factory) : IntegrationTest
     {
         var alice = await ProvisionAsync("sub-alice", "alice@x.test");
         var calId = (await InScope(sp => sp.GetRequiredService<CalendarService>()
-            .CreateAsync(alice, new CreateCalendarRequest("fam", "Family", "calendar", null, "UTC")))).Value!.Id;
+            .CreateAsync(alice, new CreateCalendarRequest { Slug = "fam", DisplayName = "Family", Kind = "calendar", DefaultTimezone = "UTC" }))).Value!.Id;
 
         var bob = (await GrantCalAsync(alice, calId, "bob@x.test", "owner")).Value!.PrincipalId;
         await GrantCalAsync(alice, calId, "bob@x.test", "read");   // downgrade
@@ -96,7 +96,7 @@ public sealed class StoreLevelTests(CalApiTestFactory factory) : IntegrationTest
     {
         var alice = await ProvisionAsync("sub-alice", "alice@x.test");
         var calId = (await InScope(sp => sp.GetRequiredService<CalendarService>()
-            .CreateAsync(alice, new CreateCalendarRequest("fam", "Family", "calendar", null, "UTC")))).Value!.Id;
+            .CreateAsync(alice, new CreateCalendarRequest { Slug = "fam", DisplayName = "Family", Kind = "calendar", DefaultTimezone = "UTC" }))).Value!.Id;
         var bob = (await GrantCalAsync(alice, calId, "bob@x.test")).Value!.PrincipalId;
 
         var revoke = await RevokeCalAsync(alice, calId, "bob@x.test");
@@ -109,7 +109,7 @@ public sealed class StoreLevelTests(CalApiTestFactory factory) : IntegrationTest
     {
         var alice = await ProvisionAsync("sub-alice", "alice@x.test");
         var calId = (await InScope(sp => sp.GetRequiredService<CalendarService>()
-            .CreateAsync(alice, new CreateCalendarRequest("fam", "Family", "calendar", null, "UTC")))).Value!.Id;
+            .CreateAsync(alice, new CreateCalendarRequest { Slug = "fam", DisplayName = "Family", Kind = "calendar", DefaultTimezone = "UTC" }))).Value!.Id;
 
         var revoke = await RevokeCalAsync(alice, calId, "alice@x.test");
         Assert.Equal(OpStatus.Conflict, revoke.Status);
@@ -120,7 +120,7 @@ public sealed class StoreLevelTests(CalApiTestFactory factory) : IntegrationTest
     {
         var alice = await ProvisionAsync("sub-alice", "alice@x.test");
         var calId = (await InScope(sp => sp.GetRequiredService<CalendarService>()
-            .CreateAsync(alice, new CreateCalendarRequest("fam", "Family", "calendar", null, "UTC")))).Value!.Id;
+            .CreateAsync(alice, new CreateCalendarRequest { Slug = "fam", DisplayName = "Family", Kind = "calendar", DefaultTimezone = "UTC" }))).Value!.Id;
 
         var carolId = (await GrantCalAsync(alice, calId, "carol@x.test")).Value!.PrincipalId;   // placeholder principal
         var carol = await InScope(sp => sp.GetRequiredService<PrincipalDirectory>()
@@ -154,10 +154,10 @@ public sealed class StoreLevelTests(CalApiTestFactory factory) : IntegrationTest
     {
         var alice = await ProvisionAsync("sub-alice", "alice@x.test");
         var bookId = (await InScope(sp => sp.GetRequiredService<CalendarService>()
-            .CreateAsync(alice, new CreateCalendarRequest("fam", "Family", "addressbook", null, null)))).Value!.Id;
+            .CreateAsync(alice, new CreateCalendarRequest { Slug = "fam", DisplayName = "Family", Kind = "addressbook" }))).Value!.Id;
 
         var grant = await InScope(sp => sp.GetRequiredService<CalendarService>()
-            .GrantAddressBookOwnerAsync(alice, bookId, new GrantOwnerRequest("bob@x.test", "read")));
+            .GrantAddressBookOwnerAsync(alice, bookId, new GrantOwnerRequest { Email = "bob@x.test", Access = "read" }));
         Assert.Equal(OpStatus.Ok, grant.Status);
         var bob = grant.Value!.PrincipalId;
         Assert.True(await InScope(sp => sp.GetRequiredService<AccessResolver>().CanReadAddressBookAsync(bob, bookId)));

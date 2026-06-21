@@ -20,7 +20,7 @@ public sealed class ParticipationTests(CalApiTestFactory factory) : IntegrationT
         var contact = await CreateContactAsync(api, abId);
 
         var start = new DateTimeOffset(2026, 7, 1, 9, 0, 0, TimeSpan.Zero);
-        var create = await api.PostAsJsonAsync("/api/items", new CreateCalendarItemRequest(calId, "Mtg", null, null, null, false, start, start.AddHours(1), "UTC", null, null, null, null, null));
+        var create = await api.PostAsJsonAsync("/api/items", new CreateCalendarItemRequest { CalendarId = calId, Title = "Mtg", IsAllDay = false, StartsAt = start, EndsAt = start.AddHours(1), StartTimezone = "UTC" });
         var itemId = (await create.Content.ReadFromJsonAsync<CalendarItemDto>())!.Id;
 
         (await api.PostAsync($"/api/items/{itemId}/participants?contactId={contact.Id}&role=req-participant", null)).EnsureSuccessStatusCode();

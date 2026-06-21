@@ -1,5 +1,13 @@
 namespace LupiraCalApi.Dtos.CalendarItems;
 
-public record UpdateCalendarItemRequest(
-    string? Title, string? Description, string? Location, string? Status,
-    DateTimeOffset? StartsAt, DateTimeOffset? EndsAt, string? RecurrenceRule, string[]? Tags);
+public sealed class UpdateCalendarItemRequest
+{
+    public string? Title { get; set; }
+    public string? Description { get; set; }
+    public string? Location { get; set; }
+    public string? Status { get; set; }
+    public DateTimeOffset? StartsAt { get; set; }
+    public DateTimeOffset? EndsAt { get; set; }
+    public string? RecurrenceRule { get; set; }
+    public string[]? Tags { get; set; }
+}

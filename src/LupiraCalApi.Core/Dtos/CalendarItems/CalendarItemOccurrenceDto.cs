@@ -1,5 +1,13 @@
 namespace LupiraCalApi.Dtos.CalendarItems;
 
 /// <summary>A single concrete occurrence of an item within a search window (recurrences expanded).</summary>
-public record CalendarItemOccurrenceDto(
-    Guid Id, string? Title, Guid? PlaceId, bool IsAllDay, DateTimeOffset Start, DateTimeOffset? End, string Etag);
+public sealed class CalendarItemOccurrenceDto
+{
+    public required Guid Id { get; set; }
+    public string? Title { get; set; }
+    public Guid? PlaceId { get; set; }
+    public required bool IsAllDay { get; set; }
+    public required DateTimeOffset Start { get; set; }
+    public DateTimeOffset? End { get; set; }
+    public required string Etag { get; set; }
+}

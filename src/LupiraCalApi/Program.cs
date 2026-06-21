@@ -14,6 +14,8 @@ using OpenTelemetry.Logs;
 using OpenTelemetry.Metrics;
 using OpenTelemetry.Resources;
 using OpenTelemetry.Trace;
+using Scalar.AspNetCore;
+using System.Text.Json.Serialization;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -90,6 +92,9 @@ builder.Logging.AddOpenTelemetry(o =>
 builder.Services.AddHealthChecks()
     .AddCheck<DatabaseReadyCheck>("postgres", tags: ["ready"]);
 
+// Emit/accept enums as their names across the REST surface (not integers).
+builder.Services.ConfigureHttpJsonOptions(o => o.SerializerOptions.Converters.Add(new JsonStringEnumConverter()));
+
 builder.Services.AddOpenApi();
 
 // MCP server for the agent, mounted at /api/mcp (LAN/WireGuard-only — not published through the tunnel).
@@ -118,7 +123,8 @@ app.UseForwardedHeaders(forwarded);
 app.UseAuthentication();
 app.UseAuthorization();
 
-app.MapOpenApi();   // /openapi/v1.json
+app.MapOpenApi();             // /openapi/v1.json
+app.MapScalarApiReference();  // /scalar/v1
 
 // Health probes: /livez = liveness (no dependency checks); /readyz = readiness (Postgres reachable).
 app.MapHealthChecks("/livez", new HealthCheckOptions { Predicate = _ => false });

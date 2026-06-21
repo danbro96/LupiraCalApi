@@ -23,8 +23,8 @@ public sealed class CalendarService(IDocumentSession session, PrincipalDirectory
         var bookAccess = bookOwners.ToDictionary(o => o.AddressBookId, o => o.Access);
 
         var result = new List<ContainerDto>();
-        result.AddRange(cals.Select(c => new ContainerDto(c.Id, "calendar", c.Slug, c.DisplayName, calAccess[c.Id].ToString())));
-        result.AddRange(books.Select(b => new ContainerDto(b.Id, "addressbook", b.Slug, b.DisplayName, bookAccess[b.Id].ToString())));
+        result.AddRange(cals.Select(c => new ContainerDto { Id = c.Id, Kind = "calendar", Slug = c.Slug, DisplayName = c.DisplayName, Access = calAccess[c.Id] }));
+        result.AddRange(books.Select(b => new ContainerDto { Id = b.Id, Kind = "addressbook", Slug = b.Slug, DisplayName = b.DisplayName, Access = bookAccess[b.Id] }));
         return OpResult<List<ContainerDto>>.Ok(result);
     }
 
@@ -36,14 +36,14 @@ public sealed class CalendarService(IDocumentSession session, PrincipalDirectory
             session.Store(b);
             session.Store(new AddressBookOwner { Id = AddressBookOwner.MakeId(b.Id, principalId), AddressBookId = b.Id, PrincipalId = principalId, Access = Access.Owner });
             await session.SaveChangesAsync(ct);
-            return OpResult<ContainerDto>.Ok(new ContainerDto(b.Id, "addressbook", b.Slug, b.DisplayName, nameof(Access.Owner)));
+            return OpResult<ContainerDto>.Ok(new ContainerDto { Id = b.Id, Kind = "addressbook", Slug = b.Slug, DisplayName = b.DisplayName, Access = Access.Owner });
         }
 
         var c = new Calendar { Id = Guid.NewGuid(), Slug = r.Slug, DisplayName = r.DisplayName, Color = r.Color, DefaultTimezone = r.DefaultTimezone };
         session.Store(c);
         session.Store(new CalendarOwner { Id = CalendarOwner.MakeId(c.Id, principalId), CalendarId = c.Id, PrincipalId = principalId, Access = Access.Owner });
         await session.SaveChangesAsync(ct);
-        return OpResult<ContainerDto>.Ok(new ContainerDto(c.Id, "calendar", c.Slug, c.DisplayName, nameof(Access.Owner)));
+        return OpResult<ContainerDto>.Ok(new ContainerDto { Id = c.Id, Kind = "calendar", Slug = c.Slug, DisplayName = c.DisplayName, Access = Access.Owner });
     }
 
     /// <summary>Ensures the caller has a <c>personal</c> calendar and a <c>personal</c> address book; idempotent
@@ -53,9 +53,9 @@ public sealed class CalendarService(IDocumentSession session, PrincipalDirectory
         var existing = (await ListContainersAsync(principalId, ct)).Value!;
 
         var cal = existing.FirstOrDefault(c => c.Kind == "calendar" && c.Slug == "personal")
-            ?? (await CreateAsync(principalId, new CreateCalendarRequest("personal", "Personal", "calendar", null, "UTC"), ct)).Value!;
+            ?? (await CreateAsync(principalId, new CreateCalendarRequest { Slug = "personal", DisplayName = "Personal", Kind = "calendar", DefaultTimezone = "UTC" }, ct)).Value!;
         var book = existing.FirstOrDefault(c => c.Kind == "addressbook" && c.Slug == "personal")
-            ?? (await CreateAsync(principalId, new CreateCalendarRequest("personal", "Personal", "addressbook", null, null), ct)).Value!;
+            ?? (await CreateAsync(principalId, new CreateCalendarRequest { Slug = "personal", DisplayName = "Personal", Kind = "addressbook" }, ct)).Value!;
 
         return OpResult<List<ContainerDto>>.Ok([cal, book]);
     }
@@ -73,7 +73,7 @@ public sealed class CalendarService(IDocumentSession session, PrincipalDirectory
         // Deterministic id → re-granting upserts the access level instead of duplicating the grant.
         session.Store(new CalendarOwner { Id = CalendarOwner.MakeId(calendarId, target.Id), CalendarId = calendarId, PrincipalId = target.Id, Access = level });
         await session.SaveChangesAsync(ct);
-        return OpResult<OwnerGrantDto>.Ok(new OwnerGrantDto(calendarId, "calendar", target.Id, target.Email, level.ToString()));
+        return OpResult<OwnerGrantDto>.Ok(new OwnerGrantDto { ContainerId = calendarId, Kind = "calendar", PrincipalId = target.Id, Email = target.Email, Access = level });
     }
 
     public async Task<OpResult> RevokeCalendarOwnerAsync(Guid callerId, Guid calendarId, string email, CancellationToken ct = default)
@@ -106,7 +106,7 @@ public sealed class CalendarService(IDocumentSession session, PrincipalDirectory
         var target = await principals.ResolveOrProvisionAsync(null, email, null, ct);
         session.Store(new AddressBookOwner { Id = AddressBookOwner.MakeId(addressBookId, target.Id), AddressBookId = addressBookId, PrincipalId = target.Id, Access = level });
         await session.SaveChangesAsync(ct);
-        return OpResult<OwnerGrantDto>.Ok(new OwnerGrantDto(addressBookId, "addressbook", target.Id, target.Email, level.ToString()));
+        return OpResult<OwnerGrantDto>.Ok(new OwnerGrantDto { ContainerId = addressBookId, Kind = "addressbook", PrincipalId = target.Id, Email = target.Email, Access = level });
     }
 
     public async Task<OpResult> RevokeAddressBookOwnerAsync(Guid callerId, Guid addressBookId, string email, CancellationToken ct = default)

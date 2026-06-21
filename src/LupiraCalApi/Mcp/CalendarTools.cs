@@ -81,7 +81,7 @@ public sealed class CalendarTools
         [Description("owner|read-write|read.")] string access = "owner")
     {
         var u = await user.GetAsync();
-        return Require(await calendars.GrantCalendarOwnerAsync(u.Id, calendarId, new GrantOwnerRequest(email, access)));
+        return Require(await calendars.GrantCalendarOwnerAsync(u.Id, calendarId, new GrantOwnerRequest { Email = email, Access = access }));
     }
 
     [McpServerTool, Description("Revoke a member's access to a calendar, by email. Fails if it would remove the last owner.")]
@@ -103,7 +103,7 @@ public sealed class CalendarTools
         [Description("owner|read-write|read.")] string access = "owner")
     {
         var u = await user.GetAsync();
-        return Require(await calendars.GrantAddressBookOwnerAsync(u.Id, addressBookId, new GrantOwnerRequest(email, access)));
+        return Require(await calendars.GrantAddressBookOwnerAsync(u.Id, addressBookId, new GrantOwnerRequest { Email = email, Access = access }));
     }
 
     [McpServerTool, Description("Revoke a member's access to an address book, by email. Fails if it would remove the last owner.")]
@@ -125,7 +125,7 @@ public sealed class CalendarTools
         [Description("Relation type, e.g. 'derived-from'.")] string relationType = "derived-from")
     {
         var u = await user.GetAsync();
-        return Require(await relations.LinkItemAsync(u.Id, itemId, new CreateRelationRequest("task", taskId, relationType, null)));
+        return Require(await relations.LinkItemAsync(u.Id, itemId, new CreateRelationRequest { ToKind = "task", ToRef = taskId, RelationType = relationType }));
     }
 
     [McpServerTool, Description("Find calendar items the caller can access that are linked to a given LupiraTasks item.")]

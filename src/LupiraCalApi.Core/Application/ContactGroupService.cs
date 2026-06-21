@@ -57,6 +57,6 @@ public sealed class ContactGroupService(IDocumentSession session, AccessResolver
         return OpResult<ContactGroupDto>.Ok(ToDto(updated!));
     }
 
-    private static ContactGroupDto ToDto(ContactGroup g) => new(g.Id, g.AddressBookId, g.Kind.ToString(), g.Name, g.MemberContactIds);
+    private static ContactGroupDto ToDto(ContactGroup g) => new() { Id = g.Id, AddressBookId = g.AddressBookId, Kind = g.Kind, Name = g.Name, Members = g.MemberContactIds };
     private static ContactGroupKind ParseKind(string? s) => Enum.TryParse<ContactGroupKind>(s, true, out var v) ? v : ContactGroupKind.Group;
 }

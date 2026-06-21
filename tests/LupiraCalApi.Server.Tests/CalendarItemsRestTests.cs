@@ -13,7 +13,7 @@ public sealed class CalendarItemsRestTests(CalApiTestFactory factory) : Integrat
     private static async Task<CalendarItemDto> CreateAsync(HttpClient api, Guid calId, string title = "Mtg", string[]? tags = null)
     {
         var start = new DateTimeOffset(2026, 7, 1, 9, 0, 0, TimeSpan.Zero);
-        var resp = await api.PostAsJsonAsync("/api/items", new CreateCalendarItemRequest(calId, title, null, null, null, false, start, start.AddHours(1), "UTC", null, null, null, null, tags));
+        var resp = await api.PostAsJsonAsync("/api/items", new CreateCalendarItemRequest { CalendarId = calId, Title = title, IsAllDay = false, StartsAt = start, EndsAt = start.AddHours(1), StartTimezone = "UTC", Tags = tags });
         resp.EnsureSuccessStatusCode();
         return (await resp.Content.ReadFromJsonAsync<CalendarItemDto>())!;
     }
@@ -25,7 +25,7 @@ public sealed class CalendarItemsRestTests(CalApiTestFactory factory) : Integrat
         var calId = await CreateCalendarAsync(api);
         var item = await CreateAsync(api, calId);
 
-        var upd = await api.PutAsJsonAsync($"/api/items/{item.Id}", new UpdateCalendarItemRequest("Renamed", "new desc", null, null, null, null, null, null));
+        var upd = await api.PutAsJsonAsync($"/api/items/{item.Id}", new UpdateCalendarItemRequest { Title = "Renamed", Description = "new desc" });
         upd.EnsureSuccessStatusCode();
 
         var got = await api.GetFromJsonAsync<CalendarItemDto>($"/api/items/{item.Id}");

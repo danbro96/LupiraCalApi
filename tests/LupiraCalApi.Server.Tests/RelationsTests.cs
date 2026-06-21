@@ -13,7 +13,7 @@ public sealed class RelationsTests(CalApiTestFactory factory) : IntegrationTest(
     private static async Task<Guid> CreateItemAsync(HttpClient api, Guid calId)
     {
         var start = new DateTimeOffset(2026, 7, 1, 9, 0, 0, TimeSpan.Zero);
-        var resp = await api.PostAsJsonAsync("/api/items", new CreateCalendarItemRequest(calId, "Mtg", null, null, null, false, start, start.AddHours(1), "UTC", null, null, null, null, null));
+        var resp = await api.PostAsJsonAsync("/api/items", new CreateCalendarItemRequest { CalendarId = calId, Title = "Mtg", IsAllDay = false, StartsAt = start, EndsAt = start.AddHours(1), StartTimezone = "UTC" });
         resp.EnsureSuccessStatusCode();
         return (await resp.Content.ReadFromJsonAsync<CalendarItemDto>())!.Id;
     }
@@ -25,7 +25,7 @@ public sealed class RelationsTests(CalApiTestFactory factory) : IntegrationTest(
         var calId = await CreateCalendarAsync(api);
         var itemId = await CreateItemAsync(api, calId);
 
-        var link = await api.PostAsJsonAsync($"/api/items/{itemId}/relations", new CreateRelationRequest("task", "task-123", "derived-from", null));
+        var link = await api.PostAsJsonAsync($"/api/items/{itemId}/relations", new CreateRelationRequest { ToKind = "task", ToRef = "task-123", RelationType = "derived-from" });
         link.EnsureSuccessStatusCode();
         Assert.Equal("task-123", (await link.Content.ReadFromJsonAsync<RelationDto>())!.ToRef);
 
@@ -40,7 +40,7 @@ public sealed class RelationsTests(CalApiTestFactory factory) : IntegrationTest(
     public async Task Link_on_a_missing_item_is_not_found()
     {
         var api = Factory.ApiClient(Email);
-        var resp = await api.PostAsJsonAsync($"/api/items/{Guid.NewGuid()}/relations", new CreateRelationRequest("task", "x", "derived-from", null));
+        var resp = await api.PostAsJsonAsync($"/api/items/{Guid.NewGuid()}/relations", new CreateRelationRequest { ToKind = "task", ToRef = "x", RelationType = "derived-from" });
         Assert.Equal(HttpStatusCode.NotFound, resp.StatusCode);
     }
 }

@@ -2,4 +2,13 @@ using System.Text.Json.Nodes;
 
 namespace LupiraCalApi.Dtos.Relations;
 
-public record RelationDto(Guid Id, string FromKind, Guid FromId, string ToKind, string ToRef, string RelationType, JsonNode? Metadata);
+public sealed class RelationDto
+{
+    public required Guid Id { get; set; }
+    public required string FromKind { get; set; }
+    public required Guid FromId { get; set; }
+    public required string ToKind { get; set; }
+    public required string ToRef { get; set; }
+    public required string RelationType { get; set; }
+    public JsonNode? Metadata { get; set; }
+}

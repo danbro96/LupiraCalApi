@@ -1,5 +1,6 @@
 using System.Net;
 using System.Net.Http.Json;
+using LupiraCalApi.Domain;
 using LupiraCalApi.Dtos.Contacts;
 using Xunit;
 
@@ -19,7 +20,7 @@ public sealed class ContactGroupsTests(CalApiTestFactory factory) : IntegrationT
         var created = await api.PostAsync($"/api/address-books/{abId}/groups?kind=organization&name=Acme", null);
         created.EnsureSuccessStatusCode();
         var group = (await created.Content.ReadFromJsonAsync<ContactGroupDto>())!;
-        Assert.Equal("Organization", group.Kind);
+        Assert.Equal(ContactGroupKind.Organization, group.Kind);
         Assert.Equal("Acme", group.Name);
 
         var list = await api.GetFromJsonAsync<List<ContactGroupDto>>($"/api/address-books/{abId}/groups");

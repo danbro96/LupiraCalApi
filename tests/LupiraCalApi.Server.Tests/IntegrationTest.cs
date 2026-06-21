@@ -33,7 +33,7 @@ public abstract class IntegrationTest(CalApiTestFactory factory) : IAsyncLifetim
 
     protected static async Task<Guid> CreateCalendarAsync(HttpClient api, string slug = "work", string? displayName = "Work")
     {
-        var resp = await api.PostAsJsonAsync("/api/calendars", new CreateCalendarRequest(slug, displayName, "calendar", null, "UTC"));
+        var resp = await api.PostAsJsonAsync("/api/calendars", new CreateCalendarRequest { Slug = slug, DisplayName = displayName, Kind = "calendar", DefaultTimezone = "UTC" });
         resp.EnsureSuccessStatusCode();
         var dto = await resp.Content.ReadFromJsonAsync<ContainerDto>();
         return dto!.Id;
@@ -41,7 +41,7 @@ public abstract class IntegrationTest(CalApiTestFactory factory) : IAsyncLifetim
 
     protected static async Task<Guid> CreateAddressBookAsync(HttpClient api, string slug = "people", string? displayName = "People")
     {
-        var resp = await api.PostAsJsonAsync("/api/calendars", new CreateCalendarRequest(slug, displayName, "addressbook", null, null));
+        var resp = await api.PostAsJsonAsync("/api/calendars", new CreateCalendarRequest { Slug = slug, DisplayName = displayName, Kind = "addressbook" });
         resp.EnsureSuccessStatusCode();
         var dto = await resp.Content.ReadFromJsonAsync<ContainerDto>();
         return dto!.Id;
@@ -49,7 +49,7 @@ public abstract class IntegrationTest(CalApiTestFactory factory) : IAsyncLifetim
 
     protected static async Task<ContactDto> CreateContactAsync(HttpClient api, Guid addressBookId, string given = "Jane", string family = "Doe", string? email = null)
     {
-        var req = new CreateContactRequest(addressBookId, null, given, null, family, null, null, email is null ? null : [email], null, null, null);
+        var req = new CreateContactRequest { AddressBookId = addressBookId, GivenName = given, FamilyName = family, Emails = email is null ? null : [email] };
         var resp = await api.PostAsJsonAsync("/api/contacts", req);
         resp.EnsureSuccessStatusCode();
         return (await resp.Content.ReadFromJsonAsync<ContactDto>())!;

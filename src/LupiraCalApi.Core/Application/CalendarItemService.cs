@@ -72,11 +72,11 @@ public sealed class CalendarItemService(IDocumentSession session, AccessResolver
             if (!string.IsNullOrWhiteSpace(i.RecurrenceRule))
             {
                 foreach (var occ in expander.Expand(i.SourceIcalendar, windowStart, windowEnd))
-                    results.Add(new CalendarItemOccurrenceDto(i.Id, i.Title, i.PlaceId, i.IsAllDay, occ, duration is { } d ? occ + d : null, i.ContentHash));
+                    results.Add(new CalendarItemOccurrenceDto { Id = i.Id, Title = i.Title, PlaceId = i.PlaceId, IsAllDay = i.IsAllDay, Start = occ, End = duration is { } d ? occ + d : null, Etag = i.ContentHash });
             }
             else if (OccurrenceStart(i) is { } start && start >= windowStart && start < windowEnd)
             {
-                results.Add(new CalendarItemOccurrenceDto(i.Id, i.Title, i.PlaceId, i.IsAllDay, start, duration is { } d ? start + d : i.EndsAt, i.ContentHash));
+                results.Add(new CalendarItemOccurrenceDto { Id = i.Id, Title = i.Title, PlaceId = i.PlaceId, IsAllDay = i.IsAllDay, Start = start, End = duration is { } d ? start + d : i.EndsAt, Etag = i.ContentHash });
             }
         }
         return OpResult<List<CalendarItemOccurrenceDto>>.Ok([.. results.OrderBy(x => x.Start)]);

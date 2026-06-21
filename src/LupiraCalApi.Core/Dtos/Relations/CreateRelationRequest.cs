@@ -2,4 +2,10 @@ using System.Text.Json.Nodes;
 
 namespace LupiraCalApi.Dtos.Relations;
 
-public record CreateRelationRequest(string ToKind, string ToRef, string RelationType, JsonNode? Metadata);
+public sealed class CreateRelationRequest
+{
+    public required string ToKind { get; set; }
+    public required string ToRef { get; set; }
+    public required string RelationType { get; set; }
+    public JsonNode? Metadata { get; set; }
+}

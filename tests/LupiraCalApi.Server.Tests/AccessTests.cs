@@ -13,7 +13,7 @@ public sealed class AccessTests(CalApiTestFactory factory) : IntegrationTest(fac
         var a = Factory.ApiClient("a@x.test");
         var calId = await CreateCalendarAsync(a);
         var start = new DateTimeOffset(2026, 7, 1, 9, 0, 0, TimeSpan.Zero);
-        var create = await a.PostAsJsonAsync("/api/items", new CreateCalendarItemRequest(calId, "Secret", null, null, null, false, start, start.AddHours(1), "UTC", null, null, null, null, null));
+        var create = await a.PostAsJsonAsync("/api/items", new CreateCalendarItemRequest { CalendarId = calId, Title = "Secret", IsAllDay = false, StartsAt = start, EndsAt = start.AddHours(1), StartTimezone = "UTC" });
         var item = (await create.Content.ReadFromJsonAsync<CalendarItemDto>())!;
 
         var b = Factory.ApiClient("b@x.test");

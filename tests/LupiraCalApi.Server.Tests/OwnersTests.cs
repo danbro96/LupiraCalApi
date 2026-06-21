@@ -1,3 +1,4 @@
+using LupiraCalApi.Domain;
 using LupiraCalApi.Dtos.CalendarItems;
 using LupiraCalApi.Dtos.Calendars;
 using System.Net;
@@ -18,15 +19,15 @@ public sealed class OwnersTests(CalApiTestFactory factory) : IntegrationTest(fac
         var alice = Factory.ApiClient("alice@x.test");
         var calId = await CreateCalendarAsync(alice, "fam", "Family");
         var create = await alice.PostAsJsonAsync("/api/items",
-            new CreateCalendarItemRequest(calId, "Dinner", null, null, null, false, Start, Start.AddHours(1), "UTC", null, null, null, null, null));
+            new CreateCalendarItemRequest { CalendarId = calId, Title = "Dinner", IsAllDay = false, StartsAt = Start, EndsAt = Start.AddHours(1), StartTimezone = "UTC" });
         var item = (await create.Content.ReadFromJsonAsync<CalendarItemDto>())!;
 
-        var grant = await alice.PostAsJsonAsync($"/api/calendars/{calId}/owners", new GrantOwnerRequest("bob@x.test", "owner"));
+        var grant = await alice.PostAsJsonAsync($"/api/calendars/{calId}/owners", new GrantOwnerRequest { Email = "bob@x.test", Access = "owner" });
         grant.EnsureSuccessStatusCode();
         var dto = (await grant.Content.ReadFromJsonAsync<OwnerGrantDto>())!;
         Assert.Equal("calendar", dto.Kind);
         Assert.Equal("bob@x.test", dto.Email);
-        Assert.Equal("Owner", dto.Access);
+        Assert.Equal(Access.Owner, dto.Access);
 
         var bob = Factory.ApiClient("bob@x.test");
         var bobCals = await bob.GetFromJsonAsync<List<ContainerDto>>("/api/calendars");
@@ -41,7 +42,7 @@ public sealed class OwnersTests(CalApiTestFactory factory) : IntegrationTest(fac
         var calId = await CreateCalendarAsync(alice, "fam", "Family");
 
         var carol = Factory.ApiClient("carol@x.test");   // no access to the calendar
-        var resp = await carol.PostAsJsonAsync($"/api/calendars/{calId}/owners", new GrantOwnerRequest("eve@x.test", "owner"));
+        var resp = await carol.PostAsJsonAsync($"/api/calendars/{calId}/owners", new GrantOwnerRequest { Email = "eve@x.test", Access = "owner" });
         Assert.Equal(HttpStatusCode.Forbidden, resp.StatusCode);
     }
 
@@ -51,10 +52,10 @@ public sealed class OwnersTests(CalApiTestFactory factory) : IntegrationTest(fac
         var alice = Factory.ApiClient("alice@x.test");
         var calId = await CreateCalendarAsync(alice, "fam", "Family");
 
-        var missing = await alice.PostAsJsonAsync($"/api/calendars/{Guid.NewGuid()}/owners", new GrantOwnerRequest("bob@x.test", "owner"));
+        var missing = await alice.PostAsJsonAsync($"/api/calendars/{Guid.NewGuid()}/owners", new GrantOwnerRequest { Email = "bob@x.test", Access = "owner" });
         Assert.Equal(HttpStatusCode.NotFound, missing.StatusCode);
 
-        var bad = await alice.PostAsJsonAsync($"/api/calendars/{calId}/owners", new GrantOwnerRequest("bob@x.test", "admin"));
+        var bad = await alice.PostAsJsonAsync($"/api/calendars/{calId}/owners", new GrantOwnerRequest { Email = "bob@x.test", Access = "admin" });
         Assert.Equal(HttpStatusCode.BadRequest, bad.StatusCode);
     }
 
@@ -63,7 +64,7 @@ public sealed class OwnersTests(CalApiTestFactory factory) : IntegrationTest(fac
     {
         var alice = Factory.ApiClient("alice@x.test");
         var calId = await CreateCalendarAsync(alice, "fam", "Family");
-        await alice.PostAsJsonAsync($"/api/calendars/{calId}/owners", new GrantOwnerRequest("bob@x.test", "owner"));
+        await alice.PostAsJsonAsync($"/api/calendars/{calId}/owners", new GrantOwnerRequest { Email = "bob@x.test", Access = "owner" });
 
         var revoke = await alice.DeleteAsync($"/api/calendars/{calId}/owners?email={Uri.EscapeDataString("bob@x.test")}");
         Assert.Equal(HttpStatusCode.NoContent, revoke.StatusCode);
@@ -84,7 +85,7 @@ public sealed class OwnersTests(CalApiTestFactory factory) : IntegrationTest(fac
         var bookId = await CreateAddressBookAsync(alice, "fam", "Family");
         var contact = await CreateContactAsync(alice, bookId);
 
-        var grant = await alice.PostAsJsonAsync($"/api/address-books/{bookId}/owners", new GrantOwnerRequest("bob@x.test", "read"));
+        var grant = await alice.PostAsJsonAsync($"/api/address-books/{bookId}/owners", new GrantOwnerRequest { Email = "bob@x.test", Access = "read" });
         grant.EnsureSuccessStatusCode();
 
         var bob = Factory.ApiClient("bob@x.test");
@@ -100,7 +101,7 @@ public sealed class OwnersTests(CalApiTestFactory factory) : IntegrationTest(fac
     {
         var alice = Factory.ApiClient("alice@x.test");
         var calId = await CreateCalendarAsync(alice, "fam", "Family");
-        await alice.PostAsJsonAsync($"/api/calendars/{calId}/owners", new GrantOwnerRequest("bob@x.test", "owner"));
+        await alice.PostAsJsonAsync($"/api/calendars/{calId}/owners", new GrantOwnerRequest { Email = "bob@x.test", Access = "owner" });
 
         var bob = Factory.ApiClient("bob@x.test");
         var bobId = await GetMyIdAsync(bob);
