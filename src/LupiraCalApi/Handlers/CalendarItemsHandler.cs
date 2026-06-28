@@ -45,4 +45,28 @@ public sealed class CalendarItemsHandler(CurrentUser user, CalendarItemService i
         var u = await user.GetAsync(ct);
         return OpResultMap.OkNotFoundProblem(await items.AttachMetadataAsync(u.Id, id, patch, ct));
     }
+
+    public async Task<Results<Ok<CalendarItemDto>, NotFound, ProblemHttpResult, UnauthorizedHttpResult>> SetPromptAsync(Guid id, SetItemPromptRequest body, CancellationToken ct)
+    {
+        var u = await user.GetAsync(ct);
+        return OpResultMap.OkNotFoundProblem(await items.SetPromptAsync(u.Id, id, body.ToDomain(), ct));
+    }
+
+    public async Task<Results<NoContent, NotFound, ProblemHttpResult, UnauthorizedHttpResult>> ClearPromptAsync(Guid id, CancellationToken ct)
+    {
+        var u = await user.GetAsync(ct);
+        return OpResultMap.NoContentNotFoundProblem(await items.ClearPromptAsync(u.Id, id, ct));
+    }
+
+    public async Task<Results<Ok<CalendarItemDto>, NotFound, ProblemHttpResult, UnauthorizedHttpResult>> SetActionAsync(Guid id, SetItemActionRequest body, CancellationToken ct)
+    {
+        var u = await user.GetAsync(ct);
+        return OpResultMap.OkNotFoundProblem(await items.SetActionAsync(u.Id, id, body.ToDomain(), ct));
+    }
+
+    public async Task<Results<NoContent, NotFound, ProblemHttpResult, UnauthorizedHttpResult>> ClearActionAsync(Guid id, CancellationToken ct)
+    {
+        var u = await user.GetAsync(ct);
+        return OpResultMap.NoContentNotFoundProblem(await items.ClearActionAsync(u.Id, id, ct));
+    }
 }

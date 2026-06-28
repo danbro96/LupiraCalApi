@@ -23,8 +23,8 @@ public sealed class CalendarMembership
 
 /// <summary>
 /// The calendar item (VEVENT) aggregate + inline snapshot. Calendar-independent: it lives in zero-or-many calendars
-/// via <see cref="Calendars"/>. The <c>SourceIcalendar</c> blob is returned verbatim over DAV; <c>ContentHash</c> is
-/// the ETag. Participation and kind-details are embedded read models (queryable via Marten JSON).
+/// via <see cref="Calendars"/>. The structured fields are canonical; DAV regenerates the ICS on demand and <c>ContentHash</c>
+/// (the ETag) is derived from that canonical form. Participation and kind-details are embedded read models.
 /// </summary>
 public sealed class CalendarItem
 {
@@ -48,9 +48,12 @@ public sealed class CalendarItem
     public string[]? Tags { get; set; }
     public ItemKindDetails? KindDetails { get; set; }
 
-    public string SourceIcalendar { get; set; } = "";
     public string ContentHash { get; set; } = "";
     public string Metadata { get; set; } = "{}";
+
+    // Event-bound payload (server-side only, never in ICS). Exactly one of these is set (XOR), enforced in Apply.
+    public ItemPrompt? Prompt { get; set; }
+    public ItemAction? Action { get; set; }
 
     public List<ItemAttendee> Attendees { get; set; } = new();
     public List<CalendarMembership> Calendars { get; set; } = new();
@@ -68,7 +71,6 @@ public sealed class CalendarItem
         IcalUid = e.IcalUid;
         SetFields(e.Fields);
         KindDetails = e.KindDetails;
-        SourceIcalendar = e.SourceIcalendar;
         ContentHash = e.ContentHash;
         DeletedAt = null;
     }
@@ -78,7 +80,6 @@ public sealed class CalendarItem
         Id = e.ItemId;
         IcalUid = e.IcalUid;
         SetFields(e.Parsed);
-        SourceIcalendar = e.SourceIcalendar;
         ContentHash = e.ContentHash;
         DeletedAt = null;
     }
@@ -87,14 +88,12 @@ public sealed class CalendarItem
     {
         SetFields(e.Fields);
         if (e.KindDetails is not null) KindDetails = e.KindDetails;
-        SourceIcalendar = e.SourceIcalendar;
         ContentHash = e.ContentHash;
     }
 
     public void Apply(ItemCancelled e)
     {
         Status = ItemStatus.Cancelled;
-        SourceIcalendar = e.SourceIcalendar;
         ContentHash = e.ContentHash;
     }
 
@@ -103,11 +102,16 @@ public sealed class CalendarItem
     public void Apply(ItemRestored e)
     {
         DeletedAt = null;
-        SourceIcalendar = e.SourceIcalendar;
         ContentHash = e.ContentHash;
     }
 
     public void Apply(ItemMetadataAttached e) => Metadata = e.MetadataJson;
+
+    // XOR: setting one payload clears the other so the snapshot is always single-payload.
+    public void Apply(ItemPromptSet e) { Prompt = e.Prompt; Action = null; }
+    public void Apply(ItemPromptCleared _) => Prompt = null;
+    public void Apply(ItemActionSet e) { Action = e.Action; Prompt = null; }
+    public void Apply(ItemActionCleared _) => Action = null;
 
     public void Apply(AttendeeInvited e) => Attendees.Add(new ItemAttendee
     {

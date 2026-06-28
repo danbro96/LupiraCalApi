@@ -15,7 +15,7 @@ public class CalendarItemTests
     static CalendarItem Scheduled(Guid id, string hash = "h")
     {
         var i = new CalendarItem();
-        i.Apply(new ItemScheduled(id, "u@x", Fields(), null, "ICS", hash));
+        i.Apply(new ItemScheduled(id, "u@x", Fields(), null, hash));
         return i;
     }
 
@@ -66,7 +66,7 @@ public class CalendarItemTests
         i.Apply(new ItemDeleted(id));
         Assert.NotNull(i.DeletedAt);
 
-        i.Apply(new ItemIcsPut(id, "u@x", Fields(), "ICS2", "h2"));
+        i.Apply(new ItemIcsPut(id, "u@x", Fields(), "h2"));
         Assert.Null(i.DeletedAt);
         Assert.Equal("h2", i.ContentHash);
     }
@@ -77,10 +77,9 @@ public class CalendarItemTests
         var id = Guid.NewGuid();
         var i = Scheduled(id, "h1");
         var revised = Fields() with { Title = "Dinner" };
-        i.Apply(new ItemRevised(id, revised, null, "ICS2", "h2"));
+        i.Apply(new ItemRevised(id, revised, null, "h2"));
 
         Assert.Equal("Dinner", i.Title);
-        Assert.Equal("ICS2", i.SourceIcalendar);
         Assert.Equal("h2", i.ContentHash);
     }
 
@@ -89,7 +88,7 @@ public class CalendarItemTests
     {
         var id = Guid.NewGuid();
         var i = Scheduled(id, "h1");
-        i.Apply(new ItemCancelled(id, "ICS2", "h2"));
+        i.Apply(new ItemCancelled(id, "h2"));
 
         Assert.Equal(ItemStatus.Cancelled, i.Status);
         Assert.Null(i.DeletedAt);
@@ -102,10 +101,9 @@ public class CalendarItemTests
         var id = Guid.NewGuid();
         var i = Scheduled(id, "h1");
         i.Apply(new ItemDeleted(id));
-        i.Apply(new ItemRestored(id, "ICS3", "h3"));
+        i.Apply(new ItemRestored(id, "h3"));
 
         Assert.Null(i.DeletedAt);
-        Assert.Equal("ICS3", i.SourceIcalendar);
         Assert.Equal("h3", i.ContentHash);
     }
 
@@ -118,6 +116,51 @@ public class CalendarItemTests
 
         Assert.Equal("""{"source":"import"}""", i.Metadata);
         Assert.Equal("h1", i.ContentHash);   // metadata is server-side, not part of the ETag
+    }
+
+    static ItemPrompt SamplePrompt() => new(
+        PromptIntent.EnrichRecord, null, "fill in the venue", OutputKind.RecordEdit, null, ModelTier.Small,
+        FallbackMode.Retry, new PromptFire(PromptFireKind.OnStart, null, null), Enabled: true);
+
+    static ItemAction SampleAction() => new(
+        ActionKind.SendCheckIn, null, """{"message":"how did it go?"}""",
+        new PromptFire(PromptFireKind.OnEnd, null, null), Enabled: true);
+
+    [Fact]
+    public void Setting_an_action_clears_a_prompt_so_the_payload_stays_single()
+    {
+        var id = Guid.NewGuid();
+        var i = Scheduled(id);
+        i.Apply(new ItemPromptSet(id, SamplePrompt()));
+        Assert.NotNull(i.Prompt);
+
+        i.Apply(new ItemActionSet(id, SampleAction()));
+        Assert.NotNull(i.Action);
+        Assert.Null(i.Prompt);   // XOR enforced in Apply
+    }
+
+    [Fact]
+    public void Setting_a_prompt_clears_an_action()
+    {
+        var id = Guid.NewGuid();
+        var i = Scheduled(id);
+        i.Apply(new ItemActionSet(id, SampleAction()));
+        i.Apply(new ItemPromptSet(id, SamplePrompt()));
+
+        Assert.NotNull(i.Prompt);
+        Assert.Null(i.Action);
+    }
+
+    [Fact]
+    public void Clearing_a_prompt_removes_it_and_leaves_no_payload()
+    {
+        var id = Guid.NewGuid();
+        var i = Scheduled(id);
+        i.Apply(new ItemPromptSet(id, SamplePrompt()));
+        i.Apply(new ItemPromptCleared(id));
+
+        Assert.Null(i.Prompt);
+        Assert.Null(i.Action);
     }
 
     [Fact]

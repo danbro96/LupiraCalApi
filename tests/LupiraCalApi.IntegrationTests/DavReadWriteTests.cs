@@ -42,7 +42,7 @@ public sealed class DavReadWriteTests(CalApiTestFactory factory) : IntegrationTe
     }
 
     [Fact]
-    public async Task Put_then_get_returns_byte_identical_blob_and_matching_etag()
+    public async Task Put_then_get_round_trips_semantically_with_a_stable_etag()
     {
         var api = Factory.ApiClient(Email);
         var uid = await GetMyIdAsync(api);
@@ -58,10 +58,18 @@ public sealed class DavReadWriteTests(CalApiTestFactory factory) : IntegrationTe
         var etag = put.Headers.ETag?.Tag;
         Assert.False(string.IsNullOrWhiteSpace(etag));
 
+        // GET regenerates the ICS from canonical fields (not the verbatim blob): semantic round-trip + ETag from the PUT.
         var get = await dav.GetAsync(url);
         Assert.Equal(HttpStatusCode.OK, get.StatusCode);
-        Assert.Equal(ics, await get.Content.ReadAsStringAsync());
+        var body = await get.Content.ReadAsStringAsync();
+        Assert.Contains($"UID:{icalUid}", body);
+        Assert.Contains("SUMMARY:Lunch", body);
         Assert.Equal(etag, get.Headers.ETag?.Tag);
+
+        // Generation is deterministic → a second GET is byte-identical with the same ETag (stable for sync).
+        var get2 = await dav.GetAsync(url);
+        Assert.Equal(body, await get2.Content.ReadAsStringAsync());
+        Assert.Equal(etag, get2.Headers.ETag?.Tag);
     }
 
     [Fact]

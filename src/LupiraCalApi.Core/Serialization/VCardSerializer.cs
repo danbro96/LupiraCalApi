@@ -1,12 +1,25 @@
+using LupiraCalApi.Domain;
 using System.Globalization;
 using System.Text;
 
 namespace LupiraCalApi.Serialization;
 
-/// <summary>Minimal vCard 3.0 writer + line-based parser. Full FolkerKinzel.VCards round-trip
-/// (X-property preservation) is a later CardDAV-hardening step.</summary>
+/// <summary>Minimal, deterministic vCard 3.0 writer + line-based parser. Structured fields are canonical: GET regenerates
+/// the vCard from them and the ETag derives from that form. Full FolkerKinzel.VCards round-trip is a later step.</summary>
 public static class VCardSerializer
 {
+    /// <summary>Regenerate the canonical vCard for a contact from its structured fields (organisation lives on a ContactGroup, so it's omitted).</summary>
+    public static string From(Contact c) =>
+        Build(c.VcardUid, ComposeFullName(c.NamePrefix, c.GivenName, c.MiddleName, c.FamilyName, c.NameSuffix, c.Nickname),
+            c.GivenName, c.FamilyName, null, c.Emails, c.Phones, c.Birthday);
+
+    /// <summary>The vCard <c>FN</c>: the name parts joined, else the nickname, else empty. Shared by the create path and <see cref="From"/> so bytes (and the ETag) match.</summary>
+    public static string ComposeFullName(string? prefix, string? given, string? middle, string? family, string? suffix, string? nickname)
+    {
+        var name = string.Join(' ', new[] { prefix, given, middle, family, suffix }.Where(s => !string.IsNullOrWhiteSpace(s)));
+        return name.Length > 0 ? name : (nickname ?? "");
+    }
+
     public static string Build(
         string uid, string fullName, string? given, string? family, string? organization,
         IEnumerable<string>? emails, IEnumerable<string>? phones, DateOnly? birthday)

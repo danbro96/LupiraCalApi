@@ -8,7 +8,7 @@ namespace LupiraCalApi.Application;
 
 /// <summary>First-class participation: invited / responded / attended / left, appended to the item's stream. The
 /// embedded <see cref="ItemAttendee"/> read model composes the timestamps. Every attendee is a <see cref="Contact"/>.</summary>
-public sealed class ParticipationService(IDocumentSession session, AccessResolver access)
+public sealed class ParticipationService(IDocumentSession session, AccessResolver access, CompletenessResolver completeness)
 {
     public Task<OpResult<CalendarItemDto>> InviteAsync(Guid principalId, Guid itemId, Guid contactId, string? role, CancellationToken ct = default) =>
         AppendAsync(principalId, itemId, _ => new AttendeeInvited(itemId, Guid.NewGuid(), contactId, ParseRole(role), DateTimeOffset.UtcNow), ct);
@@ -34,7 +34,7 @@ public sealed class ParticipationService(IDocumentSession session, AccessResolve
         stream.AppendOne(makeEvent(item));
         await session.SaveChangesAsync(ct);
         var updated = await session.LoadAsync<CalendarItem>(itemId, ct);
-        return OpResult<CalendarItemDto>.Ok(updated!.ToResponse());
+        return OpResult<CalendarItemDto>.Ok(updated!.ToResponse(await completeness.ScoreItemAsync(updated!, ct)));
     }
 
     private static ParticipationRole ParseRole(string? s) => Enum.TryParse<ParticipationRole>(s, true, out var v) ? v : ParticipationRole.RequiredParticipant;

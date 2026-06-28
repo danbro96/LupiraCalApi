@@ -1,15 +1,20 @@
 using Ical.Net.DataTypes;
+using LupiraCalApi.Serialization;
 using IcalCalendar = Ical.Net.Calendar;
 
 namespace LupiraCalApi.Domain;
 
 /// <summary>
-/// Expands a stored event's recurrence into concrete UTC occurrence starts within a window, using Ical.Net
-/// over the canonical <c>source_icalendar</c>. The same expander backs the REST/MCP view and (later) the
-/// CalDAV calendar-query serialization, so the agent and the phone never disagree about occurrences.
+/// Expands an event's recurrence into concrete UTC occurrence starts within a window, using Ical.Net. Generation is from
+/// the item's canonical structured fields (RRULE/DTSTART) — location/title don't affect occurrences. The same expander
+/// backs the REST/MCP view and the CalDAV calendar-query, so the agent and the phone never disagree about occurrences.
 /// </summary>
 public sealed class RecurrenceExpander
 {
+    /// <summary>Expand from an item's canonical fields (no stored blob needed). Location is irrelevant to recurrence, so omitted.</summary>
+    public IReadOnlyList<DateTimeOffset> Expand(CalendarItem item, DateTimeOffset windowStart, DateTimeOffset windowEnd) =>
+        Expand(ICalSerializer.From(item, null), windowStart, windowEnd);
+
     public IReadOnlyList<DateTimeOffset> Expand(string sourceIcalendar, DateTimeOffset windowStart, DateTimeOffset windowEnd)
     {
         var calendar = IcalCalendar.Load(sourceIcalendar);

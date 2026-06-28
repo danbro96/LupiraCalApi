@@ -25,7 +25,7 @@ public sealed class OwnersTests(CalApiTestFactory factory) : IntegrationTest(fac
         var grant = await alice.PostAsJsonAsync($"/calendars/{calId}/owners", new GrantOwnerRequest { Email = "bob@x.test", Access = "owner" });
         grant.EnsureSuccessStatusCode();
         var dto = (await grant.Content.ReadFromJsonAsync<OwnerGrantDto>())!;
-        Assert.Equal("calendar", dto.Kind);
+        Assert.Equal("calendar", dto.Type);
         Assert.Equal("bob@x.test", dto.Email);
         Assert.Equal(Access.Owner, dto.Access);
 

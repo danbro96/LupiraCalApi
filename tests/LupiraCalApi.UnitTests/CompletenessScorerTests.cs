@@ -1,0 +1,124 @@
+using LupiraCalApi.Domain;
+using Xunit;
+
+namespace LupiraCalApi.UnitTests;
+
+public class CompletenessScorerTests
+{
+    static ItemPrompt SamplePrompt() => new(
+        PromptIntent.Monitor, null, "x", OutputKind.Summary, null, null, FallbackMode.Retry,
+        new PromptFire(PromptFireKind.OnStart, null, null), true);
+
+    [Fact]
+    public void Exempt_calendar_scores_null()
+    {
+        var item = new CalendarItem { Kind = ItemKind.Generic };
+        Assert.Null(CompletenessScorer.ScoreItem(item, calendarExempt: true));
+    }
+
+    [Fact]
+    public void Availability_kind_scores_null()
+    {
+        var item = new CalendarItem { Kind = ItemKind.Availability, KindDetails = new ItemKindDetails(Availability: new AvailabilityDetail(AvailabilityStatus.Office)) };
+        Assert.Null(CompletenessScorer.ScoreItem(item, calendarExempt: false));
+    }
+
+    [Fact]
+    public void Item_carrying_a_payload_scores_null()
+    {
+        var item = new CalendarItem { Kind = ItemKind.Generic, Prompt = SamplePrompt() };
+        Assert.Null(CompletenessScorer.ScoreItem(item, calendarExempt: false));
+    }
+
+    [Fact]
+    public void Empty_generic_item_scores_zero_with_heaviest_gaps_first()
+    {
+        var item = new CalendarItem { Kind = ItemKind.Generic };
+        var score = CompletenessScorer.ScoreItem(item, false)!;
+
+        Assert.Equal(0, score.Score);
+        Assert.Equal(CompletenessScorer.Version, score.RubricVersion);
+        // location(2) and attendees(2) outrank time(1)/description(1).
+        Assert.Equal(["location", "attendees"], score.Gaps.Take(2).Select(g => g.Field));
+        Assert.All(score.Gaps, g => Assert.Equal(GapSeverity.Absent, g.Severity));
+    }
+
+    [Fact]
+    public void Fully_documented_generic_meeting_scores_one()
+    {
+        var item = new CalendarItem
+        {
+            Kind = ItemKind.Generic,
+            PlaceId = Guid.NewGuid(),
+            StartsAt = new DateTimeOffset(2026, 7, 1, 9, 0, 0, TimeSpan.Zero),
+            Title = "Sync",
+            Description = "Quarterly planning agenda and pre-reads",
+            Attendees = [new ItemAttendee { Status = ParticipationStatus.Accepted }],
+        };
+        var score = CompletenessScorer.ScoreItem(item, false)!;
+
+        Assert.Equal(1, score.Score);
+        Assert.Empty(score.Gaps);
+    }
+
+    [Fact]
+    public void Description_echoing_the_title_and_unanswered_attendees_are_weak()
+    {
+        var item = new CalendarItem
+        {
+            Kind = ItemKind.Generic,
+            PlaceId = Guid.NewGuid(),
+            StartsAt = DateTimeOffset.UtcNow,
+            Title = "Standup",
+            Description = "standup",
+            Attendees = [new ItemAttendee { Status = ParticipationStatus.NeedsAction }],
+        };
+        var score = CompletenessScorer.ScoreItem(item, false)!;
+
+        Assert.Equal(GapSeverity.Weak, score.Gaps.Single(g => g.Field == "description").Severity);
+        Assert.Equal(GapSeverity.Weak, score.Gaps.Single(g => g.Field == "attendees").Severity);
+        Assert.True(score.Score is > 0 and < 1);
+    }
+
+    [Fact]
+    public void Flight_rubric_reads_kind_details()
+    {
+        var item = new CalendarItem
+        {
+            Kind = ItemKind.Flight,
+            StartsAt = new DateTimeOffset(2026, 7, 1, 9, 0, 0, TimeSpan.Zero),
+            EndsAt = new DateTimeOffset(2026, 7, 1, 12, 0, 0, TimeSpan.Zero),
+            KindDetails = new ItemKindDetails(
+                Travel: new TravelDetail(Guid.NewGuid(), null, null, null, null, "BR-123"),
+                Flight: new FlightDetail("SK123", "5", "A12", null, "14C", null)),
+        };
+        var score = CompletenessScorer.ScoreItem(item, false)!;
+
+        Assert.True(score.Score > 0.9, $"expected near-complete flight, got {score.Score}");
+        Assert.DoesNotContain(score.Gaps, g => g.Field == "flightNumber");
+    }
+
+    [Fact]
+    public void Contact_primary_reach_dominates_the_score()
+    {
+        var bare = new Contact { GivenName = "Jane" };
+        var withEmail = new Contact { GivenName = "Jane", Emails = ["jane@x.test"] };
+
+        var bareScore = CompletenessScorer.ScoreContact(bare, hasOrganisation: false)!;
+        var reachScore = CompletenessScorer.ScoreContact(withEmail, hasOrganisation: false)!;
+
+        Assert.True(reachScore.Score > bareScore.Score);
+        Assert.Contains(bareScore.Gaps, g => g.Field == "primaryReach" && g.Weight == 3);
+    }
+
+    [Fact]
+    public void Contact_organisation_membership_lifts_the_score()
+    {
+        var c = new Contact { GivenName = "Jane", Emails = ["jane@x.test"] };
+        var without = CompletenessScorer.ScoreContact(c, hasOrganisation: false)!;
+        var with = CompletenessScorer.ScoreContact(c, hasOrganisation: true)!;
+
+        Assert.True(with.Score > without.Score);
+        Assert.DoesNotContain(with.Gaps, g => g.Field == "organisation");
+    }
+}

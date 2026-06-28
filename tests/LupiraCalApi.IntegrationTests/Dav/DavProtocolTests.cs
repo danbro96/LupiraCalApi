@@ -73,8 +73,7 @@ public class DavProtocolTests
     [Fact]
     public void Overlap_recurring_item_delegates_to_the_expander()
     {
-        var ics = ICalSerializer.ToICalendar("r@x", "Weekly", null, null, null, false, Nine, Nine.AddHours(1), null, null, "FREQ=WEEKLY");
-        var i = new CalendarItem { RecurrenceRule = "FREQ=WEEKLY", SourceIcalendar = ics };
+        var i = new CalendarItem { StartsAt = Nine, EndsAt = Nine.AddHours(1), RecurrenceRule = "FREQ=WEEKLY" };   // expander regenerates ICS from these
 
         Assert.True(DavProtocol.OverlapsWindow(i, Utc(2026, 7, 15), Utc(2026, 7, 16), Expander()));   // an occurrence lands here
         Assert.False(DavProtocol.OverlapsWindow(i, Utc(2026, 7, 16), Utc(2026, 7, 17), Expander()));  // none here

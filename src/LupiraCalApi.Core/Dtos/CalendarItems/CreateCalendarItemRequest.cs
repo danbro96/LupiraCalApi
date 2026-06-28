@@ -19,4 +19,7 @@ public sealed class CreateCalendarItemRequest
     public string? RecurrenceRule { get; set; }
     public string? Kind { get; set; }
     public string[]? Tags { get; set; }
+
+    /// <summary>When <c>Kind</c> is <c>Availability</c>, the segment's status (whole-day or timed via Starts/Ends).</summary>
+    public Domain.AvailabilityStatus? Availability { get; set; }
 }

@@ -1,6 +1,9 @@
+using JasperFx.Events.Daemon;
+using JasperFx.Events.Projections;
 using LupiraCalApi.Application;
 using LupiraCalApi.Auth;
 using LupiraCalApi.Domain;
+using LupiraCalApi.Scheduling;
 using Marten;
 using Microsoft.Extensions.Configuration;
 
@@ -14,6 +17,9 @@ public static class CoreServiceCollectionExtensions
 
     public static IServiceCollection AddCalCore(this IServiceCollection services)
     {
+        // Registered before Marten so its StartAsync (create cal.scheduled_fire) completes before the async daemon starts.
+        services.AddHostedService<ScheduledFireTableInitializer>();
+
         // Resolve the connection string lazily from IConfiguration so test hosts (WebApplicationFactory) can
         // override ConnectionStrings:Postgres before the store is built.
         services.AddMarten(sp =>
@@ -23,9 +29,15 @@ public static class CoreServiceCollectionExtensions
             opts.Connection(connectionString);
             opts.UseLupiraCal();
             return opts;
-        }).UseLightweightSessions();
+        }).UseLightweightSessions()
+          // Solo for the single-instance personal deployment; tests disable the hosted daemon and drive the projection on demand.
+          .AddAsyncDaemon(Environment.GetEnvironmentVariable("CAL_ASYNC_DAEMON")?.ToLowerInvariant() == "disabled" ? DaemonMode.Disabled : DaemonMode.Solo)
+          .AddProjectionWithServices<ScheduledFireProjection>(ProjectionLifecycle.Async, ServiceLifetime.Singleton, "scheduled_fire");
 
+        services.AddSingleton<IFireMaterializer, FireMaterializer>();
+        services.AddHostedService<HorizonSweep>();
         services.AddSingleton<RecurrenceExpander>();
+        services.AddScoped<CompletenessResolver>();
         services.AddScoped<AccessResolver>();
         services.AddScoped<PrincipalDirectory>();
         services.AddScoped<PlaceService>();

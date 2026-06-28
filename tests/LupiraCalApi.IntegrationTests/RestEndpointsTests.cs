@@ -28,7 +28,7 @@ public sealed class RestEndpointsTests(CalApiTestFactory factory) : IntegrationT
 
         var containers = await api.GetFromJsonAsync<List<ContainerDto>>("/calendars");
         var cal = Assert.Single(containers!, c => c.Id == calId);
-        Assert.Equal("calendar", cal.Kind);
+        Assert.Equal("calendar", cal.Type);
         Assert.Equal(Access.Owner, cal.Access);
     }
 
@@ -58,14 +58,14 @@ public sealed class RestEndpointsTests(CalApiTestFactory factory) : IntegrationT
         var api = Factory.ApiClient(Email);
 
         var first = await (await api.PostAsync("/me/bootstrap", null)).Content.ReadFromJsonAsync<List<ContainerDto>>();
-        Assert.Contains(first!, c => c is { Kind: "calendar", Slug: "personal" });
-        Assert.Contains(first!, c => c is { Kind: "addressbook", Slug: "personal" });
+        Assert.Contains(first!, c => c is { Type: "calendar", Slug: "personal" });
+        Assert.Contains(first!, c => c is { Type: "addressbook", Slug: "personal" });
 
         var second = await (await api.PostAsync("/me/bootstrap", null)).Content.ReadFromJsonAsync<List<ContainerDto>>();
         Assert.Equal(first!.Select(c => c.Id).OrderBy(x => x), second!.Select(c => c.Id).OrderBy(x => x));
 
         var all = await api.GetFromJsonAsync<List<ContainerDto>>("/calendars");
-        Assert.Equal(2, all!.Count);   // exactly the two personal containers — no duplicates
+        Assert.Equal(9, all!.Count);   // 8 standard calendars + the personal address book — no duplicates
     }
 
     [Fact]

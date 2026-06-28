@@ -8,7 +8,7 @@ using Marten;
 namespace LupiraCalApi.Application;
 
 /// <summary>Contact core shared by REST, CardDAV, and MCP. Event-sourced like <see cref="CalendarItemService"/>; a contact belongs to one address book.</summary>
-public sealed class ContactService(IDocumentSession session, AccessResolver access)
+public sealed class ContactService(IDocumentSession session, AccessResolver access, CompletenessResolver completeness)
 {
     public async Task<OpResult<ContactDto>> CreateAsync(Guid principalId, CreateContactRequest r, CancellationToken ct = default)
     {
@@ -17,13 +17,12 @@ public sealed class ContactService(IDocumentSession session, AccessResolver acce
         var uid = $"{Guid.NewGuid():N}@cal.lupira.com";
         var id = DeterministicGuid.From(uid);
         var fields = new ContactFields(r.NamePrefix, r.GivenName, r.MiddleName, r.FamilyName, r.NameSuffix, r.Nickname, r.Emails, r.Phones, r.Birthday, r.Tags);
-        var vcard = VCardSerializer.Build(uid, ComposeName(fields), r.GivenName, r.FamilyName, null, r.Emails, r.Phones, r.Birthday);
-        var hash = ContentHash.Of(vcard);
+        var hash = ContentHash.Of(CanonicalVcard(uid, fields));
 
-        session.Events.StartStream<Contact>(id, new ContactCreated(id, r.AddressBookId, uid, fields, vcard, hash));
+        session.Events.StartStream<Contact>(id, new ContactCreated(id, r.AddressBookId, uid, fields, hash));
         await session.SaveChangesAsync(ct);
         var c = await session.LoadAsync<Contact>(id, ct);
-        return OpResult<ContactDto>.Ok(c!.ToResponse());
+        return OpResult<ContactDto>.Ok(await ToDtoAsync(c!, ct));
     }
 
     public async Task<OpResult<List<ContactDto>>> QueryAsync(Guid principalId, string? query, Guid? addressBookId, CancellationToken ct = default)
@@ -42,7 +41,9 @@ public sealed class ContactService(IDocumentSession session, AccessResolver acce
             var term = query.Trim();
             contacts = contacts.Where(c => c.DisplayName.Contains(term, StringComparison.OrdinalIgnoreCase));
         }
-        return OpResult<List<ContactDto>>.Ok(contacts.OrderBy(c => c.DisplayName).Select(c => c.ToResponse()).ToList());
+        var ordered = contacts.OrderBy(c => c.DisplayName).ToList();
+        var scores = await completeness.ScoreContactsAsync(ordered, ct);
+        return OpResult<List<ContactDto>>.Ok([.. ordered.Select(c => c.ToResponse(scores[c.Id]))]);
     }
 
     public async Task<OpResult<ContactDto>> GetAsync(Guid principalId, Guid id, CancellationToken ct = default)
@@ -50,7 +51,7 @@ public sealed class ContactService(IDocumentSession session, AccessResolver acce
         var c = await session.LoadAsync<Contact>(id, ct);
         if (c is null || c.DeletedAt is not null) return OpResult<ContactDto>.NotFound();
         if (!await access.CanReadAddressBookAsync(principalId, c.AddressBookId, ct)) return OpResult<ContactDto>.Forbidden("No access to this contact.");
-        return OpResult<ContactDto>.Ok(c.ToResponse());
+        return OpResult<ContactDto>.Ok(await ToDtoAsync(c, ct));
     }
 
     public async Task<OpResult> DeleteAsync(Guid principalId, Guid id, CancellationToken ct = default)
@@ -84,8 +85,9 @@ public sealed class ContactService(IDocumentSession session, AccessResolver acce
 
         var p = VCardSerializer.ParseVCard(rawVcard);
         var fields = new ContactFields(null, p.GivenName, null, p.FamilyName, null, null, p.Emails, p.Phones, p.Birthday, null);
-        var hash = ContentHash.Of(rawVcard);
-        stream.AppendOne(new ContactVcardPut(id, addressBookId, vcardUid, fields, rawVcard, hash));   // also clears soft-delete
+        // PUT parses into structured fields; the ETag is the hash of the canonical vCard regenerated from them (matching CardDAV GET), not the raw blob.
+        var hash = ContentHash.Of(CanonicalVcard(vcardUid, fields));
+        stream.AppendOne(new ContactVcardPut(id, addressBookId, vcardUid, fields, hash));   // also clears soft-delete
         await session.SaveChangesAsync(ct);
         return OpResult<DavWriteResult>.Ok(new DavWriteResult(!live, hash));
     }
@@ -104,10 +106,11 @@ public sealed class ContactService(IDocumentSession session, AccessResolver acce
         return OpResult.Ok();
     }
 
-    private static string ComposeName(ContactFields f)
-    {
-        var name = string.Join(' ', new[] { f.NamePrefix, f.GivenName, f.MiddleName, f.FamilyName, f.NameSuffix }
-            .Where(s => !string.IsNullOrWhiteSpace(s)));
-        return name.Length > 0 ? name : (f.Nickname ?? "");
-    }
+    private async Task<ContactDto> ToDtoAsync(Contact c, CancellationToken ct) =>
+        c.ToResponse(await completeness.ScoreContactAsync(c, ct));
+
+    // The canonical vCard for a contact's fields — identical to what CardDAV GET regenerates from the snapshot, so the ETag matches.
+    private static string CanonicalVcard(string uid, ContactFields f) =>
+        VCardSerializer.Build(uid, VCardSerializer.ComposeFullName(f.NamePrefix, f.GivenName, f.MiddleName, f.FamilyName, f.NameSuffix, f.Nickname),
+            f.GivenName, f.FamilyName, null, f.Emails, f.Phones, f.Birthday);
 }

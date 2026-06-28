@@ -23,7 +23,10 @@ public sealed class DavEdgeCaseTests(CalApiTestFactory factory) : IntegrationTes
         var ics = MinimalIcsAllDay(icalUid, "Holiday", new DateOnly(2026, 12, 24));
 
         Assert.Equal(HttpStatusCode.Created, (await SendDav(dav, "PUT", url, body: ics, contentType: "text/calendar")).StatusCode);
-        Assert.Equal(ics, await (await dav.GetAsync(url)).Content.ReadAsStringAsync());
+        var got = await (await dav.GetAsync(url)).Content.ReadAsStringAsync();   // GET regenerates from canonical fields (semantic round-trip)
+        Assert.Contains($"UID:{icalUid}", got);
+        Assert.Contains("SUMMARY:Holiday", got);
+        Assert.Contains("20261224", got);   // all-day DTSTART preserved
 
         var doc = await ReadXml(await SendDav(dav, "REPORT", $"/dav/u/{uid}/cal/{calId}/",
             body: TimeRangeQueryBody(new DateTimeOffset(2026, 12, 1, 0, 0, 0, TimeSpan.Zero), new DateTimeOffset(2027, 1, 1, 0, 0, 0, TimeSpan.Zero))));

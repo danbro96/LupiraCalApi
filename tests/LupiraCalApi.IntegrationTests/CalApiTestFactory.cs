@@ -1,8 +1,10 @@
-﻿using Marten;
+﻿using LupiraCalApi.Scheduling;
+using Marten;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
+using Npgsql;
 using System.Net.Http.Headers;
 using System.Text;
 using Testcontainers.PostgreSql;
@@ -19,7 +21,13 @@ public sealed class CalApiTestFactory : WebApplicationFactory<Program>
     private readonly PostgreSqlContainer _postgres = new PostgreSqlBuilder("postgres:17-alpine").Build();
     private bool _schemaApplied;
 
-    public CalApiTestFactory() => _postgres.StartAsync().GetAwaiter().GetResult();
+    public CalApiTestFactory()
+    {
+        // Tests drive the scheduled_fire projection on demand (RebuildProjectionAsync) — a hosted daemon racing with the
+        // per-test ResetAllData makes projection waits flaky. Set before the host builds so AddCalCore reads it.
+        Environment.SetEnvironmentVariable("CAL_ASYNC_DAEMON", "disabled");
+        _postgres.StartAsync().GetAwaiter().GetResult();
+    }
 
     protected override void ConfigureWebHost(IWebHostBuilder builder)
     {
@@ -33,7 +41,10 @@ public sealed class CalApiTestFactory : WebApplicationFactory<Program>
 
     public IDocumentStore Store => Services.GetRequiredService<IDocumentStore>();
 
-    /// <summary>Ensure the schema exists (once), then wipe all documents + events (and reset the event sequence).</summary>
+    public string ConnectionString => _postgres.GetConnectionString();
+
+    /// <summary>Ensure the schema exists (once), then wipe all documents + events (and reset the event sequence).
+    /// The raw <c>cal.scheduled_fire</c> table isn't Marten-managed, so it's created + truncated explicitly.</summary>
     public async Task ResetAsync()
     {
         if (!_schemaApplied)
@@ -41,7 +52,12 @@ public sealed class CalApiTestFactory : WebApplicationFactory<Program>
             await Store.Storage.ApplyAllConfiguredChangesToDatabaseAsync();
             _schemaApplied = true;
         }
+        await ScheduledFireSchema.EnsureExistsAsync(ConnectionString);
         await Store.Advanced.ResetAllData();
+        await using var conn = new NpgsqlConnection(ConnectionString);
+        await conn.OpenAsync();
+        await using var cmd = new NpgsqlCommand($"truncate table {ScheduledFireSchema.Table}", conn);
+        await cmd.ExecuteNonQueryAsync();
     }
 
     public HttpClient ApiClient(string email)

@@ -5,6 +5,7 @@ using LupiraCalApi.Endpoints;
 using LupiraCalApi.Handlers;
 using LupiraCalApi.Health;
 using LupiraCalApi.Mcp;
+using LupiraCalApi.Scheduling;
 using Marten;
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
@@ -107,6 +108,8 @@ if (args.Contains("--apply-schema"))
 {
     var store = app.Services.GetRequiredService<IDocumentStore>();
     await store.Storage.ApplyAllConfiguredChangesToDatabaseAsync();
+    // The operational scheduled_fire queue is a raw relational table (not a Marten document) — created here too.
+    await ScheduledFireSchema.EnsureExistsAsync(app.Configuration.GetConnectionString("Postgres") ?? CoreServiceCollectionExtensions.DefaultConnectionString);
     Console.WriteLine("Schema applied.");
     return;
 }

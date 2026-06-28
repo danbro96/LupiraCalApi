@@ -10,4 +10,7 @@ public sealed class UpdateCalendarItemRequest
     public DateTimeOffset? EndsAt { get; set; }
     public string? RecurrenceRule { get; set; }
     public string[]? Tags { get; set; }
+
+    /// <summary>For <c>Availability</c> items: change the segment's status.</summary>
+    public Domain.AvailabilityStatus? Availability { get; set; }
 }

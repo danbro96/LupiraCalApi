@@ -88,10 +88,12 @@ public sealed class SecurityRegressionTests(CalApiTestFactory factory) : Integra
         // B PUTs the same UID into B's own calendar — must not touch A's item.
         Assert.Equal(HttpStatusCode.Forbidden, (await SendDav(bDav, "PUT", bUrl, body: bIcs, contentType: "text/calendar")).StatusCode);
 
-        // A's item is unchanged (byte-identical to the original PUT).
+        // A's item is unchanged — still A's, not B's hijack attempt.
         var get = await aDav.GetAsync(aUrl);
         Assert.Equal(HttpStatusCode.OK, get.StatusCode);
-        Assert.Equal(aIcs, await get.Content.ReadAsStringAsync());
+        var got = await get.Content.ReadAsStringAsync();
+        Assert.Contains("SUMMARY:A meeting", got);
+        Assert.DoesNotContain("B hijack", got);
     }
 
     [Fact]

@@ -13,7 +13,7 @@ namespace LupiraCalApi.Application;
 /// the inline <see cref="CalendarItem"/> snapshot is the read model. The raw <c>SourceIcalendar</c> blob + content
 /// hash ride on the events (DAV source of truth + ETag). Items are calendar-independent (many-to-many via curation).
 /// </summary>
-public sealed class CalendarItemService(IDocumentSession session, AccessResolver access, RecurrenceExpander expander, PlaceService places)
+public sealed class CalendarItemService(IDocumentSession session, AccessResolver access, RecurrenceExpander expander, PlaceService places, CompletenessResolver completeness)
 {
     public async Task<OpResult<CalendarItemDto>> CreateAsync(Guid principalId, CreateCalendarItemRequest r, CancellationToken ct = default)
     {
@@ -27,17 +27,19 @@ public sealed class CalendarItemService(IDocumentSession session, AccessResolver
         var id = DeterministicGuid.From(uid);
         var fields = new CalendarItemFields(r.Title, r.Description, status, r.IsAllDay, r.StartsAt, r.EndsAt,
             r.StartTimezone, null, r.StartDate, r.EndDate, r.RecurrenceRule, kind, placeId, null, r.Tags);
-        var ics = ICalSerializer.ToICalendar(uid, r.Title, r.Description, r.Location, status, r.IsAllDay, r.StartsAt, r.EndsAt, r.StartDate, r.EndDate, r.RecurrenceRule);
-        var hash = ContentHash.Of(ics);
+        var kindDetails = BuildKindDetails(kind, r.Availability);
+        // Hash the canonical ICS built from the resolved place label (not the raw input) so it matches what DAV GET regenerates.
+        var locationLabel = await places.LabelOfAsync(placeId, ct);
+        var hash = ContentHash.Of(ICalSerializer.ToICalendar(uid, r.Title, r.Description, locationLabel, status, r.IsAllDay, r.StartsAt, r.EndsAt, r.StartDate, r.EndDate, r.RecurrenceRule));
 
-        var events = new List<object> { new ItemScheduled(id, uid, fields, null, ics, hash) };
+        var events = new List<object> { new ItemScheduled(id, uid, fields, kindDetails, hash) };
         if (r.CalendarId is { } calId)
             events.Add(new AddedToCalendar(id, calId, CalendarEntryStatus.Accepted, DateTimeOffset.UtcNow));
 
         session.Events.StartStream<CalendarItem>(id, events.ToArray());
         await session.SaveChangesAsync(ct);
         var item = await session.LoadAsync<CalendarItem>(id, ct);
-        return OpResult<CalendarItemDto>.Ok(item!.ToResponse());
+        return OpResult<CalendarItemDto>.Ok(await ToDtoAsync(item!, ct));
     }
 
     public async Task<OpResult<List<CalendarItemOccurrenceDto>>> SearchAsync(
@@ -63,20 +65,24 @@ public sealed class CalendarItemService(IDocumentSession session, AccessResolver
                 (i.Description ?? "").Contains(term, StringComparison.OrdinalIgnoreCase));
         }
 
+        var itemList = items.ToList();
+        var scores = await completeness.ScoreItemsAsync(itemList, ct);
+
         var windowStart = from ?? DateTimeOffset.UtcNow.AddYears(-1);
         var windowEnd = to ?? DateTimeOffset.UtcNow.AddYears(1);
         var results = new List<CalendarItemOccurrenceDto>();
-        foreach (var i in items)
+        foreach (var i in itemList)
         {
+            var score = scores[i.Id];
             TimeSpan? duration = (i.StartsAt is { } s && i.EndsAt is { } en) ? en - s : null;
             if (!string.IsNullOrWhiteSpace(i.RecurrenceRule))
             {
-                foreach (var occ in expander.Expand(i.SourceIcalendar, windowStart, windowEnd))
-                    results.Add(new CalendarItemOccurrenceDto { Id = i.Id, Title = i.Title, PlaceId = i.PlaceId, IsAllDay = i.IsAllDay, Start = occ, End = duration is { } d ? occ + d : null, Etag = i.ContentHash });
+                foreach (var occ in expander.Expand(i, windowStart, windowEnd))
+                    results.Add(new CalendarItemOccurrenceDto { Id = i.Id, Title = i.Title, PlaceId = i.PlaceId, IsAllDay = i.IsAllDay, Start = occ, End = duration is { } d ? occ + d : null, Completeness = score, Etag = i.ContentHash });
             }
             else if (OccurrenceStart(i) is { } start && start >= windowStart && start < windowEnd)
             {
-                results.Add(new CalendarItemOccurrenceDto { Id = i.Id, Title = i.Title, PlaceId = i.PlaceId, IsAllDay = i.IsAllDay, Start = start, End = duration is { } d ? start + d : i.EndsAt, Etag = i.ContentHash });
+                results.Add(new CalendarItemOccurrenceDto { Id = i.Id, Title = i.Title, PlaceId = i.PlaceId, IsAllDay = i.IsAllDay, Start = start, End = duration is { } d ? start + d : i.EndsAt, Completeness = score, Etag = i.ContentHash });
             }
         }
         return OpResult<List<CalendarItemOccurrenceDto>>.Ok([.. results.OrderBy(x => x.Start)]);
@@ -89,7 +95,7 @@ public sealed class CalendarItemService(IDocumentSession session, AccessResolver
         var calIds = await access.AccessibleCalendarIdsAsync(principalId, ct);
         if (!item.Calendars.Any(m => m.Status == CalendarEntryStatus.Accepted && calIds.Contains(m.CalendarId)))
             return OpResult<CalendarItemDto>.Forbidden("No access to this item.");
-        return OpResult<CalendarItemDto>.Ok(item.ToResponse());
+        return OpResult<CalendarItemDto>.Ok(await ToDtoAsync(item, ct));
     }
 
     public async Task<OpResult<CalendarItemDto>> UpdateAsync(Guid principalId, Guid id, UpdateCalendarItemRequest r, CancellationToken ct = default)
@@ -110,14 +116,14 @@ public sealed class CalendarItemService(IDocumentSession session, AccessResolver
 
         var fields = new CalendarItemFields(title, description, status, item.IsAllDay, startsAt, endsAt,
             item.StartTimezone, item.EndTimezone, item.StartDate, item.EndDate, rrule, item.Kind, placeId, item.ParentItemId, tags);
+        var kindDetails = BuildKindDetails(item.Kind, r.Availability);   // null keeps existing details (Apply only overwrites when non-null)
         var locationLabel = await places.LabelOfAsync(placeId, ct);
-        var ics = ICalSerializer.ToICalendar(item.IcalUid, title, description, locationLabel, status, item.IsAllDay, startsAt, endsAt, item.StartDate, item.EndDate, rrule);
-        var hash = ContentHash.Of(ics);
+        var hash = ContentHash.Of(ICalSerializer.ToICalendar(item.IcalUid, title, description, locationLabel, status, item.IsAllDay, startsAt, endsAt, item.StartDate, item.EndDate, rrule));
 
-        stream.AppendOne(new ItemRevised(id, fields, null, ics, hash));
+        stream.AppendOne(new ItemRevised(id, fields, kindDetails, hash));
         await session.SaveChangesAsync(ct);
         var updated = await session.LoadAsync<CalendarItem>(id, ct);
-        return OpResult<CalendarItemDto>.Ok(updated!.ToResponse());
+        return OpResult<CalendarItemDto>.Ok(await ToDtoAsync(updated!, ct));
     }
 
     public async Task<OpResult> DeleteAsync(Guid principalId, Guid id, CancellationToken ct = default)
@@ -144,7 +150,63 @@ public sealed class CalendarItemService(IDocumentSession session, AccessResolver
         stream.AppendOne(new ItemMetadataAttached(id, current.ToJsonString()));
         await session.SaveChangesAsync(ct);
         var updated = await session.LoadAsync<CalendarItem>(id, ct);
-        return OpResult<CalendarItemDto>.Ok(updated!.ToResponse());
+        return OpResult<CalendarItemDto>.Ok(await ToDtoAsync(updated!, ct));
+    }
+
+    // ---- event-bound payload (server-side only, XOR — an item carries one prompt OR one action) ----
+
+    public async Task<OpResult<CalendarItemDto>> SetPromptAsync(Guid principalId, Guid id, ItemPrompt prompt, CancellationToken ct = default)
+    {
+        var stream = await session.Events.FetchForWriting<CalendarItem>(id, ct);
+        var item = stream.Aggregate;
+        if (item is null || item.DeletedAt is not null) return OpResult<CalendarItemDto>.NotFound();
+        if (!await CanWriteItemAsync(principalId, item, ct)) return OpResult<CalendarItemDto>.Forbidden("No write access to this item.");
+        if (item.Action is not null) return OpResult<CalendarItemDto>.Conflict("Item already carries an action; clear it first.");
+
+        stream.AppendOne(new ItemPromptSet(id, prompt));
+        await session.SaveChangesAsync(ct);
+        var updated = await session.LoadAsync<CalendarItem>(id, ct);
+        return OpResult<CalendarItemDto>.Ok(await ToDtoAsync(updated!, ct));
+    }
+
+    public async Task<OpResult<CalendarItemDto>> SetActionAsync(Guid principalId, Guid id, ItemAction action, CancellationToken ct = default)
+    {
+        var stream = await session.Events.FetchForWriting<CalendarItem>(id, ct);
+        var item = stream.Aggregate;
+        if (item is null || item.DeletedAt is not null) return OpResult<CalendarItemDto>.NotFound();
+        if (!await CanWriteItemAsync(principalId, item, ct)) return OpResult<CalendarItemDto>.Forbidden("No write access to this item.");
+        if (item.Prompt is not null) return OpResult<CalendarItemDto>.Conflict("Item already carries a prompt; clear it first.");
+
+        stream.AppendOne(new ItemActionSet(id, action));
+        await session.SaveChangesAsync(ct);
+        var updated = await session.LoadAsync<CalendarItem>(id, ct);
+        return OpResult<CalendarItemDto>.Ok(await ToDtoAsync(updated!, ct));
+    }
+
+    public async Task<OpResult> ClearPromptAsync(Guid principalId, Guid id, CancellationToken ct = default)
+    {
+        var stream = await session.Events.FetchForWriting<CalendarItem>(id, ct);
+        var item = stream.Aggregate;
+        if (item is null || item.DeletedAt is not null) return OpResult.NotFound();
+        if (!await CanWriteItemAsync(principalId, item, ct)) return OpResult.Forbidden("No write access to this item.");
+        if (item.Prompt is null) return OpResult.Ok();   // no-op; don't append a meaningless event
+
+        stream.AppendOne(new ItemPromptCleared(id));
+        await session.SaveChangesAsync(ct);
+        return OpResult.Ok();
+    }
+
+    public async Task<OpResult> ClearActionAsync(Guid principalId, Guid id, CancellationToken ct = default)
+    {
+        var stream = await session.Events.FetchForWriting<CalendarItem>(id, ct);
+        var item = stream.Aggregate;
+        if (item is null || item.DeletedAt is not null) return OpResult.NotFound();
+        if (!await CanWriteItemAsync(principalId, item, ct)) return OpResult.Forbidden("No write access to this item.");
+        if (item.Action is null) return OpResult.Ok();
+
+        stream.AppendOne(new ItemActionCleared(id));
+        await session.SaveChangesAsync(ct);
+        return OpResult.Ok();
     }
 
     // ---- DAV write path: upsert/delete a resource keyed by its URL uid (and the calendar it's addressed under) ----
@@ -176,9 +238,11 @@ public sealed class CalendarItemService(IDocumentSession session, AccessResolver
         var placeId = await places.ResolveLabelAsync(p.Location, ct);
         var fields = new CalendarItemFields(p.Title, p.Description, null, p.IsAllDay, p.StartsAt, p.EndsAt,
             p.StartTimezone, p.EndTimezone, p.StartDate, p.EndDate, p.RecurrenceRule, null, placeId, null, null);
-        var hash = ContentHash.Of(rawIcs);
+        // PUT parses into structured fields; the ETag is the hash of the canonical ICS regenerated from them (matching DAV GET), not the raw blob.
+        var label = await places.LabelOfAsync(placeId, ct);
+        var hash = ContentHash.Of(ICalSerializer.ToICalendar(icalUid, fields.Title, fields.Description, label, fields.Status, fields.IsAllDay, fields.StartsAt, fields.EndsAt, fields.StartDate, fields.EndDate, fields.RecurrenceRule));
 
-        stream.AppendOne(new ItemIcsPut(id, icalUid, fields, rawIcs, hash));   // also clears any soft-delete (resurrect)
+        stream.AppendOne(new ItemIcsPut(id, icalUid, fields, hash));   // also clears any soft-delete (resurrect)
         if (existing is null || !existing.IsAcceptedIn(calendarId))
             stream.AppendOne(new AddedToCalendar(id, calendarId, CalendarEntryStatus.Accepted, DateTimeOffset.UtcNow));
 
@@ -215,6 +279,12 @@ public sealed class CalendarItemService(IDocumentSession session, AccessResolver
         return i.StartsAt;
     }
 
+    private async Task<CalendarItemDto> ToDtoAsync(CalendarItem item, CancellationToken ct) =>
+        item.ToResponse(await completeness.ScoreItemAsync(item, ct));
+
     private static ItemStatus? ParseStatus(string? s) => Enum.TryParse<ItemStatus>(s, ignoreCase: true, out var v) ? v : null;
     private static ItemKind? ParseKind(string? s) => Enum.TryParse<ItemKind>(s, ignoreCase: true, out var v) ? v : null;
+
+    private static ItemKindDetails? BuildKindDetails(ItemKind? kind, AvailabilityStatus? availability) =>
+        kind == ItemKind.Availability && availability is { } s ? new ItemKindDetails(Availability: new AvailabilityDetail(s)) : null;
 }

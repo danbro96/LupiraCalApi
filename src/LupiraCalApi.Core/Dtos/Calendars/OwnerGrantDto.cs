@@ -7,7 +7,7 @@ namespace LupiraCalApi.Dtos.Calendars;
 public sealed class OwnerGrantDto
 {
     public required Guid ContainerId { get; set; }
-    public required string Kind { get; set; }
+    public required string Type { get; set; }
     public required Guid PrincipalId { get; set; }
     public required string Email { get; set; }
 

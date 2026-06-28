@@ -16,8 +16,8 @@ public sealed class ContactSocialProfile
 }
 
 /// <summary>
-/// The contact (VCARD) aggregate + inline snapshot, belonging to one address book. The <c>SourceVcard</c> blob is
-/// returned verbatim over CardDAV; <c>ContentHash</c> is the ETag. Postal addresses reference <see cref="Place"/>.
+/// The contact (VCARD) aggregate + inline snapshot, belonging to one address book. The structured fields are canonical;
+/// CardDAV regenerates the vCard on demand and <c>ContentHash</c> (the ETag) is derived from it. Postal addresses reference <see cref="Place"/>.
 /// </summary>
 public sealed class Contact
 {
@@ -36,7 +36,6 @@ public sealed class Contact
     public DateOnly? Birthday { get; set; }
     public string[]? Tags { get; set; }
 
-    public string SourceVcard { get; set; } = "";
     public string ContentHash { get; set; } = "";
     public string Metadata { get; set; } = "{}";
 
@@ -61,7 +60,6 @@ public sealed class Contact
         AddressBookId = e.AddressBookId;
         VcardUid = e.VcardUid;
         SetFields(e.Fields);
-        SourceVcard = e.SourceVcard;
         ContentHash = e.ContentHash;
         DeletedAt = null;
     }
@@ -72,7 +70,6 @@ public sealed class Contact
         AddressBookId = e.AddressBookId;
         VcardUid = e.VcardUid;
         SetFields(e.Parsed);
-        SourceVcard = e.SourceVcard;
         ContentHash = e.ContentHash;
         DeletedAt = null;
     }
@@ -80,7 +77,6 @@ public sealed class Contact
     public void Apply(ContactRevised e)
     {
         SetFields(e.Fields);
-        SourceVcard = e.SourceVcard;
         ContentHash = e.ContentHash;
     }
 
@@ -89,7 +85,6 @@ public sealed class Contact
     public void Apply(ContactRestored e)
     {
         DeletedAt = null;
-        SourceVcard = e.SourceVcard;
         ContentHash = e.ContentHash;
     }
 

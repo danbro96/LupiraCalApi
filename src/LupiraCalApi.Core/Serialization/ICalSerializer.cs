@@ -7,18 +7,22 @@ using IcalCalendar = Ical.Net.Calendar;
 
 namespace LupiraCalApi.Serialization;
 
-/// <summary>iCalendar (VEVENT) author + parse via Ical.Net. GET serves the stored raw blob verbatim; the parsed
-/// projection feeds REST/MCP queries + search. Works in primitives so it stays decoupled from the domain aggregates.
-/// (Location is a free string here; the service resolves it to/from a <see cref="Place"/>.)</summary>
+/// <summary>iCalendar (VEVENT) author + parse via Ical.Net. The structured fields are canonical: GET regenerates the ICS on
+/// demand from them, and the ETag is derived from that generated form — so generation must be deterministic (fixed DTSTAMP,
+/// no wall-clock fields). Works in primitives so it stays decoupled from the domain aggregates.</summary>
 public static class ICalSerializer
 {
+    // Fixed so regenerated ICS is byte-stable across reads (the ETag derives from it). DTSTAMP is meaningless for a
+    // server-regenerated projection; the canonical state is the structured fields.
+    private static readonly CalDateTime StableStamp = new(new DateTime(2000, 1, 1, 0, 0, 0, DateTimeKind.Utc), "UTC");
+
     public static string ToICalendar(
         string uid, string? title, string? description, string? location, ItemStatus? status,
         bool isAllDay, DateTimeOffset? startsAt, DateTimeOffset? endsAt,
         DateOnly? startDate, DateOnly? endDate, string? recurrenceRule)
     {
         var calendar = new IcalCalendar();
-        var ev = new CalendarEvent { Uid = uid };
+        var ev = new CalendarEvent { Uid = uid, DtStamp = StableStamp };
 
         if (!string.IsNullOrWhiteSpace(title)) ev.Summary = title;
         if (!string.IsNullOrWhiteSpace(description)) ev.Description = description;
@@ -48,6 +52,11 @@ public static class ICalSerializer
         calendar.Events.Add(ev);
         return new CalendarSerializer().SerializeToString(calendar) ?? string.Empty;
     }
+
+    /// <summary>Regenerate the canonical ICS for an item from its structured fields. <paramref name="locationLabel"/> is the
+    /// item's <see cref="Place"/> name (resolved by the caller, which has the session).</summary>
+    public static string From(CalendarItem i, string? locationLabel) =>
+        ToICalendar(i.IcalUid, i.Title, i.Description, locationLabel, i.Status, i.IsAllDay, i.StartsAt, i.EndsAt, i.StartDate, i.EndDate, i.RecurrenceRule);
 
     public static ParsedEvent ParseICalendar(string raw)
     {

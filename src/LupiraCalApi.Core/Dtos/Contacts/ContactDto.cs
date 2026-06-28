@@ -1,3 +1,4 @@
+using LupiraCalApi.Domain;
 using System.Text.Json.Nodes;
 
 namespace LupiraCalApi.Dtos.Contacts;
@@ -14,5 +15,9 @@ public sealed class ContactDto
     public DateOnly? Birthday { get; set; }
     public string[]? Tags { get; set; }
     public JsonNode? Metadata { get; set; }
+
+    /// <summary>How well-documented this contact is. Drives contact-enrichment ranking (completeness × relevance).</summary>
+    public CompletenessScore? Completeness { get; set; }
+
     public required string Etag { get; set; }
 }

@@ -48,6 +48,32 @@ public static class CalendarItemsEndpoints
             .Produces(StatusCodes.Status404NotFound)
             .Produces(StatusCodes.Status401Unauthorized);
 
+        group.MapPut("/{id:guid}/prompt", (Guid id, SetItemPromptRequest body, CalendarItemsHandler h, CancellationToken ct) => h.SetPromptAsync(id, body, ct))
+            .WithSummary("Set the LLM-interpreted payload on an item (server-side only; never in ICS). 409 if the item carries an action.")
+            .Produces<CalendarItemDto>(StatusCodes.Status200OK)
+            .Produces(StatusCodes.Status404NotFound)
+            .ProducesProblem(StatusCodes.Status409Conflict)
+            .Produces(StatusCodes.Status401Unauthorized);
+
+        group.MapDelete("/{id:guid}/prompt", (Guid id, CalendarItemsHandler h, CancellationToken ct) => h.ClearPromptAsync(id, ct))
+            .WithSummary("Clear the item's LLM payload.")
+            .Produces(StatusCodes.Status204NoContent)
+            .Produces(StatusCodes.Status404NotFound)
+            .Produces(StatusCodes.Status401Unauthorized);
+
+        group.MapPut("/{id:guid}/action", (Guid id, SetItemActionRequest body, CalendarItemsHandler h, CancellationToken ct) => h.SetActionAsync(id, body, ct))
+            .WithSummary("Set the deterministic payload on an item (server-side only; never in ICS). 409 if the item carries a prompt.")
+            .Produces<CalendarItemDto>(StatusCodes.Status200OK)
+            .Produces(StatusCodes.Status404NotFound)
+            .ProducesProblem(StatusCodes.Status409Conflict)
+            .Produces(StatusCodes.Status401Unauthorized);
+
+        group.MapDelete("/{id:guid}/action", (Guid id, CalendarItemsHandler h, CancellationToken ct) => h.ClearActionAsync(id, ct))
+            .WithSummary("Clear the item's deterministic payload.")
+            .Produces(StatusCodes.Status204NoContent)
+            .Produces(StatusCodes.Status404NotFound)
+            .Produces(StatusCodes.Status401Unauthorized);
+
         return app;
     }
 }

@@ -1,6 +1,7 @@
 using LupiraCalApi.Application;
 using LupiraCalApi.Auth;
 using LupiraCalApi.Domain;
+using LupiraCalApi.Serialization;
 using Marten;
 using System.Globalization;
 using System.Xml.Linq;
@@ -133,7 +134,8 @@ public static class DavRouter
         if (deep)
         {
             var ids = await access.AccessibleCalendarIdsAsync(user.Id, ct);
-            var cals = await session.Query<DavCalendar>().Where(c => ids.Contains(c.Id)).ToListAsync(ct);
+            // Only agenda calendars are DAV-projected; system calendars (Inbox/LlmPrompts/UserCheckIn/DevOps) are REST/DB-only.
+            var cals = await session.Query<DavCalendar>().Where(c => ids.Contains(c.Id) && c.Class == CalendarClass.Agenda).ToListAsync(ct);
             var token = await CurrentTokenAsync(session, ct);
             foreach (var c in cals)
                 responses.Add(Response($"{baseUrl}/dav/u/{user.Id}/cal/{c.Id}/", CalendarProps(c, token)));
@@ -145,7 +147,7 @@ public static class DavRouter
     {
         if (!await access.CanReadCalendarAsync(user.Id, calId, ct)) return MultiStatus();
         var cal = await session.LoadAsync<DavCalendar>(calId, ct);
-        if (cal is null) return MultiStatus();
+        if (cal is null || cal.Class != CalendarClass.Agenda) return MultiStatus();
 
         var token = await CurrentTokenAsync(session, ct);
         var responses = new List<XElement> { Response($"{baseUrl}/dav/u/{user.Id}/cal/{cal.Id}/", CalendarProps(cal, token)) };
@@ -237,10 +239,19 @@ public static class DavRouter
             items = [.. items.Where(i => DavProtocol.OverlapsWindow(i, range.Start, range.End, exp))];
         }
 
-        var responses = items.Select(i => Response($"{baseUrl}/dav/u/{user.Id}/cal/{calId}/{i.IcalUid}.ics",
-            new XElement(D + "getetag", Etag(i.ContentHash)),
-            new XElement(C + "calendar-data", i.SourceIcalendar)));
+        var responses = new List<XElement>();
+        foreach (var i in items)
+            responses.Add(Response($"{baseUrl}/dav/u/{user.Id}/cal/{calId}/{i.IcalUid}.ics",
+                new XElement(D + "getetag", Etag(i.ContentHash)),
+                new XElement(C + "calendar-data", await ItemIcsAsync(ctx, i, ct))));
         await WriteMultiStatus(ctx, MultiStatus([.. responses]));
+    }
+
+    /// <summary>Regenerate an item's canonical ICS (location resolved from its Place), so DAV never depends on a stored blob.</summary>
+    static async Task<string> ItemIcsAsync(HttpContext ctx, CalendarItem i, CancellationToken ct)
+    {
+        var label = await ctx.RequestServices.GetRequiredService<PlaceService>().LabelOfAsync(i.PlaceId, ct);
+        return ICalSerializer.From(i, label);
     }
 
     static async Task CalendarSync(HttpContext ctx, IQuerySession session, string baseUrl, Principal user, Guid calId, XDocument doc)
@@ -288,7 +299,7 @@ public static class DavRouter
 
         var responses = contacts.Select(x => Response($"{baseUrl}/dav/u/{user.Id}/card/{abId}/{x.VcardUid}.vcf",
             new XElement(D + "getetag", Etag(x.ContentHash)),
-            new XElement(CR + "address-data", x.SourceVcard)));
+            new XElement(CR + "address-data", VCardSerializer.From(x))));
         await WriteMultiStatus(ctx, MultiStatus([.. responses]));
     }
 
@@ -329,7 +340,7 @@ public static class DavRouter
         ctx.Response.Headers.ETag = Etag(item.ContentHash);
         ctx.Response.ContentType = "text/calendar; charset=utf-8";
         if (ctx.Request.Method == "HEAD") return;
-        await ctx.Response.WriteAsync(item.SourceIcalendar, ct);
+        await ctx.Response.WriteAsync(await ItemIcsAsync(ctx, item, ct), ct);
     }
 
     static async Task GetContact(HttpContext ctx, IQuerySession session, AccessResolver access, Principal user, Guid abId, string vcardUid)
@@ -341,7 +352,7 @@ public static class DavRouter
         ctx.Response.Headers.ETag = Etag(c.ContentHash);
         ctx.Response.ContentType = "text/vcard; charset=utf-8";
         if (ctx.Request.Method == "HEAD") return;
-        await ctx.Response.WriteAsync(c.SourceVcard, ct);
+        await ctx.Response.WriteAsync(VCardSerializer.From(c), ct);
     }
 
     // ---------- write path: object PUT / DELETE with ETag preconditions ----------

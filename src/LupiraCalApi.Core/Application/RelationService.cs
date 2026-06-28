@@ -11,7 +11,7 @@ namespace LupiraCalApi.Application;
 /// Cross-API relations: a by-reference link from a calendar item to an external reference (e.g. a LupiraTasks item,
 /// or an Activity-API engagement/project). References are by string, not FK — integrity is by convention.
 /// </summary>
-public sealed class RelationService(IDocumentSession session, AccessResolver access)
+public sealed class RelationService(IDocumentSession session, AccessResolver access, CompletenessResolver completeness)
 {
     public async Task<OpResult<RelationDto>> LinkItemAsync(Guid principalId, Guid itemId, CreateRelationRequest r, CancellationToken ct = default)
     {
@@ -50,7 +50,8 @@ public sealed class RelationService(IDocumentSession session, AccessResolver acc
         var ids = rels.Select(r => r.FromId).Distinct().ToList();
         var items = await session.Query<CalendarItem>().Where(i => ids.Contains(i.Id) && i.DeletedAt == null).ToListAsync(ct);
         var calIds = await access.AccessibleCalendarIdsAsync(principalId, ct);
-        var visible = items.Where(i => i.Calendars.Any(m => m.Status == CalendarEntryStatus.Accepted && calIds.Contains(m.CalendarId)));
-        return OpResult<List<CalendarItemDto>>.Ok(visible.Select(i => i.ToResponse()).ToList());
+        var visible = items.Where(i => i.Calendars.Any(m => m.Status == CalendarEntryStatus.Accepted && calIds.Contains(m.CalendarId))).ToList();
+        var scores = await completeness.ScoreItemsAsync(visible, ct);
+        return OpResult<List<CalendarItemDto>>.Ok([.. visible.Select(i => i.ToResponse(scores[i.Id]))]);
     }
 }

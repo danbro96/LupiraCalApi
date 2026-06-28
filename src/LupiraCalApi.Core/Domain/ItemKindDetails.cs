@@ -15,7 +15,12 @@ public sealed record ItemKindDetails(
     AppointmentDetail? Appointment = null,
     TicketedDetail? Ticketed = null,
     DeliveryDetail? Delivery = null,
-    BillDetail? Bill = null);
+    BillDetail? Bill = null,
+    AvailabilityDetail? Availability = null);
+
+/// <summary>A presence segment's status. The segment's span is the item itself (whole-day or timed <c>StartsAt</c>/<c>EndsAt</c>);
+/// a recurring item carries the default week. The assistant resolves "status at instant T" from the covering segment(s).</summary>
+public sealed record AvailabilityDetail(AvailabilityStatus Status);
 
 /// <summary>Common travel fields; Flight/Train/Bus/Car specialize. <c>ToPlaceId</c> is the (required) destination.</summary>
 public sealed record TravelDetail(

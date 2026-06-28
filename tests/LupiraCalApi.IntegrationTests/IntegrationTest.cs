@@ -33,7 +33,7 @@ public abstract class IntegrationTest(CalApiTestFactory factory) : IAsyncLifetim
 
     protected static async Task<Guid> CreateCalendarAsync(HttpClient api, string slug = "work", string? displayName = "Work")
     {
-        var resp = await api.PostAsJsonAsync("/calendars", new CreateCalendarRequest { Slug = slug, DisplayName = displayName, Kind = "calendar", DefaultTimezone = "UTC" });
+        var resp = await api.PostAsJsonAsync("/calendars", new CreateCalendarRequest { Slug = slug, DisplayName = displayName, Type = "calendar", DefaultTimezone = "UTC" });
         resp.EnsureSuccessStatusCode();
         var dto = await resp.Content.ReadFromJsonAsync<ContainerDto>();
         return dto!.Id;
@@ -41,7 +41,7 @@ public abstract class IntegrationTest(CalApiTestFactory factory) : IAsyncLifetim
 
     protected static async Task<Guid> CreateAddressBookAsync(HttpClient api, string slug = "people", string? displayName = "People")
     {
-        var resp = await api.PostAsJsonAsync("/calendars", new CreateCalendarRequest { Slug = slug, DisplayName = displayName, Kind = "addressbook" });
+        var resp = await api.PostAsJsonAsync("/calendars", new CreateCalendarRequest { Slug = slug, DisplayName = displayName, Type = "addressbook" });
         resp.EnsureSuccessStatusCode();
         var dto = await resp.Content.ReadFromJsonAsync<ContainerDto>();
         return dto!.Id;

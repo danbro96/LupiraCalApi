@@ -9,4 +9,7 @@ public sealed class Calendar
     public string? DisplayName { get; set; }
     public string? Color { get; set; }
     public string? DefaultTimezone { get; set; }
+
+    public CalendarClass Class { get; set; } = CalendarClass.Agenda;
+    public CalendarKind Kind { get; set; } = CalendarKind.Generic;
 }

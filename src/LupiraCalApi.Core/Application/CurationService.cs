@@ -8,14 +8,15 @@ namespace LupiraCalApi.Application;
 
 /// <summary>Curation of the many-to-many <c>CalendarItem ↔ Calendar</c> membership: list proposed items, accept/reject,
 /// or file an existing item into a calendar. Authorized against the target calendar.</summary>
-public sealed class CurationService(IDocumentSession session, AccessResolver access)
+public sealed class CurationService(IDocumentSession session, AccessResolver access, CompletenessResolver completeness)
 {
     public async Task<OpResult<List<CalendarItemDto>>> ListProposedAsync(Guid principalId, Guid calendarId, CancellationToken ct = default)
     {
         if (!await access.CanReadCalendarAsync(principalId, calendarId, ct)) return OpResult<List<CalendarItemDto>>.Forbidden("No access to this calendar.");
         var candidates = await session.Query<CalendarItem>().Where(i => i.DeletedAt == null).ToListAsync(ct);
-        var proposed = candidates.Where(i => i.Calendars.Any(m => m.CalendarId == calendarId && m.Status == CalendarEntryStatus.Proposed));
-        return OpResult<List<CalendarItemDto>>.Ok(proposed.Select(i => i.ToResponse()).ToList());
+        var proposed = candidates.Where(i => i.Calendars.Any(m => m.CalendarId == calendarId && m.Status == CalendarEntryStatus.Proposed)).ToList();
+        var scores = await completeness.ScoreItemsAsync(proposed, ct);
+        return OpResult<List<CalendarItemDto>>.Ok([.. proposed.Select(i => i.ToResponse(scores[i.Id]))]);
     }
 
     public Task<OpResult<CalendarItemDto>> AcceptAsync(Guid principalId, Guid itemId, Guid calendarId, CancellationToken ct = default) =>
@@ -44,7 +45,7 @@ public sealed class CurationService(IDocumentSession session, AccessResolver acc
         stream.AppendOne(@event);
         await session.SaveChangesAsync(ct);
         var updated = await session.LoadAsync<CalendarItem>(itemId, ct);
-        return OpResult<CalendarItemDto>.Ok(updated!.ToResponse());
+        return OpResult<CalendarItemDto>.Ok(updated!.ToResponse(await completeness.ScoreItemAsync(updated!, ct)));
     }
 
     private static CalendarEntryStatus ParseEntryStatus(string? s) => Enum.TryParse<CalendarEntryStatus>(s, true, out var v) ? v : CalendarEntryStatus.Proposed;

@@ -88,7 +88,7 @@ internal static class DavProtocol
 
     public static bool OverlapsWindow(CalendarItem i, DateTimeOffset start, DateTimeOffset end, RecurrenceExpander exp)
     {
-        if (!string.IsNullOrWhiteSpace(i.RecurrenceRule)) return exp.Expand(i.SourceIcalendar, start, end).Count > 0;
+        if (!string.IsNullOrWhiteSpace(i.RecurrenceRule)) return exp.Expand(i, start, end).Count > 0;
         DateTimeOffset? s = i.IsAllDay && i.StartDate is { } d
             ? new DateTimeOffset(d.Year, d.Month, d.Day, 0, 0, 0, TimeSpan.Zero) : i.StartsAt;
         if (s is null) return false;

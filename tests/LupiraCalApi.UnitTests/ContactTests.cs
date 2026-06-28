@@ -15,7 +15,7 @@ public class ContactTests
     {
         var c = new Contact();
         c.Apply(new ContactCreated(Guid.NewGuid(), Guid.NewGuid(), "u@x",
-            Name("Dr", "Jane", "Q", "Smith", "Jr", null), "VCF", "h"));
+            Name("Dr", "Jane", "Q", "Smith", "Jr", null), "h"));
         Assert.Equal("Dr Jane Q Smith Jr", c.DisplayName);
     }
 
@@ -24,7 +24,7 @@ public class ContactTests
     {
         var c = new Contact();
         c.Apply(new ContactCreated(Guid.NewGuid(), Guid.NewGuid(), "u@x",
-            Name(null, null, null, null, null, "Mom"), "VCF", "h"));
+            Name(null, null, null, null, null, "Mom"), "h"));
         Assert.Equal("Mom", c.DisplayName);
     }
 
@@ -33,10 +33,10 @@ public class ContactTests
     {
         var id = Guid.NewGuid();
         var c = new Contact();
-        c.Apply(new ContactCreated(id, Guid.NewGuid(), "u@x", Name(null, "A", null, "B", null, null), "VCF", "h"));
+        c.Apply(new ContactCreated(id, Guid.NewGuid(), "u@x", Name(null, "A", null, "B", null, null), "h"));
         c.Apply(new ContactDeleted(id));
         Assert.NotNull(c.DeletedAt);
-        c.Apply(new ContactRestored(id, "VCF2", "h2"));
+        c.Apply(new ContactRestored(id, "h2"));
         Assert.Null(c.DeletedAt);
         Assert.Equal("h2", c.ContentHash);
     }
@@ -47,10 +47,10 @@ public class ContactTests
         var id = Guid.NewGuid();
         var book = Guid.NewGuid();
         var c = new Contact();
-        c.Apply(new ContactCreated(id, book, "u@x", Name(null, "A", null, "B", null, null), "VCF", "h1"));
+        c.Apply(new ContactCreated(id, book, "u@x", Name(null, "A", null, "B", null, null), "h1"));
         c.Apply(new ContactDeleted(id));
 
-        c.Apply(new ContactVcardPut(id, book, "u@x", Name(null, "A", null, "B", null, null), "VCF2", "h2"));
+        c.Apply(new ContactVcardPut(id, book, "u@x", Name(null, "A", null, "B", null, null), "h2"));
         Assert.Null(c.DeletedAt);
         Assert.Equal("h2", c.ContentHash);
     }
@@ -60,8 +60,8 @@ public class ContactTests
     {
         var id = Guid.NewGuid();
         var c = new Contact();
-        c.Apply(new ContactCreated(id, Guid.NewGuid(), "u@x", Name(null, "Bob", null, "Jones", null, null), "VCF", "h1"));
-        c.Apply(new ContactRevised(id, Name(null, "Robert", null, "Jones", null, null), "VCF2", "h2"));
+        c.Apply(new ContactCreated(id, Guid.NewGuid(), "u@x", Name(null, "Bob", null, "Jones", null, null), "h1"));
+        c.Apply(new ContactRevised(id, Name(null, "Robert", null, "Jones", null, null), "h2"));
 
         Assert.Equal("Robert Jones", c.DisplayName);
         Assert.Equal("h2", c.ContentHash);
@@ -72,7 +72,7 @@ public class ContactTests
     {
         var id = Guid.NewGuid();
         var c = new Contact();
-        c.Apply(new ContactCreated(id, Guid.NewGuid(), "u@x", Name(null, "A", null, "B", null, null), "VCF", "h"));
+        c.Apply(new ContactCreated(id, Guid.NewGuid(), "u@x", Name(null, "A", null, "B", null, null), "h"));
 
         c.Apply(new ContactAddressesReplaced(id, [new ContactPostalAddress { PlaceId = Guid.NewGuid(), Type = ContactAddressType.Home }]));
         Assert.Single(c.Addresses);
@@ -89,7 +89,7 @@ public class ContactTests
     {
         var id = Guid.NewGuid();
         var c = new Contact();
-        c.Apply(new ContactCreated(id, Guid.NewGuid(), "u@x", Name(null, "A", null, "B", null, null), "VCF", "h"));
+        c.Apply(new ContactCreated(id, Guid.NewGuid(), "u@x", Name(null, "A", null, "B", null, null), "h"));
 
         c.Apply(new ContactProfilesReplaced(id, [new ContactSocialProfile { Service = "mastodon", Handle = "@a" }]));
         c.Apply(new ContactProfilesReplaced(id, [new ContactSocialProfile { Service = "github", Handle = "b", Url = "https://github.com/b" }]));

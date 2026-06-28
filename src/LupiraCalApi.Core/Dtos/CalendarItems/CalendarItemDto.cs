@@ -32,10 +32,20 @@ public sealed class CalendarItemDto
     [JsonConverter(typeof(JsonStringEnumConverter<ItemKind>))]
     public ItemKind? Kind { get; set; }
 
+    public ItemKindDetails? KindDetails { get; set; }
+
     public Guid? PlaceId { get; set; }
     public Guid? ParentItemId { get; set; }
     public string[]? Tags { get; set; }
     public JsonNode? Metadata { get; set; }
+
+    /// <summary>Event-bound payload (server-side only; never in ICS). At most one of <see cref="Prompt"/>/<see cref="Action"/> is set.</summary>
+    public ItemPrompt? Prompt { get; set; }
+    public ItemAction? Action { get; set; }
+
+    /// <summary>How well-documented this item is (null = not applicable, e.g. exempt kinds/calendars). Drives Elicit ranking.</summary>
+    public CompletenessScore? Completeness { get; set; }
+
     public required IReadOnlyList<CalendarMembershipDto> Calendars { get; set; }
     public required string Etag { get; set; }
 }

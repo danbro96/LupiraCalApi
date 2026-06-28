@@ -1,27 +1,34 @@
 namespace LupiraCalApi.Domain;
 
-// ---- lifecycle (the raw SourceIcalendar + ContentHash are the DAV source of truth; carried on the event) ----
+// ---- lifecycle (structured fields are canonical; ICS is regenerated on demand. ContentHash = ETag, derived from the canonical form) ----
 
-/// <summary>Created via REST/MCP from structured fields (the service regenerated the ICS + hash first).</summary>
-public record ItemScheduled(Guid ItemId, string IcalUid, CalendarItemFields Fields, ItemKindDetails? KindDetails, string SourceIcalendar, string ContentHash);
+/// <summary>Created via REST/MCP from structured fields (the service derived the hash from the canonical ICS).</summary>
+public record ItemScheduled(Guid ItemId, string IcalUid, CalendarItemFields Fields, ItemKindDetails? KindDetails, string ContentHash);
 
-/// <summary>Created or replaced from a DAV/CardDAV-style raw ICS PUT (blob is authoritative; <c>Parsed</c> is a projection aid).</summary>
-public record ItemIcsPut(Guid ItemId, string IcalUid, CalendarItemFields Parsed, string SourceIcalendar, string ContentHash);
+/// <summary>Created or replaced from a DAV ICS PUT — parsed into structured fields (no blob retained); hash derived from the canonical form.</summary>
+public record ItemIcsPut(Guid ItemId, string IcalUid, CalendarItemFields Parsed, string ContentHash);
 
-/// <summary>Structured update of any subset of fields/kind-details (the service regenerated the ICS + hash).</summary>
-public record ItemRevised(Guid ItemId, CalendarItemFields Fields, ItemKindDetails? KindDetails, string SourceIcalendar, string ContentHash);
+/// <summary>Structured update of any subset of fields/kind-details (hash re-derived from the canonical form).</summary>
+public record ItemRevised(Guid ItemId, CalendarItemFields Fields, ItemKindDetails? KindDetails, string ContentHash);
 
 /// <summary>STATUS → cancelled (distinct from deletion; the item still exists).</summary>
-public record ItemCancelled(Guid ItemId, string SourceIcalendar, string ContentHash);
+public record ItemCancelled(Guid ItemId, string ContentHash);
 
 /// <summary>Soft delete (tombstone). The stream is never archived so sync stays diffable.</summary>
 public record ItemDeleted(Guid ItemId);
 
 /// <summary>Resurrects a soft-deleted item (e.g. DELETE-then-PUT of the same uid).</summary>
-public record ItemRestored(Guid ItemId, string SourceIcalendar, string ContentHash);
+public record ItemRestored(Guid ItemId, string ContentHash);
 
 /// <summary>Server-side free-form annotations (JSON). Does not change the ICS or its hash.</summary>
 public record ItemMetadataAttached(Guid ItemId, string MetadataJson);
+
+// ---- event-bound payload (server-side only — like metadata, never in ICS; an item carries one payload, XOR) ----
+
+public record ItemPromptSet(Guid ItemId, ItemPrompt Prompt);
+public record ItemPromptCleared(Guid ItemId);
+public record ItemActionSet(Guid ItemId, ItemAction Action);
+public record ItemActionCleared(Guid ItemId);
 
 // ---- participation (first-class invited/attended history) ----
 
