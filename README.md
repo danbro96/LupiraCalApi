@@ -19,10 +19,10 @@ Interactive API docs: **`/scalar/v1`** (Scalar UI) over the OpenAPI document at 
 | | |
 |---|---|
 | Runtime | .NET 10 (`net10.0`), ASP.NET Core Minimal APIs |
-| Store | **Marten 9.6.0** — event sourcing + document store on PostgreSQL |
+| Store | **Marten 9.10.0** — event sourcing + document store (+ async daemon) on PostgreSQL |
 | iCalendar / vCard | **Ical.Net 5.2.2**, **FolkerKinzel.VCards 8.1.3** (payloads + recurrence; the DAV protocol layer is hand-rolled) |
 | MCP | **ModelContextProtocol.AspNetCore 1.4.0** |
-| API docs | **Scalar.AspNetCore 2.16.4** + `Microsoft.AspNetCore.OpenApi 10.0.9` |
+| API docs | **Scalar.AspNetCore 2.16.5** + `Microsoft.AspNetCore.OpenApi 10.0.9` |
 | Auth | `Microsoft.AspNetCore.Authentication.JwtBearer 10.0.9` (OIDC); `System.DirectoryServices.Protocols 10.0.9` (LDAP for DAV) |
 | Telemetry | OpenTelemetry 1.16.0 (OTLP exporter; traces, metrics, logs) |
 | Tests | xUnit 2.9.3 + **Testcontainers.PostgreSql** (ephemeral Postgres) |
@@ -41,7 +41,8 @@ export ConnectionStrings__Postgres="Host=localhost;Port=5432;Database=lupira_cal
 
 # 2. Build & test
 dotnet build LupiraCalApi.slnx -c Release
-dotnet test  LupiraCalApi.slnx          # unit + Testcontainers integration suite
+dotnet test  LupiraCalApi.slnx                     # unit tests only (DB-free; the .slnx excludes integration)
+dotnet test  tests/LupiraCalApi.IntegrationTests   # integration suite (Testcontainers Postgres; run by path)
 
 # 3. Apply the schema (see below), then run
 dotnet run --project src/LupiraCalApi -- --apply-schema
@@ -99,13 +100,13 @@ are scoped to the caller's accessible containers.
 
 | Area | Routes |
 |---|---|
-| **Me** | `GET /me` · `POST /me/bootstrap` (idempotently create a personal calendar + address book) |
-| **Calendars** | `GET /calendars` · `POST /calendars` (create a calendar or address book) |
+| **Me** | `GET /me` · `POST /me/bootstrap` (idempotently seed the standard calendar set — agenda + agent-managed system calendars — plus a personal address book) |
+| **Calendars** | `GET /calendars` (each with `type` + a calendar's `class`/`kind`) · `POST /calendars` (create a calendar or address book) |
 | **Sharing** | `POST`/`DELETE /calendars/{id}/owners` · `POST`/`DELETE /address-books/{id}/owners` |
-| **Items** | `GET /items` (text/time/tag search, recurrence-expanded) · `POST /items` · `GET`/`PUT`/`DELETE /items/{id}` · `POST /items/{id}/metadata` (merge JSON) |
+| **Items** | `GET /items` (text/time/tag search, recurrence-expanded; carries a derived completeness score) · `POST /items` · `GET`/`PUT`/`DELETE /items/{id}` · `POST /items/{id}/metadata` (merge JSON) · `PUT`/`DELETE /items/{id}/prompt` · `PUT`/`DELETE /items/{id}/action` (event-bound payload, server-side only) |
 | **Participation** | `POST /items/{id}/participants` (invite) · `…/{participationId}/respond` · `…/attend` · `…/leave` · `DELETE …/{participationId}` |
 | **Curation** | `GET /calendars/{id}/proposed` · `POST /items/{itemId}/calendars/{calId}/accept` · `POST /items/{itemId}/calendars/{calId}` · `DELETE /items/{itemId}/calendars/{calId}` |
-| **Contacts** | `GET /contacts` (name search) · `POST /contacts` · `GET`/`DELETE /contacts/{id}` |
+| **Contacts** | `GET /contacts` (name search; carries a derived completeness score) · `POST /contacts` · `GET`/`DELETE /contacts/{id}` |
 | **Groups** | `GET`/`POST /address-books/{id}/groups` · `PUT /groups/{id}` · `POST`/`DELETE /groups/{id}/members…` · `DELETE /groups/{id}` |
 | **Relations** | `POST`/`GET /items/{id}/relations` (link to an external service) · `GET /relations` (reverse lookup) |
 | **DAV** | `/.well-known/caldav` · `/.well-known/carddav` (discovery) · `/dav/{**path}` (CalDAV/CardDAV, HTTP Basic) |
@@ -135,12 +136,13 @@ docker build -t lupira-cal-api .
 
 ## CI
 
-GitHub Actions ([`.github/workflows`](.github/workflows)):
+GitHub Actions ([`.github/workflows`](.github/workflows)) — a reusable `tests.yml` (unit always; the
+Docker-backed integration suite gated on a `run_integration` input) consumed by:
 
-- **`ci.yml`** — on every PR/branch: restore, build (`Release`), and run the full unit + Testcontainers
-  integration suite.
-- **`release.yml`** — on merge to `main` / `v*` tags: re-runs CI, then builds and pushes a container image
-  (tagged `latest`, `sha-<short>`, and the semantic version for tags).
+- **`ci.yml`** — on every PR/branch: restore, build (`Release`), run the unit tests; the integration suite
+  runs only when the PR carries the `integration` label.
+- **`release.yml`** — on merge to `main` / `v*` tags: runs unit **and** integration, then builds and pushes a
+  container image (tagged `latest`, `sha-<short>`, and the semantic version for tags).
 
 ## Project layout
 
@@ -150,6 +152,7 @@ src/
     Domain/                 event-sourced aggregates, events, value objects, enums, Marten registration
     Application/            services + transport-neutral OpResult
     Auth/                   AccessResolver (container-scoped authorization)
+    Scheduling/             cal.scheduled_fire table + materializer (Marten async daemon) + horizon sweep
     Dtos/ Mappers/ Serialization/
   LupiraCalApi/             thin web host
     Endpoints/ Handlers/    REST routes → handlers → Core services
@@ -158,10 +161,11 @@ src/
     Mcp/                    MCP agent tools
     Auth/ Health/ Program.cs
 tests/
-  LupiraCalApi.Core.Tests/      domain + application unit tests
-  LupiraCalApi.Server.Tests/    integration tests (WebApplicationFactory + Testcontainers)
+  LupiraCalApi.UnitTests/         domain + application unit tests (in the .slnx; DB-free)
+  LupiraCalApi.IntegrationTests/  integration tests (WebApplicationFactory + Testcontainers; run by path)
 deploy/                          Dockerfile is at the repo root; compose.yaml + db/grants.sql here
-docs/architecture.md             design, domain model, ownership, transport mapping
+docs/architecture.md             persistence, domain model, ownership, transport mapping
+docs/temporal-backbone.md        design of calendar classes, event-bound payloads, scheduling/firing
 ```
 
 See [docs/architecture.md](docs/architecture.md) for the persistence model, domain diagram, ownership/identity

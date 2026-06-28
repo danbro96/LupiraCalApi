@@ -17,33 +17,42 @@ Two projects enforce the layering at compile time:
 
 ## Persistence: hybrid event sourcing on one Marten store
 
-A single Marten store in one Postgres schema (`MartenRegistrations.UseLupiraCal`). Two kinds of state:
+A single Marten store in one Postgres schema (`MartenRegistrations.UseLupiraCal`). Three kinds of state:
 
 - **Event-sourced aggregates** — `CalendarItem`, `Contact`, `ContactGroup`. Each is an event stream with
   an **inline snapshot** projection (read-your-write). Their full history (scheduled, revised, cancelled,
-  attendee invited/responded, added-to/removed-from calendar, …) lives in the event log; the snapshot is
-  the current read model. Embedded read models (`Attendees`, `Calendars`, `Addresses`, `Profiles`,
-  `KindDetails`) ride *on* the snapshot — there are no separate projection tables for them.
+  attendee invited/responded, added-to/removed-from calendar, prompt/action set/cleared, …) lives in the
+  event log; the snapshot is the current read model. Embedded read models (`Attendees`, `Calendars`,
+  `Addresses`, `Profiles`, `KindDetails`, the event-bound `Prompt`/`Action`) ride *on* the snapshot — there
+  are no separate projection tables for them.
 - **Plain documents** — `Principal`, `Calendar`, `AddressBook`, `CalendarOwner`, `AddressBookOwner`,
   `Place`, `Relation`. Reference/identity/sharing data whose history isn't event-worthy. Indexed by the
   fields services query on (`Principal.AuthentikSub`/`Email`, the owner docs' `PrincipalId`/container id,
   `Place.Name`, `Relation.FromId`).
+- **Operational relational state** — `cal.scheduled_fire`, a plain Npgsql table (not a Marten document)
+  written by the scheduling materializer. It is transient, rebuildable from the items, so it sits
+  deliberately outside event sourcing (see *Scheduling / firing*).
 
 Enums serialize as strings. Aggregates use deterministic stream ids derived from the iCalendar/vCard UID,
-so a DAV `DELETE` followed by a `PUT` of the same UID resurrects the same stream. The raw
-`SourceIcalendar`/`SourceVcard` blob and its `ContentHash` (the DAV ETag) are carried on events and returned
-byte-for-byte over DAV; the hash is never recomputed. Schema is applied deliberately via a one-shot
-`--apply-schema` run (`ApplyAllConfiguredChangesToDatabaseAsync`), not on boot — there are no EF migrations.
+so a DAV `DELETE` followed by a `PUT` of the same UID resurrects the same stream. **Structured domain fields
+are canonical**: DAV responses regenerate iCal/vCard on demand from them, and `ContentHash` (the DAV ETag) is
+derived deterministically from that canonical form — no source blob is stored. Schema is applied deliberately
+via a one-shot `--apply-schema` run (`ApplyAllConfiguredChangesToDatabaseAsync`, which also creates
+`cal.scheduled_fire`), not on boot — there are no EF migrations. One background process runs: the Marten
+**async daemon**, hosting the scheduling materializer.
 
 ## Bounded context
 
 **In scope** — calendaring (items, recurrence expansion, kinds), contacts (vCards, groups/organizations),
 first-class participation, item↔calendar curation, a shared hierarchical place catalog, multi-owner sharing
-of containers, and opaque cross-API relations.
+of containers, opaque cross-API relations, calendar classification (agenda vs. agent-managed system
+calendars), event-bound payloads (an LLM prompt or a deterministic action that fires at a time), a derived
+completeness signal over items and contacts, and the firing **materializer** that computes *what is due*.
 
 **Out of scope** — the identity provider (external OIDC for `/api`, an LDAP directory for `/dav` Basic
-auth); tasks/portfolio/activity (owned by other services, referenced only through `Relation`); and
-scheduling/invitation delivery (iTIP/iMIP) — intentionally not modeled.
+auth); tasks/portfolio/activity (owned by other services, referenced only through `Relation`); **fire
+delivery/dispatch** (a separate worker claims due rows and pushes them to the assistant — this service only
+materializes them) and interpreting the fired payload; and invitation delivery (iTIP/iMIP).
 
 ## Domain model
 
@@ -66,6 +75,8 @@ classDiagram
         string? DisplayName
         string? Color
         string? DefaultTimezone
+        CalendarClass Class
+        CalendarKind Kind
     }
     class AddressBook {
         <<document>>
@@ -122,7 +133,8 @@ classDiagram
         Guid? PlaceId
         Guid? ParentItemId
         string[]? Tags
-        string SourceIcalendar
+        ItemPrompt? Prompt
+        ItemAction? Action
         string ContentHash
         string Metadata
         DateTimeOffset? DeletedAt
@@ -155,6 +167,7 @@ classDiagram
         TicketedDetail? Ticketed
         DeliveryDetail? Delivery
         BillDetail? Bill
+        AvailabilityDetail? Availability
     }
     class Contact {
         <<event-sourced>>
@@ -168,7 +181,6 @@ classDiagram
         string[]? Phones
         DateOnly? Birthday
         string[]? Tags
-        string SourceVcard
         string ContentHash
         string Metadata
         DateTimeOffset? DeletedAt
@@ -194,6 +206,29 @@ classDiagram
         List~Guid~ MemberContactIds
         DateTimeOffset? DeletedAt
     }
+    class ItemPrompt {
+        <<embedded>>
+        PromptIntent Intent
+        Ref? Target
+        string Instruction
+        OutputKind Output
+        ModelTier? Tier
+        FallbackMode OnMiss
+        PromptFire Fire
+        bool Enabled
+    }
+    class ItemAction {
+        <<embedded>>
+        ActionKind Kind
+        Ref? Target
+        string ParamsJson
+        PromptFire Fire
+        bool Enabled
+    }
+    class AvailabilityDetail {
+        <<embedded>>
+        AvailabilityStatus Status
+    }
 
     Calendar "1" o-- "*" CalendarOwner
     Principal "1" o-- "*" CalendarOwner
@@ -205,6 +240,9 @@ classDiagram
     CalendarItem "1" *-- "*" ItemAttendee
     ItemAttendee "*" --> "1" Contact
     CalendarItem "1" *-- "0..1" ItemKindDetails
+    CalendarItem "1" *-- "0..1" ItemPrompt : XOR payload
+    CalendarItem "1" *-- "0..1" ItemAction : XOR payload
+    ItemKindDetails "1" *-- "0..1" AvailabilityDetail
     CalendarItem "*" --> "0..1" Place
     CalendarItem "*" --> "0..1" CalendarItem : parent of
 
@@ -249,8 +287,8 @@ and a full street address coexist and roll up, and cities/countries are entered 
 
 ### Contacts & groups
 
-Names are structured vCard parts (no stored full name — it's composed); the raw `FN` survives in
-`SourceVcard`. `Emails`/`Phones` are arrays; postal addresses reference `Place`; social profiles are open
+Names are structured vCard parts (no stored full name — the `FN` is composed when the vCard is generated).
+`Emails`/`Phones` are arrays; postal addresses reference `Place`; social profiles are open
 `Service`/`Handle`/`Url` triples. A contact's employer is **membership in an `Organization`-kind
 `ContactGroup`**, not a free-text field; `MemberContactIds` is maintained by add/remove events.
 
@@ -259,7 +297,10 @@ Names are structured vCard parts (no stored full name — it's composed); the ra
 | Enum | Members | Maps to |
 |---|---|---|
 | `ItemStatus` | `Tentative` · `Confirmed` · `Cancelled` | iCalendar VEVENT `STATUS` |
-| `ItemKind` | `Generic` · `Travel` · `Flight` · `Train` · `Bus` · `Car` · `Lodging` · `Appointment` · `Ticketed` · `Delivery` · `Bill` | selects the `ItemKindDetails` member |
+| `ItemKind` | `Generic` · `Travel` · `Flight` · `Train` · `Bus` · `Car` · `Lodging` · `Appointment` · `Ticketed` · `Delivery` · `Bill` · `Availability` | selects the `ItemKindDetails` member |
+| `CalendarClass` | `Agenda` · `System` | agenda (user-facing, DAV-projected) vs. agent-managed system calendar |
+| `CalendarKind` | `Personal` · `Group` · `Birthdays` · `Availability` · `Inbox` · `LlmPrompts` · `UserCheckIn` · `DevOps` · `FoodPlan` · `Generic` | a calendar's purpose within the standard set |
+| `AvailabilityStatus` | `Office` · `Home` · `Vacation` · `Sick` · `Leave` | a presence segment's status |
 | `CalendarEntryStatus` | `Proposed` · `Accepted` · `Removed` | curation state of an item in a calendar |
 | `ParticipationRole` | `Chair` · `RequiredParticipant` · `OptionalParticipant` · `NonParticipant` | iCalendar `ROLE` |
 | `ParticipationStatus` | `NeedsAction` · `Accepted` · `Declined` · `Tentative` · `Delegated` | iCalendar `PARTSTAT` |
@@ -286,6 +327,64 @@ Flight/Train/Bus/Car records conceptually extend `TravelDetail` but are modeled 
 | `Ticketed` | `TicketedDetail` | `Performer`, `Seat`, `TicketReference`, `DoorsOpenAt`, `Provider` |
 | `Delivery` | `DeliveryDetail` | `Carrier`, `TrackingNumber`, `TrackingUrl`, `OrderReference` |
 | `Bill` | `BillDetail` | `Amount`, `Currency`, `Payee`, `InvoiceNumber`, `PaidAt` |
+| `Availability` | `AvailabilityDetail` | `Status` (whole-day or timed presence segment; a day may hold several) |
+
+## Calendar classification
+
+Each `Calendar` carries a `CalendarClass` and a `CalendarKind`. **Agenda** calendars are the user's own
+(Personal, Group, Birthdays, Availability, FoodPlan); **System** calendars are agent-managed scaffolding
+(Inbox, LlmPrompts, UserCheckIn, DevOps) that the assistant owns via ordinary `Owner` grants. `POST /me/bootstrap`
+seeds the standard set per principal, idempotently (matched on `CalendarKind`). **Only `Agenda` calendars are
+projected over DAV** — System calendars are REST/DB-only, which is how DAV stays non-bearing. The container
+discriminator on the REST DTOs is `type` (`calendar`|`addressbook`); `class`/`kind` classify calendars only.
+
+## Event-bound payloads
+
+A `CalendarItem` may carry **exactly one** payload (XOR) that fires at a time: an `ItemPrompt` (an LLM-interpreted,
+contracted agent run) **or** an `ItemAction` (a deterministic action, no LLM — e.g. `SendCheckIn` delivering a
+frozen message). Payloads are event-sourced (`ItemPromptSet`/`Cleared`, `ItemActionSet`/`Cleared`) and
+**server-side only — never emitted to DAV**, like `Metadata`. This service *stores* the payload and *materializes*
+when it is due; it does not interpret or deliver it. Set/clear via `PUT`/`DELETE /items/{id}/prompt|action`
+(`409` if the other payload is already present).
+
+| Enum | Members |
+|---|---|
+| `PromptIntent` | `EnrichRecord` · `Research` · `CreateFollowUp` · `Monitor` · `Summarise` · `AskUser` |
+| `OutputKind` | `RecordEdit` · `Event` · `Task` · `Message` · `Summary` · `Question` · `Relation` · `None` |
+| `ModelTier` | `Small` · `Medium` · `Large` (vendor-neutral; the LLM gateway maps each to a concrete model alias) |
+| `FallbackMode` | `Retry` · `Ask` · `Drop` (on a missed contract; default `Retry` = retry-once-then-ask) |
+| `ActionKind` | `SendCheckIn` · `Notify` · `CreateLinkedTask` · `ExpireTarget` · `RescheduleSelf` · `RunJob` · `Rescore` |
+| `RefKind` | `Event` · `Contact` · `Task` · `External` (the `Ref` a payload acts on) |
+| `PromptFireKind` | `OnStart` · `OnEnd` · `Offset` (minutes) · `AllDayAt` (local time) |
+
+## Completeness
+
+A derived `Completeness` (a `0..1` score, the unmet fields ranked heaviest-first, and a `rubricVersion`) is exposed
+on `GET /items` and `GET /contacts` to drive the assistant's elicitation/enrichment ranking. It is computed by
+`CompletenessResolver`/`CompletenessScorer` at read time — **not stored on the snapshot** — because exemption
+depends on the item's *calendar* kinds and a contact's organisation lives on a separate `ContactGroup`. The rubric
+is kind-aware (a Flight needs flight no./gate; a meeting needs location/attendees) and scores *presence*, not
+quality (`1` present · `0.5` weak · `0` absent). Exempt records score `null` (not applicable): system-calendar /
+Birthdays / Availability items, and any item carrying a fired payload. `GapSeverity` is `Weak`|`Absent`.
+
+## Scheduling / firing
+
+The schedule **intent** is event-worthy and lives on the item as its `Prompt`/`Action` payload. The **firing** is
+transient operational state in a plain `cal.scheduled_fire` table (raw Npgsql, not a Marten document; the same
+split as location/health-api), rebuildable from the items. A **materializer** — a Marten async-daemon
+`EventProjection` reacting to `ItemPromptSet`/`ItemActionSet`/`ItemRevised` (and clearing on clear/delete/cancel) —
+expands the fired payload + `RecurrenceRule` into rows over a rolling 35-day horizon, idempotent on
+`dedupe_key` (`item_id + occurrence_at`); a nightly hosted sweep advances the far edge. `expire_after` keys off the
+`PromptFire` timing and the calendar kind. A **separate dispatcher** (out of scope here) claims due rows and
+pushes them to the assistant; this service owns only *what is due*.
+
+## DAV projection
+
+CalDAV/CardDAV is a **secondary, non-bearing** view over the canonical structured fields. GET/REPORT/multiget
+regenerate iCal/vCard deterministically on demand (`ICalSerializer.From`/`VCardSerializer.From`; the location is
+resolved from `Place`), and the ETag is the `ContentHash` derived from that same canonical form, so it is stable
+across reads. A DAV `PUT` parses the body into structured fields (no blob is retained); recurrence expansion runs
+off the regenerated ICS. Only `Agenda` calendars and an item's `Accepted` memberships are exposed.
 
 ## Ownership & identity
 

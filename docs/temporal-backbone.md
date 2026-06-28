@@ -1,7 +1,13 @@
 # Temporal backbone — calendar classes, event-bound prompts, scheduling
 
-**Status:** design (green-field — API deployed, not yet in use, so DB/event/endpoint changes are open).
+**Status:** implemented. This is the design record + rationale; for the as-built present state see [architecture.md](architecture.md).
 **Primacy:** REST + the `cal` Marten store are primary. **CalDAV/CardDAV is secondary and bears on nothing here** — system calendars and prompts are never projected to DAV.
+
+**Implementation notes** (where the build refined the sketch below):
+- **Completeness** is computed in the service/mapper layer at read time, *not* in the snapshot projection: exemption needs the item's *calendar* kinds (and a contact's organisation lives on a separate `ContactGroup`), neither visible to a single-stream snapshot. A `null` `ItemKind` scores as a generic meeting.
+- **`ModelTier`** is a vendor-neutral `Small | Medium | Large` enum; the LLM gateway maps each to a concrete model alias (so the stored tier survives gateway model swaps).
+- **`cal.scheduled_fire`** is created via idempotent raw DDL (run inside `--apply-schema`), not a Marten-managed table; the materializer is a `partial` `EventProjection` writing rows through `QueueSqlCommand` on the async daemon.
+- Value objects (`PromptFire`, `Ref`, `AvailabilityDetail`) are flattened-union records, matching the existing `ItemKindDetails` convention.
 
 The LupiraAssistant product uses this service as its **universal scheduling and temporal substrate**: multiple purpose-built calendars (agenda + system) plus prompts that fire at a time. Most of the model already supports this; the only substantial new piece is the firing engine.
 
@@ -105,7 +111,7 @@ event ItemActionSet(Guid ItemId, ItemAction Action);   event ItemActionCleared(G
 - The assistant resolves "status at instant T" from the covering segment(s); split days fall out naturally.
 
 ### 4. Canonical fields; iCal/vCard becomes a projection
-Today `SourceIcalendar` / `SourceVcard` are stored as the DAV source of truth, and DAV PUT is authoritative for the blob. Since DAV is secondary:
+Previously `SourceIcalendar` / `SourceVcard` were stored as the DAV source of truth, with DAV PUT authoritative for the blob. Since DAV is secondary:
 - **Structured domain fields become canonical.** Drop the stored source blobs as source of truth; **generate ICS/vCard on demand** for DAV responses; derive `ContentHash`/ETag from canonical state.
 - DAV PUT parses into structured fields (no blob retained); `ItemIcsPut` / `ContactVcardPut` become parse-to-fields events rather than blob-store events.
 - This removes the last place iCal semantics shape the model.
