@@ -1,5 +1,5 @@
 # Reference Compose service for LupiraCalApi.
-# Single .NET 10 service: REST + MCP (/api) and CalDAV/CardDAV (/dav) over one Postgres. No filesystem state.
+# Single .NET 10 service: REST at root + MCP (/mcp) and CalDAV/CardDAV (/dav) over one Postgres. No filesystem state.
 #
 # Every host, port, and identity-provider URL below is an OVERRIDABLE SAMPLE wired to a ${VAR:-default}
 # env var — the defaults are illustrative, not required. Set them for your own environment.
@@ -8,10 +8,10 @@ services:
     image: danbro96/lupira-cal-api:${IMAGE_TAG:-latest}
     container_name: lupira-cal-api
     environment:
-      # Postgres — the Marten event store + documents (one schema). Both /api and /dav read/write this one DB.
+      # Postgres — the Marten event store + documents (one schema). Both the REST surface and /dav read/write this one DB.
       ConnectionStrings__Postgres: "Host=postgres;Port=5432;Database=lupira_cal;Username=lupira_cal_user;Password=${LUPIRA_CAL_DB_PASSWORD:?required}"
 
-      # /api auth — OIDC (JWT). The service only validates tokens (issuer + audience); no client secret
+      # REST auth — OIDC (JWT). The service only validates tokens (issuer + audience); no client secret
       # lives here. Any OIDC provider works — the default is just a sample issuer URL.
       Auth__Authority: ${AUTH_AUTHORITY:-https://auth.lupira.com/application/o/lupira-cal/}
       Auth__Audience: ${AUTH_AUDIENCE:-lupira-cal}
@@ -30,7 +30,7 @@ services:
       OTEL_EXPORTER_OTLP_PROTOCOL: ${OTEL_EXPORTER_OTLP_PROTOCOL:-http/protobuf}
       OTEL_EXPORTER_OTLP_HEADERS: ${OTEL_EXPORTER_OTLP_HEADERS:-}
       OTEL_METRIC_EXPORT_INTERVAL: ${OTEL_METRIC_EXPORT_INTERVAL:-300000}
-      OTEL_RESOURCE_ATTRIBUTES: ${OTEL_RESOURCE_ATTRIBUTES:-deployment.environment=prod,host.name=medelynas}
+      OTEL_RESOURCE_ATTRIBUTES: ${OTEL_RESOURCE_ATTRIBUTES:-deployment.environment=prod}
     ports:
       - "${HOST_PORT:-40880}:8080"
     healthcheck:
