@@ -30,6 +30,7 @@ internal static class CalendarItemMapper
         Prompt = i.Prompt,
         Action = i.Action,
         Completeness = completeness,
+        Attendees = i.Attendees,
         Calendars = i.Calendars.Select(m => new CalendarMembershipDto { CalendarId = m.CalendarId, Status = m.Status }).ToList(),
         Etag = i.ContentHash,
     };

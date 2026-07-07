@@ -46,6 +46,7 @@ public sealed class CalendarItemDto
     /// <summary>How well-documented this item is (null = not applicable, e.g. exempt kinds/calendars). Drives Elicit ranking.</summary>
     public CompletenessScore? Completeness { get; set; }
 
+    public required IReadOnlyList<ItemAttendee> Attendees { get; set; }
     public required IReadOnlyList<CalendarMembershipDto> Calendars { get; set; }
     public required string Etag { get; set; }
 }
