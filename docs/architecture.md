@@ -49,10 +49,11 @@ of containers, opaque cross-API relations, calendar classification (agenda vs. a
 calendars), event-bound payloads (an LLM prompt or a deterministic action that fires at a time), a derived
 completeness signal over items and contacts, and the firing **materializer** that computes *what is due*.
 
-**Out of scope** — the identity provider (external OIDC for `/api`, an LDAP directory for `/dav` Basic
-auth); tasks/portfolio/activity (owned by other services, referenced only through `Relation`); **fire
-delivery/dispatch** (a separate worker claims due rows and pushes them to the assistant — this service only
-materializes them) and interpreting the fired payload; and invitation delivery (iTIP/iMIP).
+**Out of scope for the API host** — the identity provider (external OIDC for `/api`, an LDAP directory for
+`/dav` Basic auth); tasks/portfolio/activity (owned by other services, referenced only through `Relation`);
+interpreting the fired payload (assistant-api's job); and invitation delivery (iTIP/iMIP). **Fire
+delivery/dispatch** lives in this repo as the separate `lupira-cal-worker` host (`src/LupiraCalApi.Worker`,
+image `danbro96/lupira-cal-worker`): it claims due rows and pushes them to assistant-api.
 
 ## Domain model
 
@@ -374,9 +375,14 @@ transient operational state in a plain `cal.scheduled_fire` table (raw Npgsql, n
 split as location/health-api), rebuildable from the items. A **materializer** — a Marten async-daemon
 `EventProjection` reacting to `ItemPromptSet`/`ItemActionSet`/`ItemRevised` (and clearing on clear/delete/cancel) —
 expands the fired payload + `RecurrenceRule` into rows over a rolling 35-day horizon, idempotent on
-`dedupe_key` (`item_id + occurrence_at`); a nightly hosted sweep advances the far edge. `expire_after` keys off the
-`PromptFire` timing and the calendar kind. A **separate dispatcher** (out of scope here) claims due rows and
-pushes them to the assistant; this service owns only *what is due*.
+`dedupe_key` (`item_id + occurrence_at`); a nightly hosted sweep advances the far edge (and picks up one-shots
+beyond the window at set-time). `expire_after` keys off the `PromptFire` timing and the calendar kind. Each row
+is stamped from one resolved `FireContext` — fire calendar id, kind→`expire_after`, owning `principal_id` — so
+the three can never disagree. The **dispatcher** is the separate `lupira-cal-worker` host
+(`src/LupiraCalApi.Worker`): every 15 s it expires over-age rows, claims a due batch (`FOR UPDATE SKIP LOCKED`
++ a 60 s lease), re-reads the item aggregate, and pushes the fire to assistant-api `POST /fires`
+(accept-then-own: 202 → `done`; transient failure → `pending` with 30 s→30 m backoff, max 5 attempts →
+`failed`; a gone/cleared payload → `expired`). The API host owns *what is due*; the worker owns delivery.
 
 ## DAV projection
 

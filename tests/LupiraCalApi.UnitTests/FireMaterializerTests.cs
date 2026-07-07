@@ -11,6 +11,8 @@ public class FireMaterializerTests
     static readonly TimeSpan Horizon = TimeSpan.FromDays(35);
     static readonly IFireMaterializer Mat = new FireMaterializer(new RecurrenceExpander());
 
+    static FireContext Ctx(CalendarKind? kind = null, Guid? principalId = null) => new(Guid.NewGuid(), kind, principalId);
+
     static CalendarItem Timed(PromptFire fire, bool enabled = true, ItemPrompt? prompt = null, ItemAction? action = null)
     {
         var item = new CalendarItem
@@ -33,13 +35,21 @@ public class FireMaterializerTests
     public void No_payload_yields_no_rows()
     {
         var item = new CalendarItem { Id = Guid.NewGuid(), StartsAt = Now };
-        Assert.Empty(Mat.Materialize(item, null, Now, Horizon));
+        Assert.Empty(Mat.Materialize(item, Ctx(), Now, Horizon));
     }
 
     [Fact]
     public void Disabled_payload_yields_no_rows()
     {
         var item = Timed(OnStart, enabled: false);
+        Assert.Empty(Mat.Materialize(item, Ctx(), Now, Horizon));
+    }
+
+    [Fact]
+    public void Null_context_yields_no_rows()
+    {
+        // An item in no calendar has no fire calendar and no principal to deliver as.
+        var item = Timed(OnStart);
         Assert.Empty(Mat.Materialize(item, null, Now, Horizon));
     }
 
@@ -47,17 +57,27 @@ public class FireMaterializerTests
     public void OnStart_fires_at_the_start()
     {
         var item = Timed(OnStart);
-        var row = Assert.Single(Mat.Materialize(item, null, Now, Horizon));
+        var row = Assert.Single(Mat.Materialize(item, Ctx(), Now, Horizon));
         Assert.Equal(item.StartsAt, row.OccurrenceAt);
         Assert.Equal(TimeSpan.FromHours(24), row.ExpireAfter);   // no calendar kind → fallback
         Assert.StartsWith(item.Id.ToString("N"), row.DedupeKey);
     }
 
     [Fact]
+    public void Rows_carry_the_context_calendar_and_principal()
+    {
+        var principalId = Guid.NewGuid();
+        var context = Ctx(CalendarKind.LlmPrompts, principalId);
+        var row = Assert.Single(Mat.Materialize(Timed(OnStart), context, Now, Horizon));
+        Assert.Equal(context.CalendarId, row.CalendarId);
+        Assert.Equal(principalId, row.PrincipalId);
+    }
+
+    [Fact]
     public void OnEnd_fires_at_the_end()
     {
         var item = Timed(new PromptFire(PromptFireKind.OnEnd, null, null));
-        var row = Assert.Single(Mat.Materialize(item, null, Now, Horizon));
+        var row = Assert.Single(Mat.Materialize(item, Ctx(), Now, Horizon));
         Assert.Equal(item.EndsAt, row.OccurrenceAt);
     }
 
@@ -65,7 +85,7 @@ public class FireMaterializerTests
     public void Offset_is_a_lead_time_with_a_short_expiry()
     {
         var item = Timed(new PromptFire(PromptFireKind.Offset, -30, null));
-        var row = Assert.Single(Mat.Materialize(item, null, Now, Horizon));
+        var row = Assert.Single(Mat.Materialize(item, Ctx(), Now, Horizon));
         Assert.Equal(item.StartsAt!.Value.AddMinutes(-30), row.OccurrenceAt);
         Assert.Equal(TimeSpan.FromMinutes(30), row.ExpireAfter);   // leave-by / reminder
     }
@@ -80,7 +100,7 @@ public class FireMaterializerTests
             Calendars = [new CalendarMembership { CalendarId = Guid.NewGuid(), Status = CalendarEntryStatus.Accepted }],
             Prompt = Prompt(new PromptFire(PromptFireKind.AllDayAt, null, new TimeOnly(9, 0))),
         };
-        var row = Assert.Single(Mat.Materialize(item, null, Now, Horizon));
+        var row = Assert.Single(Mat.Materialize(item, Ctx(), Now, Horizon));
         Assert.Equal(new DateTimeOffset(2026, 7, 1, 9, 0, 0, TimeSpan.Zero), row.OccurrenceAt);
     }
 
@@ -88,8 +108,8 @@ public class FireMaterializerTests
     public void Expire_after_keys_off_the_calendar_kind()
     {
         var item = Timed(OnStart);
-        Assert.Equal(TimeSpan.FromHours(6), Mat.Materialize(item, CalendarKind.LlmPrompts, Now, Horizon).Single().ExpireAfter);
-        Assert.Equal(TimeSpan.FromDays(3), Mat.Materialize(item, CalendarKind.DevOps, Now, Horizon).Single().ExpireAfter);
+        Assert.Equal(TimeSpan.FromHours(6), Mat.Materialize(item, Ctx(CalendarKind.LlmPrompts), Now, Horizon).Single().ExpireAfter);
+        Assert.Equal(TimeSpan.FromDays(3), Mat.Materialize(item, Ctx(CalendarKind.DevOps), Now, Horizon).Single().ExpireAfter);
     }
 
     [Fact]
@@ -97,7 +117,7 @@ public class FireMaterializerTests
     {
         var item = Timed(new PromptFire(PromptFireKind.OnEnd, null, null),
             action: new ItemAction(ActionKind.SendCheckIn, null, "{}", new PromptFire(PromptFireKind.OnEnd, null, null), true));
-        var row = Assert.Single(Mat.Materialize(item, null, Now, Horizon));
+        var row = Assert.Single(Mat.Materialize(item, Ctx(), Now, Horizon));
         Assert.Equal(item.EndsAt, row.OccurrenceAt);
     }
 
@@ -112,7 +132,7 @@ public class FireMaterializerTests
             Calendars = [new CalendarMembership { CalendarId = Guid.NewGuid(), Status = CalendarEntryStatus.Accepted }],
             Prompt = Prompt(OnStart),
         };
-        var rows = Mat.Materialize(item, null, start, Horizon);
+        var rows = Mat.Materialize(item, Ctx(), start, Horizon);
 
         Assert.True(rows.Count >= 4, $"expected >=4 weekly fires in 35d, got {rows.Count}");
         Assert.Equal(rows.Count, rows.Select(r => r.DedupeKey).Distinct().Count());
@@ -122,8 +142,9 @@ public class FireMaterializerTests
     public void Materialize_is_idempotent_in_row_identity()
     {
         var item = Timed(OnStart);
-        var first = Mat.Materialize(item, null, Now, Horizon).Single();
-        var second = Mat.Materialize(item, null, Now, Horizon).Single();
+        var context = Ctx();
+        var first = Mat.Materialize(item, context, Now, Horizon).Single();
+        var second = Mat.Materialize(item, context, Now, Horizon).Single();
         Assert.Equal(first.Id, second.Id);             // deterministic id from dedupe_key → on-conflict-do-nothing safe
         Assert.Equal(first.DedupeKey, second.DedupeKey);
     }

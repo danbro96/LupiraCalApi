@@ -43,8 +43,8 @@ public sealed class SchedulingMaterializerTests(CalApiTestFactory factory) : Int
     {
         // The real InsertSql against the real table: a second row with the SAME dedupe_key is a no-op.
         var itemId = Guid.NewGuid();
-        await InsertRowAsync(new ScheduledFireRow(Guid.NewGuid(), itemId, Guid.NewGuid(), DateTimeOffset.UtcNow.AddDays(1), null, TimeSpan.FromHours(24), "dedupe-x"));
-        await InsertRowAsync(new ScheduledFireRow(Guid.NewGuid(), itemId, Guid.NewGuid(), DateTimeOffset.UtcNow.AddDays(1), null, TimeSpan.FromHours(24), "dedupe-x"));
+        await InsertRowAsync(new ScheduledFireRow(Guid.NewGuid(), itemId, Guid.NewGuid(), null, DateTimeOffset.UtcNow.AddDays(1), null, TimeSpan.FromHours(24), "dedupe-x"));
+        await InsertRowAsync(new ScheduledFireRow(Guid.NewGuid(), itemId, Guid.NewGuid(), null, DateTimeOffset.UtcNow.AddDays(1), null, TimeSpan.FromHours(24), "dedupe-x"));
 
         Assert.Equal(1, await CountByItemAsync(itemId));
     }
@@ -84,7 +84,7 @@ public sealed class SchedulingMaterializerTests(CalApiTestFactory factory) : Int
     {
         await using var s = Factory.Store.LightweightSession();
         s.QueueSqlCommand(ScheduledFireSchema.InsertSql,
-            r.Id, r.ItemId, r.CalendarId, r.OccurrenceAt,
+            r.Id, r.ItemId, r.CalendarId, (object?)r.PrincipalId ?? DBNull.Value, r.OccurrenceAt,
             (object?)r.PromptRef ?? DBNull.Value, (object?)r.ExpireAfter ?? DBNull.Value, r.DedupeKey);
         await s.SaveChangesAsync();
     }

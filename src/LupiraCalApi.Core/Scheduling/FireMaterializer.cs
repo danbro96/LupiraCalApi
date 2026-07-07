@@ -5,24 +5,23 @@ namespace LupiraCalApi.Scheduling;
 public interface IFireMaterializer
 {
     /// <summary>Expand an item's fired payload + recurrence into <see cref="ScheduledFireRow"/>s over [now, now+horizon].
-    /// Empty when the item carries no payload or the payload is disabled.</summary>
-    IReadOnlyList<ScheduledFireRow> Materialize(CalendarItem item, CalendarKind? calendarKind, DateTimeOffset now, TimeSpan horizon);
+    /// Empty when the item carries no payload, the payload is disabled, or it has no fire calendar (null context).</summary>
+    IReadOnlyList<ScheduledFireRow> Materialize(CalendarItem item, FireContext? context, DateTimeOffset now, TimeSpan horizon);
 }
 
 /// <summary>Pure expansion (no DB), so the row logic is unit-testable; the projection/sweep do the persistence.</summary>
 public sealed class FireMaterializer(RecurrenceExpander expander) : IFireMaterializer
 {
-    public IReadOnlyList<ScheduledFireRow> Materialize(CalendarItem item, CalendarKind? calendarKind, DateTimeOffset now, TimeSpan horizon)
+    public IReadOnlyList<ScheduledFireRow> Materialize(CalendarItem item, FireContext? context, DateTimeOffset now, TimeSpan horizon)
     {
         var (fire, enabled) = item.Prompt is { } p ? (p.Fire, p.Enabled)
             : item.Action is { } a ? (a.Fire, a.Enabled)
             : (null, false);
-        if (fire is null || !enabled) return [];
+        if (fire is null || !enabled || context is null) return [];
 
         var windowEnd = now + horizon;
-        var calendarId = item.Calendars.FirstOrDefault(m => m.Status == CalendarEntryStatus.Accepted)?.CalendarId ?? Guid.Empty;
         var promptRef = RefString(item.Prompt?.Target ?? item.Action?.Target);
-        var expireAfter = ExpireAfter(fire, calendarKind);
+        var expireAfter = ExpireAfter(fire, context.Kind);
         var duration = Duration(item);
 
         var rows = new List<ScheduledFireRow>();
@@ -31,7 +30,7 @@ public sealed class FireMaterializer(RecurrenceExpander expander) : IFireMateria
             var at = FireAt(fire, occStart, duration, item.StartTimezone);
             if (at > windowEnd) continue;
             var dedupe = $"{item.Id:N}:{at.UtcDateTime:O}";
-            rows.Add(new ScheduledFireRow(DeterministicGuid.From(dedupe), item.Id, calendarId, at, promptRef, expireAfter, dedupe));
+            rows.Add(new ScheduledFireRow(DeterministicGuid.From(dedupe), item.Id, context.CalendarId, context.PrincipalId, at, promptRef, expireAfter, dedupe));
         }
         return rows;
     }

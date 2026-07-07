@@ -1,6 +1,7 @@
 <Solution>
   <Folder Name="/src/">
     <Project Path="src/LupiraCalApi.Core/LupiraCalApi.Core.csproj" />
+    <Project Path="src/LupiraCalApi.Worker/LupiraCalApi.Worker.csproj" />
     <Project Path="src/LupiraCalApi/LupiraCalApi.csproj" />
   </Folder>
   <Folder Name="/tests/">

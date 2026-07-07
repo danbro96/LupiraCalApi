@@ -27,10 +27,10 @@ public sealed partial class ScheduledFireProjection(IFireMaterializer materializ
         var item = await ops.LoadAsync<CalendarItem>(itemId, ct);
         if (item is null || item.DeletedAt is not null) return;
 
-        var kind = await SchedulingQueries.ExpireKindAsync(ops, item, ct);
-        foreach (var r in materializer.Materialize(item, kind, DateTimeOffset.UtcNow, SchedulingDefaults.Horizon))
+        var context = await SchedulingQueries.FireContextAsync(ops, item, ct);
+        foreach (var r in materializer.Materialize(item, context, DateTimeOffset.UtcNow, SchedulingDefaults.Horizon))
             ops.QueueSqlCommand(ScheduledFireSchema.InsertSql,
-                r.Id, r.ItemId, r.CalendarId, r.OccurrenceAt,
+                r.Id, r.ItemId, r.CalendarId, (object?)r.PrincipalId ?? DBNull.Value, r.OccurrenceAt,
                 (object?)r.PromptRef ?? DBNull.Value, (object?)r.ExpireAfter ?? DBNull.Value, r.DedupeKey);
     }
 

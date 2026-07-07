@@ -1,5 +1,7 @@
-# Reference Compose service for LupiraCalApi.
-# Single .NET 10 service: REST at root + MCP (/mcp) and CalDAV/CardDAV (/dav) over one Postgres. No filesystem state.
+# Reference Compose stack for LupiraCalApi.
+# Two .NET 10 services over one Postgres, no filesystem state:
+#   lupira-cal-api    — REST at root + MCP (/mcp) and CalDAV/CardDAV (/dav); materializes cal.scheduled_fire.
+#   lupira-cal-worker — the fire dispatcher: claims due rows and pushes them to assistant-api POST /fires.
 #
 # Every host, port, and identity-provider URL below is an OVERRIDABLE SAMPLE wired to a ${VAR:-default}
 # env var — the defaults are illustrative, not required. Set them for your own environment.
@@ -43,6 +45,39 @@ services:
     networks:
       - default
       - medelynas_data         # Postgres + authentik-ldap:3389
+      - medelynas_telemetry    # OTel collector
+
+  lupira-cal-worker:
+    image: danbro96/lupira-cal-worker:${IMAGE_TAG:-latest}
+    container_name: lupira-cal-worker
+    environment:
+      # Same DB/role as the API — the worker claims cal.scheduled_fire rows and reads the item aggregates.
+      ConnectionStrings__Postgres: "Host=postgres;Port=5432;Database=lupira_cal;Username=lupira_cal_user;Password=${LUPIRA_CAL_DB_PASSWORD:?required}"
+
+      # assistant-api hop — service-authed push to POST /fires. Client-credentials against Authentik in prod;
+      # the client's audience must be the assistant's internal one (lupira-assistant-internal).
+      Assistant__BaseUrl: ${ASSISTANT_BASE_URL:-https://assistant-api.lupira.com/}
+      Assistant__TokenUrl: ${ASSISTANT_TOKEN_URL:-https://auth.lupira.com/application/o/token/}
+      Assistant__ClientId: ${ASSISTANT_CLIENT_ID:?required}
+      Assistant__ClientSecret: ${ASSISTANT_CLIENT_SECRET:?required}
+
+      # OTEL — optional OTLP export. Unset endpoint = silent no-op.
+      OTEL_EXPORTER_OTLP_ENDPOINT: ${OTEL_EXPORTER_OTLP_ENDPOINT:-}
+      OTEL_EXPORTER_OTLP_PROTOCOL: ${OTEL_EXPORTER_OTLP_PROTOCOL:-http/protobuf}
+      OTEL_EXPORTER_OTLP_HEADERS: ${OTEL_EXPORTER_OTLP_HEADERS:-}
+      OTEL_METRIC_EXPORT_INTERVAL: ${OTEL_METRIC_EXPORT_INTERVAL:-300000}
+      OTEL_RESOURCE_ATTRIBUTES: ${OTEL_RESOURCE_ATTRIBUTES:-deployment.environment=prod}
+    # No host port — stack-local /livez only.
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fsS http://localhost:8080/livez || exit 1"]
+      interval: 60s
+      timeout: 5s
+      retries: 5
+      start_period: 60s
+    restart: unless-stopped
+    networks:
+      - default
+      - medelynas_data         # Postgres + assistant-api + Authentik over LAN
       - medelynas_telemetry    # OTel collector
 networks:
   default:

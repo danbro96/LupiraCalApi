@@ -17,6 +17,7 @@ public static class ScheduledFireSchema
             id            uuid        primary key,
             item_id       uuid        not null,
             calendar_id   uuid        not null,
+            principal_id  uuid        null,
             occurrence_at timestamptz not null,
             prompt_ref    text        null,
             status        text        not null default 'pending',
@@ -28,13 +29,14 @@ public static class ScheduledFireSchema
             fired_at      timestamptz null,
             constraint scheduled_fire_dedupe_key_unique unique (dedupe_key)
         );
+        alter table cal.scheduled_fire add column if not exists principal_id uuid null;
         create index if not exists scheduled_fire_status_occurrence_idx on cal.scheduled_fire (status, occurrence_at);
         """;
 
     /// <summary>Idempotent upsert (one row per occurrence across retries/restarts). Positional <c>?</c> placeholders for QueueSqlCommand.</summary>
     public const string InsertSql = """
-        insert into cal.scheduled_fire (id, item_id, calendar_id, occurrence_at, prompt_ref, status, attempts, expire_after, dedupe_key)
-        values (?, ?, ?, ?, ?, 'pending', 0, ?, ?)
+        insert into cal.scheduled_fire (id, item_id, calendar_id, principal_id, occurrence_at, prompt_ref, status, attempts, expire_after, dedupe_key)
+        values (?, ?, ?, ?, ?, ?, 'pending', 0, ?, ?)
         on conflict (dedupe_key) do nothing
         """;
 

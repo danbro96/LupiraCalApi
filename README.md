@@ -12,6 +12,10 @@ Unlike off-the-shelf CalDAV servers, the REST/MCP surface offers structured sear
 metadata that the DAV protocol can't express — while still syncing to any standard client over the one
 database. Calendars and address books are **multi-owner**, so they can be shared.
 
+A second host in this repo, **`lupira-cal-worker`** (`src/LupiraCalApi.Worker`, image
+`danbro96/lupira-cal-worker`), dispatches due `cal.scheduled_fire` rows to assistant-api `POST /fires` with
+claim leases, retry/backoff, and per-kind expiry.
+
 Interactive API docs: **`/scalar/v1`** (Scalar UI) over the OpenAPI document at **`/openapi/v1.json`**.
 
 ## Tech stack
