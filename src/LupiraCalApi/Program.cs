@@ -9,8 +9,10 @@ using LupiraCalApi.Scheduling;
 using Marten;
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Diagnostics.HealthChecks;
 using Microsoft.AspNetCore.HttpOverrides;
+using Microsoft.OpenApi;
 using OpenTelemetry.Logs;
 using OpenTelemetry.Metrics;
 using OpenTelemetry.Resources;
@@ -97,7 +99,45 @@ builder.Services.AddHealthChecks()
 // Emit/accept enums as their names across the REST surface (not integers).
 builder.Services.ConfigureHttpJsonOptions(o => o.SerializerOptions.Converters.Add(new JsonStringEnumConverter()));
 
-builder.Services.AddOpenApi();
+builder.Services.AddOpenApi("v1", options =>
+{
+    options.AddDocumentTransformer((document, context, _) =>
+    {
+        document.Info = new()
+        {
+            Title = "Lupira Cal API",
+            Version = "v1",
+            Description =
+                "Calendar, contacts, and CalDAV backend for Lupira. " +
+                "Authenticate with a Bearer token issued by the OIDC provider (Authentik).",
+        };
+        document.Components ??= new();
+        document.Components.SecuritySchemes ??= new Dictionary<string, IOpenApiSecurityScheme>();
+        document.Components.SecuritySchemes["Bearer"] = new OpenApiSecurityScheme
+        {
+            Type = SecuritySchemeType.Http,
+            Scheme = "bearer",
+            BearerFormat = "JWT",
+            Description = "OIDC bearer token. Send as `Authorization: Bearer <token>`.",
+        };
+        return Task.CompletedTask;
+    });
+    options.AddOperationTransformer((operation, context, _) =>
+    {
+        var endpointMetadata = context.Description.ActionDescriptor.EndpointMetadata;
+        var requiresAuth = endpointMetadata.OfType<IAuthorizeData>().Any()
+                        && !endpointMetadata.OfType<IAllowAnonymous>().Any();
+        if (requiresAuth)
+        {
+            operation.Security ??= new List<OpenApiSecurityRequirement>();
+            operation.Security.Add(new OpenApiSecurityRequirement
+            {
+                [new OpenApiSecuritySchemeReference("Bearer", context.Document)] = new List<string>(),
+            });
+        }
+        return Task.CompletedTask;
+    });
+});
 
 // MCP server for the agent, mounted at /mcp (LAN/WireGuard-only — not published through the tunnel).
 builder.Services.AddMcpServer().WithHttpTransport().WithTools<CalendarTools>();
@@ -128,8 +168,15 @@ app.UseForwardedHeaders(forwarded);
 app.UseAuthentication();
 app.UseAuthorization();
 
-app.MapOpenApi();             // /openapi/v1.json
-app.MapScalarApiReference();  // /scalar/v1
+app.MapOpenApi("/openapi/{documentName}.json").AllowAnonymous();
+app.MapScalarApiReference("/scalar", o => o
+        .WithTitle("Lupira Cal API")
+        .WithTheme(ScalarTheme.BluePlanet))
+    .AllowAnonymous();
+
+app.MapGet("/", () => TypedResults.Redirect("/scalar"))
+   .ExcludeFromDescription()
+   .AllowAnonymous();
 
 // Health probes: /livez = liveness (no dependency checks); /readyz = readiness (Postgres reachable).
 app.MapHealthChecks("/livez", new HealthCheckOptions { Predicate = _ => false });

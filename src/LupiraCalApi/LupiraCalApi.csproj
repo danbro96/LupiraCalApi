@@ -5,9 +5,16 @@
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
     <RootNamespace>LupiraCalApi</RootNamespace>
-    <!-- Build-time OpenAPI document (docs/openapi/LupiraCalApi.json) — consumed by LupiraCalWeb's orval codegen.
-         Doc-gen boots the app (hosted services need the dev Postgres), so it runs on local builds only. -->
-    <OpenApiDocumentsDirectory>$(MSBuildProjectDirectory)/../../docs/openapi</OpenApiDocumentsDirectory>
+  </PropertyGroup>
+
+  <!--
+    Build-time OpenAPI document (openapi/LupiraCalApi.json) — consumed by LupiraCalWeb's Orval codegen.
+    Doc-gen boots the app and CalApi's startup eagerly creates the cal.scheduled_fire table (needs dev
+    Postgres), so generation runs on local builds only and is skipped in CI. This is the one emitter
+    that can't run doc-gen without infra; all others use the always-on canonical block.
+  -->
+  <PropertyGroup>
+    <OpenApiDocumentsDirectory>$(MSBuildThisFileDirectory)..\..\openapi</OpenApiDocumentsDirectory>
     <OpenApiGenerateDocuments Condition="'$(CI)' == 'true'">false</OpenApiGenerateDocuments>
   </PropertyGroup>
 
