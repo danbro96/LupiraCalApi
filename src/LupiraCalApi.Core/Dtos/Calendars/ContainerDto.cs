@@ -11,6 +11,8 @@ public sealed class ContainerDto
     public required string Type { get; set; }
     public required string Slug { get; set; }
     public string? DisplayName { get; set; }
+    public string? Color { get; set; }
+    public string? DefaultTimezone { get; set; }
 
     [JsonConverter(typeof(JsonStringEnumConverter<CalendarClass>))]
     public CalendarClass? Class { get; set; }

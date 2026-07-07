@@ -23,7 +23,7 @@ public sealed class CalendarService(IDocumentSession session, PrincipalDirectory
         var bookAccess = bookOwners.ToDictionary(o => o.AddressBookId, o => o.Access);
 
         var result = new List<ContainerDto>();
-        result.AddRange(cals.Select(c => new ContainerDto { Id = c.Id, Type = "calendar", Slug = c.Slug, DisplayName = c.DisplayName, Class = c.Class, Kind = c.Kind, Access = calAccess[c.Id] }));
+        result.AddRange(cals.Select(c => new ContainerDto { Id = c.Id, Type = "calendar", Slug = c.Slug, DisplayName = c.DisplayName, Color = c.Color, DefaultTimezone = c.DefaultTimezone, Class = c.Class, Kind = c.Kind, Access = calAccess[c.Id] }));
         result.AddRange(books.Select(b => new ContainerDto { Id = b.Id, Type = "addressbook", Slug = b.Slug, DisplayName = b.DisplayName, Access = bookAccess[b.Id] }));
         return OpResult<List<ContainerDto>>.Ok(result);
     }
@@ -45,7 +45,7 @@ public sealed class CalendarService(IDocumentSession session, PrincipalDirectory
         session.Store(c);
         session.Store(new CalendarOwner { Id = CalendarOwner.MakeId(c.Id, principalId), CalendarId = c.Id, PrincipalId = principalId, Access = Access.Owner });
         await session.SaveChangesAsync(ct);
-        return OpResult<ContainerDto>.Ok(new ContainerDto { Id = c.Id, Type = "calendar", Slug = c.Slug, DisplayName = c.DisplayName, Class = cls, Kind = kind, Access = Access.Owner });
+        return OpResult<ContainerDto>.Ok(new ContainerDto { Id = c.Id, Type = "calendar", Slug = c.Slug, DisplayName = c.DisplayName, Color = c.Color, DefaultTimezone = c.DefaultTimezone, Class = cls, Kind = kind, Access = Access.Owner });
     }
 
     /// <summary>The agenda + system calendars seeded per principal. FoodPlan is deferred (enum value only, not seeded).</summary>
