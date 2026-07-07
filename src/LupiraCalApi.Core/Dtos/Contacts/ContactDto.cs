@@ -12,8 +12,12 @@ public sealed class ContactDto
     public string? GivenName { get; set; }
     public string? FamilyName { get; set; }
     public string? Nickname { get; set; }
+    public string[]? Emails { get; set; }
+    public string[]? Phones { get; set; }
     public DateOnly? Birthday { get; set; }
     public string[]? Tags { get; set; }
+    public required IReadOnlyList<ContactPostalAddress> Addresses { get; set; }
+    public required IReadOnlyList<ContactSocialProfile> Profiles { get; set; }
     public JsonNode? Metadata { get; set; }
 
     /// <summary>How well-documented this contact is. Drives contact-enrichment ranking (completeness × relevance).</summary>
