@@ -16,6 +16,8 @@ namespace LupiraCalApi.Dav;
 /// into a calendar are exposed. URL layout (all discovered, never typed):
 ///   /dav/ → root; /dav/u/{userId}/ → principal; /dav/u/{userId}/cal/{calId}/{uid}.ics → an item; .../card/{abId}/{uid}.vcf → a contact.
 /// Two-account model: a principal addresses only its own /u/{id}/ tree (sharing is enforced by AccessResolver).
+/// A principal with no calendar grants is bootstrapped with the standard container set on first request, so
+/// DAV-only members self-provision without ever touching REST.
 /// </summary>
 public static class DavRouter
 {
@@ -40,6 +42,10 @@ public static class DavRouter
         var session = ctx.RequestServices.GetRequiredService<IQuerySession>();
         var access = ctx.RequestServices.GetRequiredService<AccessResolver>();
         var user = await ctx.RequestServices.GetRequiredService<CurrentUser>().GetAsync(ct);
+
+        // A DAV-only principal (JIT-provisioned by Basic auth) has no containers yet — seed the standard set on first contact.
+        if ((await access.AccessibleCalendarIdsAsync(user.Id, ct)).Count == 0)
+            await ctx.RequestServices.GetRequiredService<CalendarService>().BootstrapPersonalAsync(user.Id, ct);
 
         var baseUrl = $"{ctx.Request.Scheme}://{ctx.Request.Host}";
         var segments = (ctx.Request.Path.Value ?? "").Trim('/').Split('/', StringSplitOptions.RemoveEmptyEntries);
