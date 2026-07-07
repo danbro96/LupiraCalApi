@@ -6,7 +6,9 @@ COPY src/LupiraCalApi/LupiraCalApi.csproj src/LupiraCalApi/
 COPY src/LupiraCalApi.Core/LupiraCalApi.Core.csproj src/LupiraCalApi.Core/
 RUN dotnet restore src/LupiraCalApi/LupiraCalApi.csproj
 COPY . .
-RUN dotnet publish src/LupiraCalApi/LupiraCalApi.csproj -c Release -o /app --no-restore
+# OpenApiGenerateDocuments=false: doc-gen boots the app (needs the dev Postgres); the committed
+# docs/openapi is regenerated locally, not in the image.
+RUN dotnet publish src/LupiraCalApi/LupiraCalApi.csproj -c Release -o /app --no-restore /p:OpenApiGenerateDocuments=false
 
 FROM mcr.microsoft.com/dotnet/aspnet:10.0 AS runtime
 WORKDIR /app
