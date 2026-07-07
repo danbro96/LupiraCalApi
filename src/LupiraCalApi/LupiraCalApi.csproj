@@ -5,8 +5,10 @@
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
     <RootNamespace>LupiraCalApi</RootNamespace>
-    <!-- Build-time OpenAPI document (docs/openapi/LupiraCalApi.json) — consumed by LupiraCalWeb's orval codegen. -->
+    <!-- Build-time OpenAPI document (docs/openapi/LupiraCalApi.json) — consumed by LupiraCalWeb's orval codegen.
+         Doc-gen boots the app (hosted services need the dev Postgres), so it runs on local builds only. -->
     <OpenApiDocumentsDirectory>$(MSBuildProjectDirectory)/../../docs/openapi</OpenApiDocumentsDirectory>
+    <OpenApiGenerateDocuments Condition="'$(CI)' == 'true'">false</OpenApiGenerateDocuments>
   </PropertyGroup>
 
   <ItemGroup>
