@@ -1,4 +1,6 @@
 using LupiraCalApi.Domain;
+using LupiraCalApi.Dtos.Places;
+using LupiraCalApi.Mappers;
 using Marten;
 
 namespace LupiraCalApi.Application;
@@ -22,4 +24,17 @@ public sealed class PlaceService(IDocumentSession session)
     /// <summary>The display name of a place (for ICS LOCATION generation), or null.</summary>
     public async Task<string?> LabelOfAsync(Guid? placeId, CancellationToken ct = default) =>
         placeId is { } id ? (await session.LoadAsync<Place>(id, ct))?.Name : null;
+
+    // The catalog is shared (deduped globally by name), so any authenticated principal may read it.
+    public async Task<OpResult<PlaceDto>> GetAsync(Guid id, CancellationToken ct = default) =>
+        await session.LoadAsync<Place>(id, ct) is { } place
+            ? OpResult<PlaceDto>.Ok(place.ToResponse())
+            : OpResult<PlaceDto>.NotFound();
+
+    /// <summary>Batch lookup; unknown ids are omitted.</summary>
+    public async Task<OpResult<List<PlaceDto>>> GetManyAsync(Guid[] ids, CancellationToken ct = default)
+    {
+        var places = await session.Query<Place>().Where(p => ids.Contains(p.Id)).ToListAsync(ct);
+        return OpResult<List<PlaceDto>>.Ok(places.Select(p => p.ToResponse()).ToList());
+    }
 }

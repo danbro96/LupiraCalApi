@@ -35,6 +35,7 @@ builder.Services.AddScoped<RelationsHandler>();
 builder.Services.AddScoped<CurationHandler>();
 builder.Services.AddScoped<ParticipationHandler>();
 builder.Services.AddScoped<ContactGroupsHandler>();
+builder.Services.AddScoped<PlacesHandler>();
 
 // --- Auth: OIDC JWT for the REST surface (the agent obtains a member-scoped token via Authentik token-exchange);
 //           HTTP Basic -> LDAP outpost for /dav. One identity authority (Authentik). ---
@@ -145,6 +146,7 @@ app.MapRelations();
 app.MapCuration();
 app.MapParticipation();
 app.MapContactGroups();
+app.MapPlaces();
 
 // DAV service discovery (anonymous): clients probe these before auth, then follow to /dav/.
 app.MapMethods("/.well-known/caldav", ["GET", "PROPFIND", "OPTIONS"], () => Results.Redirect("/dav/", permanent: true));

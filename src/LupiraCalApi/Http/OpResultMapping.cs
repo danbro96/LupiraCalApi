@@ -17,6 +17,13 @@ internal static class OpResultMap
         _ => throw Unexpected(r.Status),
     };
 
+    public static Results<Ok<T>, NotFound, UnauthorizedHttpResult> OkNotFound<T>(OpResult<T> r) => r.Status switch
+    {
+        OpStatus.Ok => TypedResults.Ok(r.Value!),
+        OpStatus.NotFound => TypedResults.NotFound(),
+        _ => throw Unexpected(r.Status),
+    };
+
     public static Results<Ok<T>, ProblemHttpResult, UnauthorizedHttpResult> OkProblem<T>(OpResult<T> r) => r.Status switch
     {
         OpStatus.Ok => TypedResults.Ok(r.Value!),
