@@ -27,7 +27,7 @@ public sealed class CalendarItemService(IDocumentSession session, AccessResolver
         var id = DeterministicGuid.From(uid);
         var fields = new CalendarItemFields(r.Title, r.Description, status, r.IsAllDay, r.StartsAt, r.EndsAt,
             r.StartTimezone, null, r.StartDate, r.EndDate, r.RecurrenceRule, kind, placeId, null, r.Tags);
-        var kindDetails = BuildKindDetails(kind, r.Availability);
+        var kindDetails = await KindDetailsMapper.BuildAsync(kind, r.KindDetails, r.Availability, places, ct);
         // Hash the canonical ICS built from the resolved place label (not the raw input) so it matches what DAV GET regenerates.
         var locationLabel = await places.LabelOfAsync(placeId, ct);
         var hash = ContentHash.Of(ICalSerializer.ToICalendar(uid, r.Title, r.Description, locationLabel, status, r.IsAllDay, r.StartsAt, r.EndsAt, r.StartDate, r.EndDate, r.RecurrenceRule));
@@ -114,9 +114,22 @@ public sealed class CalendarItemService(IDocumentSession session, AccessResolver
         var tags = r.Tags ?? item.Tags;
         var placeId = r.Location is not null ? await places.ResolveLabelAsync(r.Location, ct) : item.PlaceId;
 
+        var kind = item.Kind;
+        if (r.Kind is not null)
+        {
+            if (!Enum.TryParse<ItemKind>(r.Kind, ignoreCase: true, out var parsed)) return OpResult<CalendarItemDto>.Invalid($"Unknown kind '{r.Kind}'.");
+            kind = parsed;
+        }
+        var kindChanged = kind != item.Kind;
+
         var fields = new CalendarItemFields(title, description, status, item.IsAllDay, startsAt, endsAt,
-            item.StartTimezone, item.EndTimezone, item.StartDate, item.EndDate, rrule, item.Kind, placeId, item.ParentItemId, tags);
-        var kindDetails = BuildKindDetails(item.Kind, r.Availability);   // null keeps existing details (Apply only overwrites when non-null)
+            item.StartTimezone, item.EndTimezone, item.StartDate, item.EndDate, rrule, kind, placeId, item.ParentItemId, tags);
+
+        var incoming = await KindDetailsMapper.BuildAsync(kind, r.KindDetails, r.Availability, places, ct);
+        // null incoming keeps existing details (Apply only overwrites when non-null); reclassifying with none clears the old kind's details.
+        var kindDetails = incoming is null
+            ? (kindChanged ? new ItemKindDetails() : null)
+            : (kindChanged ? incoming : KindDetailsMapper.Merge(item.KindDetails, incoming));
         var locationLabel = await places.LabelOfAsync(placeId, ct);
         var hash = ContentHash.Of(ICalSerializer.ToICalendar(item.IcalUid, title, description, locationLabel, status, item.IsAllDay, startsAt, endsAt, item.StartDate, item.EndDate, rrule));
 
@@ -284,7 +297,4 @@ public sealed class CalendarItemService(IDocumentSession session, AccessResolver
 
     private static ItemStatus? ParseStatus(string? s) => Enum.TryParse<ItemStatus>(s, ignoreCase: true, out var v) ? v : null;
     private static ItemKind? ParseKind(string? s) => Enum.TryParse<ItemKind>(s, ignoreCase: true, out var v) ? v : null;
-
-    private static ItemKindDetails? BuildKindDetails(ItemKind? kind, AvailabilityStatus? availability) =>
-        kind == ItemKind.Availability && availability is { } s ? new ItemKindDetails(Availability: new AvailabilityDetail(s)) : null;
 }

@@ -39,6 +39,14 @@ public sealed class CalendarTools
         return Require(await items.CreateAsync(u.Id, request));
     }
 
+    [McpServerTool, Description("Update a calendar item: any subset of title, description, location (free text → place), status, times, recurrence, tags, Kind, and kind-details (flight no., provider, booking refs, …). Omitted fields are unchanged; a supplied kind-details member replaces that member.")]
+    public static async Task<CalendarItemDto> update_item(CalendarItemService items, CurrentUser user,
+        [Description("Calendar item id.")] Guid itemId, UpdateCalendarItemRequest request)
+    {
+        var u = await user.GetAsync();
+        return Require(await items.UpdateAsync(u.Id, itemId, request));
+    }
+
     [McpServerTool, Description("Merge an arbitrary JSON object of metadata into a calendar item.")]
     public static async Task<CalendarItemDto> attach_metadata(
         CalendarItemService items, CurrentUser user,
@@ -59,6 +67,35 @@ public sealed class CalendarTools
         return Require(await contacts.QueryAsync(u.Id, query, null));
     }
 
+    [McpServerTool, Description("Create a contact in an address book (AddressBookId required). Name is structured parts; employer is set separately as an organization group.")]
+    public static async Task<ContactDto> create_contact(ContactService contacts, CurrentUser user, CreateContactRequest request)
+    {
+        var u = await user.GetAsync();
+        return Require(await contacts.CreateAsync(u.Id, request));
+    }
+
+    [McpServerTool, Description("Invite a contact to a calendar item as an attendee. role = chair|req-participant|opt-participant|non-participant (default req-participant).")]
+    public static async Task<CalendarItemDto> invite_participant(
+        ParticipationService participation, CurrentUser user,
+        [Description("Calendar item id.")] Guid itemId,
+        [Description("The contact id to invite.")] Guid contactId,
+        [Description("chair|req-participant|opt-participant|non-participant.")] string? role = null)
+    {
+        var u = await user.GetAsync();
+        return Require(await participation.InviteAsync(u.Id, itemId, contactId, role));
+    }
+
+    [McpServerTool, Description("Record an attendee's RSVP. status = needs-action|accepted|declined|tentative|delegated.")]
+    public static async Task<CalendarItemDto> respond_participant(
+        ParticipationService participation, CurrentUser user,
+        [Description("Calendar item id.")] Guid itemId,
+        [Description("The participation id (from the item's attendees).")] Guid participationId,
+        [Description("needs-action|accepted|declined|tentative|delegated.")] string? status = null)
+    {
+        var u = await user.GetAsync();
+        return Require(await participation.RespondAsync(u.Id, itemId, participationId, status));
+    }
+
     [McpServerTool, Description("List the calendars and address books the caller can access.")]
     public static async Task<IReadOnlyList<ContainerDto>> list_calendars(CalendarService calendars, CurrentUser user)
     {
@@ -71,6 +108,13 @@ public sealed class CalendarTools
     {
         var u = await user.GetAsync();
         return Require(await calendars.BootstrapPersonalAsync(u.Id));
+    }
+
+    [McpServerTool, Description("Create a calendar or address book (Type = 'calendar' | 'addressbook'). Slug required.")]
+    public static async Task<ContainerDto> create_calendar(CalendarService calendars, CurrentUser user, CreateCalendarRequest request)
+    {
+        var u = await user.GetAsync();
+        return Require(await calendars.CreateAsync(u.Id, request));
     }
 
     [McpServerTool, Description("Grant a member access to a calendar, by email. access = owner|read-write|read (default owner).")]

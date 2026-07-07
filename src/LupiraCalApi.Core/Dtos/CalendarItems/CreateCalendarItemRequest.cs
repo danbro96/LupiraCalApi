@@ -22,4 +22,7 @@ public sealed class CreateCalendarItemRequest
 
     /// <summary>When <c>Kind</c> is <c>Availability</c>, the segment's status (whole-day or timed via Starts/Ends).</summary>
     public Domain.AvailabilityStatus? Availability { get; set; }
+
+    /// <summary>Kind-specific detail for the chosen <c>Kind</c> (flight number, provider, booking refs, …); place refs are free-text labels.</summary>
+    public ItemKindDetailsRequest? KindDetails { get; set; }
 }

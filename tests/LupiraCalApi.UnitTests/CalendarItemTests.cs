@@ -84,6 +84,34 @@ public class CalendarItemTests
     }
 
     [Fact]
+    public void Revised_reclassifies_the_kind_and_sets_kind_details()
+    {
+        var id = Guid.NewGuid();
+        var i = Scheduled(id, "h1");   // Generic, no details
+        Assert.Equal(ItemKind.Generic, i.Kind);
+
+        var flight = Fields() with { Kind = ItemKind.Flight };
+        var details = new ItemKindDetails(Flight: new FlightDetail("SK123", "5", "A12", null, "14C", null));
+        i.Apply(new ItemRevised(id, flight, details, "h2"));
+
+        Assert.Equal(ItemKind.Flight, i.Kind);
+        Assert.Equal("SK123", i.KindDetails!.Flight!.FlightNumber);
+    }
+
+    [Fact]
+    public void Revised_with_null_kind_details_keeps_the_existing_details()
+    {
+        var id = Guid.NewGuid();
+        var i = Scheduled(id, "h1");
+        i.Apply(new ItemRevised(id, Fields() with { Kind = ItemKind.Flight }, new ItemKindDetails(Flight: new FlightDetail("SK123", null, null, null, null, null)), "h2"));
+
+        i.Apply(new ItemRevised(id, Fields() with { Title = "Renamed" }, null, "h3"));
+
+        Assert.Equal("Renamed", i.Title);
+        Assert.Equal("SK123", i.KindDetails!.Flight!.FlightNumber);   // details survive a field-only revision
+    }
+
+    [Fact]
     public void Cancelled_sets_status_without_deleting()
     {
         var id = Guid.NewGuid();

@@ -9,6 +9,10 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <InternalsVisibleTo Include="LupiraCalApi.UnitTests" />
+  </ItemGroup>
+
+  <ItemGroup>
     <!-- The bounded context + data: Domain (event-sourced aggregates + events + projections),
          Application (services + OpResult), Dtos, Mappers, Serialization, Auth/AccessResolver.
          Marten is the event store + document store on Postgres. No ASP.NET dependency — that lives in the host. -->
