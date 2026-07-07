@@ -10,11 +10,13 @@ public static class PlacesEndpoints
         var group = app.MapGroup("/places").RequireAuthorization("ApiPolicy").WithTags("Places");
 
         group.MapGet("/", (Guid[] ids, PlacesHandler h, CancellationToken ct) => h.GetManyAsync(ids, ct))
+            .WithName("GetPlaces")
             .WithSummary("Batch-resolve places by id (repeat ids=; unknown ids are omitted).")
             .Produces<List<PlaceDto>>(StatusCodes.Status200OK)
             .Produces(StatusCodes.Status401Unauthorized);
 
         group.MapGet("/{id:guid}", (Guid id, PlacesHandler h, CancellationToken ct) => h.GetAsync(id, ct))
+            .WithName("GetPlace")
             .WithSummary("A single place from the shared location catalog.")
             .Produces<PlaceDto>(StatusCodes.Status200OK)
             .Produces(StatusCodes.Status404NotFound)

@@ -12,21 +12,25 @@ public static class OwnersEndpoints
         var group = app.MapGroup("").RequireAuthorization("ApiPolicy").WithTags("Owners");
 
         group.MapPost("/calendars/{calendarId:guid}/owners", (Guid calendarId, GrantOwnerRequest body, CalendarsHandler h, CancellationToken ct) => h.GrantCalendarOwnerAsync(calendarId, body, ct))
+            .WithName("GrantCalendarOwner")
             .WithSummary("Grant a member access to a calendar (access = owner|read-write|read; default owner).")
             .Produces<OwnerGrantDto>(StatusCodes.Status200OK)
             .ProducesProblem(StatusCodes.Status403Forbidden).Produces(StatusCodes.Status404NotFound).ProducesProblem(StatusCodes.Status409Conflict);
 
         group.MapDelete("/calendars/{calendarId:guid}/owners", (Guid calendarId, string email, CalendarsHandler h, CancellationToken ct) => h.RevokeCalendarOwnerAsync(calendarId, email, ct))
+            .WithName("RevokeCalendarOwner")
             .WithSummary("Revoke a member's access to a calendar (by email). 409 if it would remove the last owner.")
             .Produces(StatusCodes.Status204NoContent)
             .ProducesProblem(StatusCodes.Status403Forbidden).Produces(StatusCodes.Status404NotFound).ProducesProblem(StatusCodes.Status409Conflict);
 
         group.MapPost("/address-books/{addressBookId:guid}/owners", (Guid addressBookId, GrantOwnerRequest body, CalendarsHandler h, CancellationToken ct) => h.GrantAddressBookOwnerAsync(addressBookId, body, ct))
+            .WithName("GrantAddressBookOwner")
             .WithSummary("Grant a member access to an address book (access = owner|read-write|read; default owner).")
             .Produces<OwnerGrantDto>(StatusCodes.Status200OK)
             .ProducesProblem(StatusCodes.Status403Forbidden).Produces(StatusCodes.Status404NotFound).ProducesProblem(StatusCodes.Status409Conflict);
 
         group.MapDelete("/address-books/{addressBookId:guid}/owners", (Guid addressBookId, string email, CalendarsHandler h, CancellationToken ct) => h.RevokeAddressBookOwnerAsync(addressBookId, email, ct))
+            .WithName("RevokeAddressBookOwner")
             .WithSummary("Revoke a member's access to an address book (by email). 409 if it would remove the last owner.")
             .Produces(StatusCodes.Status204NoContent)
             .ProducesProblem(StatusCodes.Status403Forbidden).Produces(StatusCodes.Status404NotFound).ProducesProblem(StatusCodes.Status409Conflict);
