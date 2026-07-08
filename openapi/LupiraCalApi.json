@@ -1,8 +1,9 @@
 {
   "openapi": "3.1.1",
   "info": {
-    "title": "LupiraCalApi | v1",
-    "version": "1.0.0"
+    "title": "Lupira Cal API",
+    "description": "Calendar, contacts, and CalDAV backend for Lupira. Authenticate with a Bearer token issued by the OIDC provider (Authentik).",
+    "version": "v1"
   },
   "paths": {
     "/me": {
@@ -26,7 +27,12 @@
           "401": {
             "description": "Unauthorized"
           }
-        }
+        },
+        "security": [
+          {
+            "Bearer": [ ]
+          }
+        ]
       }
     },
     "/me/bootstrap": {
@@ -53,7 +59,12 @@
           "401": {
             "description": "Unauthorized"
           }
-        }
+        },
+        "security": [
+          {
+            "Bearer": [ ]
+          }
+        ]
       }
     },
     "/.well-known/caldav": {
@@ -124,7 +135,12 @@
           "401": {
             "description": "Unauthorized"
           }
-        }
+        },
+        "security": [
+          {
+            "Bearer": [ ]
+          }
+        ]
       },
       "post": {
         "tags": [
@@ -156,7 +172,12 @@
           "401": {
             "description": "Unauthorized"
           }
-        }
+        },
+        "security": [
+          {
+            "Bearer": [ ]
+          }
+        ]
       }
     },
     "/calendars/{calendarId}/owners": {
@@ -221,7 +242,12 @@
               }
             }
           }
-        }
+        },
+        "security": [
+          {
+            "Bearer": [ ]
+          }
+        ]
       },
       "delete": {
         "tags": [
@@ -275,7 +301,12 @@
               }
             }
           }
-        }
+        },
+        "security": [
+          {
+            "Bearer": [ ]
+          }
+        ]
       }
     },
     "/address-books/{addressBookId}/owners": {
@@ -340,7 +371,12 @@
               }
             }
           }
-        }
+        },
+        "security": [
+          {
+            "Bearer": [ ]
+          }
+        ]
       },
       "delete": {
         "tags": [
@@ -394,7 +430,12 @@
               }
             }
           }
-        }
+        },
+        "security": [
+          {
+            "Bearer": [ ]
+          }
+        ]
       }
     },
     "/items": {
@@ -471,7 +512,12 @@
           "401": {
             "description": "Unauthorized"
           }
-        }
+        },
+        "security": [
+          {
+            "Bearer": [ ]
+          }
+        ]
       },
       "post": {
         "tags": [
@@ -513,7 +559,12 @@
           "401": {
             "description": "Unauthorized"
           }
-        }
+        },
+        "security": [
+          {
+            "Bearer": [ ]
+          }
+        ]
       }
     },
     "/items/{id}": {
@@ -551,7 +602,12 @@
           "401": {
             "description": "Unauthorized"
           }
-        }
+        },
+        "security": [
+          {
+            "Bearer": [ ]
+          }
+        ]
       },
       "put": {
         "tags": [
@@ -597,7 +653,12 @@
           "401": {
             "description": "Unauthorized"
           }
-        }
+        },
+        "security": [
+          {
+            "Bearer": [ ]
+          }
+        ]
       },
       "delete": {
         "tags": [
@@ -626,7 +687,12 @@
           "401": {
             "description": "Unauthorized"
           }
-        }
+        },
+        "security": [
+          {
+            "Bearer": [ ]
+          }
+        ]
       }
     },
     "/items/{id}/metadata": {
@@ -674,7 +740,12 @@
           "401": {
             "description": "Unauthorized"
           }
-        }
+        },
+        "security": [
+          {
+            "Bearer": [ ]
+          }
+        ]
       }
     },
     "/items/{id}/prompt": {
@@ -732,7 +803,12 @@
           "401": {
             "description": "Unauthorized"
           }
-        }
+        },
+        "security": [
+          {
+            "Bearer": [ ]
+          }
+        ]
       },
       "delete": {
         "tags": [
@@ -761,7 +837,12 @@
           "401": {
             "description": "Unauthorized"
           }
-        }
+        },
+        "security": [
+          {
+            "Bearer": [ ]
+          }
+        ]
       }
     },
     "/items/{id}/action": {
@@ -819,7 +900,12 @@
           "401": {
             "description": "Unauthorized"
           }
-        }
+        },
+        "security": [
+          {
+            "Bearer": [ ]
+          }
+        ]
       },
       "delete": {
         "tags": [
@@ -848,7 +934,12 @@
           "401": {
             "description": "Unauthorized"
           }
-        }
+        },
+        "security": [
+          {
+            "Bearer": [ ]
+          }
+        ]
       }
     },
     "/contacts": {
@@ -902,7 +993,12 @@
           "401": {
             "description": "Unauthorized"
           }
-        }
+        },
+        "security": [
+          {
+            "Bearer": [ ]
+          }
+        ]
       },
       "post": {
         "tags": [
@@ -944,7 +1040,12 @@
           "401": {
             "description": "Unauthorized"
           }
-        }
+        },
+        "security": [
+          {
+            "Bearer": [ ]
+          }
+        ]
       }
     },
     "/contacts/{id}": {
@@ -982,7 +1083,12 @@
           "401": {
             "description": "Unauthorized"
           }
-        }
+        },
+        "security": [
+          {
+            "Bearer": [ ]
+          }
+        ]
       },
       "delete": {
         "tags": [
@@ -1011,7 +1117,12 @@
           "401": {
             "description": "Unauthorized"
           }
-        }
+        },
+        "security": [
+          {
+            "Bearer": [ ]
+          }
+        ]
       }
     },
     "/items/{id}/relations": {
@@ -1059,7 +1170,12 @@
           "401": {
             "description": "Unauthorized"
           }
-        }
+        },
+        "security": [
+          {
+            "Bearer": [ ]
+          }
+        ]
       },
       "get": {
         "tags": [
@@ -1098,7 +1214,12 @@
           "401": {
             "description": "Unauthorized"
           }
-        }
+        },
+        "security": [
+          {
+            "Bearer": [ ]
+          }
+        ]
       }
     },
     "/relations": {
@@ -1143,7 +1264,12 @@
           "401": {
             "description": "Unauthorized"
           }
-        }
+        },
+        "security": [
+          {
+            "Bearer": [ ]
+          }
+        ]
       }
     },
     "/calendars/{calendarId}/proposed": {
@@ -1188,7 +1314,12 @@
               }
             }
           }
-        }
+        },
+        "security": [
+          {
+            "Bearer": [ ]
+          }
+        ]
       }
     },
     "/items/{itemId}/calendars/{calendarId}/accept": {
@@ -1232,7 +1363,12 @@
           "404": {
             "description": "Not Found"
           }
-        }
+        },
+        "security": [
+          {
+            "Bearer": [ ]
+          }
+        ]
       }
     },
     "/items/{itemId}/calendars/{calendarId}": {
@@ -1283,7 +1419,12 @@
           "404": {
             "description": "Not Found"
           }
-        }
+        },
+        "security": [
+          {
+            "Bearer": [ ]
+          }
+        ]
       },
       "delete": {
         "tags": [
@@ -1325,7 +1466,12 @@
           "404": {
             "description": "Not Found"
           }
-        }
+        },
+        "security": [
+          {
+            "Bearer": [ ]
+          }
+        ]
       }
     },
     "/items/{id}/participants": {
@@ -1376,7 +1522,12 @@
           "404": {
             "description": "Not Found"
           }
-        }
+        },
+        "security": [
+          {
+            "Bearer": [ ]
+          }
+        ]
       }
     },
     "/items/{id}/participants/{participationId}/respond": {
@@ -1427,7 +1578,12 @@
           "404": {
             "description": "Not Found"
           }
-        }
+        },
+        "security": [
+          {
+            "Bearer": [ ]
+          }
+        ]
       }
     },
     "/items/{id}/participants/{participationId}/attend": {
@@ -1471,7 +1627,12 @@
           "404": {
             "description": "Not Found"
           }
-        }
+        },
+        "security": [
+          {
+            "Bearer": [ ]
+          }
+        ]
       }
     },
     "/items/{id}/participants/{participationId}/leave": {
@@ -1515,7 +1676,12 @@
           "404": {
             "description": "Not Found"
           }
-        }
+        },
+        "security": [
+          {
+            "Bearer": [ ]
+          }
+        ]
       }
     },
     "/items/{id}/participants/{participationId}": {
@@ -1559,7 +1725,12 @@
           "404": {
             "description": "Not Found"
           }
-        }
+        },
+        "security": [
+          {
+            "Bearer": [ ]
+          }
+        ]
       }
     },
     "/address-books/{addressBookId}/groups": {
@@ -1604,7 +1775,12 @@
               }
             }
           }
-        }
+        },
+        "security": [
+          {
+            "Bearer": [ ]
+          }
+        ]
       },
       "post": {
         "tags": [
@@ -1659,7 +1835,12 @@
               }
             }
           }
-        }
+        },
+        "security": [
+          {
+            "Bearer": [ ]
+          }
+        ]
       }
     },
     "/groups/{groupId}": {
@@ -1702,7 +1883,12 @@
           "404": {
             "description": "Not Found"
           }
-        }
+        },
+        "security": [
+          {
+            "Bearer": [ ]
+          }
+        ]
       },
       "delete": {
         "tags": [
@@ -1728,7 +1914,12 @@
           "404": {
             "description": "Not Found"
           }
-        }
+        },
+        "security": [
+          {
+            "Bearer": [ ]
+          }
+        ]
       }
     },
     "/groups/{groupId}/members": {
@@ -1772,7 +1963,12 @@
           "404": {
             "description": "Not Found"
           }
-        }
+        },
+        "security": [
+          {
+            "Bearer": [ ]
+          }
+        ]
       }
     },
     "/groups/{groupId}/members/{contactId}": {
@@ -1816,7 +2012,12 @@
           "404": {
             "description": "Not Found"
           }
-        }
+        },
+        "security": [
+          {
+            "Bearer": [ ]
+          }
+        ]
       }
     },
     "/places": {
@@ -1857,7 +2058,12 @@
           "401": {
             "description": "Unauthorized"
           }
-        }
+        },
+        "security": [
+          {
+            "Bearer": [ ]
+          }
+        ]
       }
     },
     "/places/{id}": {
@@ -1895,7 +2101,12 @@
           "401": {
             "description": "Unauthorized"
           }
-        }
+        },
+        "security": [
+          {
+            "Bearer": [ ]
+          }
+        ]
       }
     }
   },
@@ -1926,6 +2137,36 @@
           "referenceNumber",
           "preparationNotes"
         ],
+        "type": "object",
+        "properties": {
+          "providerContactId": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "uuid"
+          },
+          "appointmentType": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "referenceNumber": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "preparationNotes": {
+            "type": [
+              "null",
+              "string"
+            ]
+          }
+        }
+      },
+      "AppointmentDetailRequest": {
         "type": "object",
         "properties": {
           "providerContactId": {
@@ -2385,6 +2626,42 @@
           }
         }
       },
+      "CarDetailRequest": {
+        "type": "object",
+        "properties": {
+          "driverContactId": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "uuid"
+          },
+          "vehicle": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "licensePlate": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "pickupPlace": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "dropoffPlace": {
+            "type": [
+              "null",
+              "string"
+            ]
+          }
+        }
+      },
       "CompletenessGap": {
         "required": [
           "field",
@@ -2792,6 +3069,16 @@
               },
               {
                 "$ref": "#/components/schemas/AvailabilityStatus"
+              }
+            ]
+          },
+          "kindDetails": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/ItemKindDetailsRequest"
               }
             ]
           }
@@ -3284,6 +3571,111 @@
               },
               {
                 "$ref": "#/components/schemas/AvailabilityDetail"
+              }
+            ]
+          }
+        }
+      },
+      "ItemKindDetailsRequest": {
+        "type": "object",
+        "properties": {
+          "travel": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/TravelDetailRequest"
+              }
+            ]
+          },
+          "flight": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/FlightDetail"
+              }
+            ]
+          },
+          "train": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/TrainDetail"
+              }
+            ]
+          },
+          "bus": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/BusDetail"
+              }
+            ]
+          },
+          "car": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/CarDetailRequest"
+              }
+            ]
+          },
+          "lodging": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/LodgingDetail"
+              }
+            ]
+          },
+          "appointment": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/AppointmentDetailRequest"
+              }
+            ]
+          },
+          "ticketed": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/TicketedDetail"
+              }
+            ]
+          },
+          "delivery": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/DeliveryDetail"
+              }
+            ]
+          },
+          "bill": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/BillDetail"
               }
             ]
           }
@@ -3933,6 +4325,49 @@
           }
         }
       },
+      "TravelDetailRequest": {
+        "type": "object",
+        "properties": {
+          "toPlace": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "fromPlace": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "departAt": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "date-time"
+          },
+          "arriveAt": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "date-time"
+          },
+          "carrier": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "bookingReference": {
+            "type": [
+              "null",
+              "string"
+            ]
+          }
+        }
+      },
       "UpdateCalendarItemRequest": {
         "type": "object",
         "properties": {
@@ -3980,6 +4415,12 @@
               "string"
             ]
           },
+          "kind": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
           "tags": {
             "type": [
               "null",
@@ -3998,8 +4439,26 @@
                 "$ref": "#/components/schemas/AvailabilityStatus"
               }
             ]
+          },
+          "kindDetails": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/ItemKindDetailsRequest"
+              }
+            ]
           }
         }
+      }
+    },
+    "securitySchemes": {
+      "Bearer": {
+        "type": "http",
+        "description": "OIDC bearer token. Send as `Authorization: Bearer <token>`.",
+        "scheme": "bearer",
+        "bearerFormat": "JWT"
       }
     }
   },
