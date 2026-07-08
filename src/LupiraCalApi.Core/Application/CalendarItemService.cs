@@ -21,8 +21,10 @@ public sealed class CalendarItemService(IDocumentSession session, AccessResolver
             return OpResult<CalendarItemDto>.Forbidden("No write access to this calendar.");
 
         var placeId = await places.ResolveLabelAsync(r.Location, ct);
-        var status = ParseStatus(r.Status);
-        var kind = ParseKind(r.Kind);
+        if (!TryParseDefined<ItemStatus>(r.Status, out var status)) return OpResult<CalendarItemDto>.Invalid(UnknownEnum<ItemStatus>("status", r.Status!));
+        if (!TryParseDefined<ItemKind>(r.Kind, out var kind)) return OpResult<CalendarItemDto>.Invalid(UnknownEnum<ItemKind>("kind", r.Kind!));
+        if (KindDetailsMapper.Validate(kind, r.KindDetails, r.Availability) is { } detailsError)
+            return OpResult<CalendarItemDto>.Invalid(detailsError);
         var uid = $"{Guid.NewGuid():N}@cal.lupira.com";
         var id = DeterministicGuid.From(uid);
         var fields = new CalendarItemFields(r.Title, r.Description, status, r.IsAllDay, r.StartsAt, r.EndsAt,
@@ -105,22 +107,24 @@ public sealed class CalendarItemService(IDocumentSession session, AccessResolver
         if (item is null || item.DeletedAt is not null) return OpResult<CalendarItemDto>.NotFound();
         if (!await CanWriteItemAsync(principalId, item, ct)) return OpResult<CalendarItemDto>.Forbidden("No write access to this item.");
 
+        if (!TryParseDefined<ItemStatus>(r.Status, out var statusIn)) return OpResult<CalendarItemDto>.Invalid(UnknownEnum<ItemStatus>("status", r.Status!));
+        if (!TryParseDefined<ItemKind>(r.Kind, out var kindIn)) return OpResult<CalendarItemDto>.Invalid(UnknownEnum<ItemKind>("kind", r.Kind!));
+
         var title = r.Title ?? item.Title;
         var description = r.Description ?? item.Description;
-        var status = r.Status is not null ? ParseStatus(r.Status) : item.Status;
+        var status = statusIn ?? item.Status;
         var startsAt = r.StartsAt ?? item.StartsAt;
         var endsAt = r.EndsAt ?? item.EndsAt;
         var rrule = r.RecurrenceRule ?? item.RecurrenceRule;
         var tags = r.Tags ?? item.Tags;
         var placeId = r.Location is not null ? await places.ResolveLabelAsync(r.Location, ct) : item.PlaceId;
 
-        var kind = item.Kind;
-        if (r.Kind is not null)
-        {
-            if (!Enum.TryParse<ItemKind>(r.Kind, ignoreCase: true, out var parsed)) return OpResult<CalendarItemDto>.Invalid($"Unknown kind '{r.Kind}'.");
-            kind = parsed;
-        }
+        var kind = kindIn ?? item.Kind;
         var kindChanged = kind != item.Kind;
+
+        // Validate against the resolved kind (an omitted r.Kind means "the item's current kind").
+        if (KindDetailsMapper.Validate(kind, r.KindDetails, r.Availability) is { } detailsError)
+            return OpResult<CalendarItemDto>.Invalid(detailsError);
 
         var fields = new CalendarItemFields(title, description, status, item.IsAllDay, startsAt, endsAt,
             item.StartTimezone, item.EndTimezone, item.StartDate, item.EndDate, rrule, kind, placeId, item.ParentItemId, tags);
@@ -295,6 +299,17 @@ public sealed class CalendarItemService(IDocumentSession session, AccessResolver
     private async Task<CalendarItemDto> ToDtoAsync(CalendarItem item, CancellationToken ct) =>
         item.ToResponse(await completeness.ScoreItemAsync(item, ct));
 
-    private static ItemStatus? ParseStatus(string? s) => Enum.TryParse<ItemStatus>(s, ignoreCase: true, out var v) ? v : null;
-    private static ItemKind? ParseKind(string? s) => Enum.TryParse<ItemKind>(s, ignoreCase: true, out var v) ? v : null;
+    /// <summary>Parses an optional enum name. False only for a non-null value that isn't a defined name —
+    /// undefined numeric strings ("99") are rejected, not persisted as out-of-range values.</summary>
+    private static bool TryParseDefined<TEnum>(string? value, out TEnum? parsed) where TEnum : struct, Enum
+    {
+        parsed = null;
+        if (value is null) return true;
+        if (!Enum.TryParse<TEnum>(value, ignoreCase: true, out var v) || !Enum.IsDefined(v)) return false;
+        parsed = v;
+        return true;
+    }
+
+    private static string UnknownEnum<TEnum>(string field, string value) where TEnum : struct, Enum =>
+        $"Unknown {field} '{value}'. Valid values: {string.Join(", ", Enum.GetNames<TEnum>())}.";
 }

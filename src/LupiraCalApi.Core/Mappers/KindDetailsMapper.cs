@@ -8,8 +8,67 @@ namespace LupiraCalApi.Mappers;
 /// labels to <see cref="Place"/> ids (via <see cref="PlaceService"/>), and merges a partial update onto existing details.</summary>
 internal static class KindDetailsMapper
 {
+    // The travel family (Flight/Train/Bus/Car) pairs its specialization with the common Travel record;
+    // every other kind uses its single member. Generic and Availability carry no kind-details members.
+    private static readonly IReadOnlyDictionary<ItemKind, string[]> Allowed = new Dictionary<ItemKind, string[]>
+    {
+        [ItemKind.Travel] = ["Travel"],
+        [ItemKind.Flight] = ["Travel", "Flight"],
+        [ItemKind.Train] = ["Travel", "Train"],
+        [ItemKind.Bus] = ["Travel", "Bus"],
+        [ItemKind.Car] = ["Travel", "Car"],
+        [ItemKind.Lodging] = ["Lodging"],
+        [ItemKind.Appointment] = ["Appointment"],
+        [ItemKind.Ticketed] = ["Ticketed"],
+        [ItemKind.Delivery] = ["Delivery"],
+        [ItemKind.Bill] = ["Bill"],
+    };
+
+    /// <summary>Request-level consistency check; null = valid. Only populated members count (an all-null
+    /// <c>KindDetails</c> is a no-op for every kind). Deliberately does NOT judge resulting item state — a Flight
+    /// with only its <c>Flight</c> member is legal (progressive enrichment; Completeness surfaces the gaps).</summary>
+    public static string? Validate(ItemKind? kind, ItemKindDetailsRequest? details, AvailabilityStatus? availability)
+    {
+        if (availability is not null && kind != ItemKind.Availability)
+            return $"Availability applies only to kind 'Availability', not '{KindName(kind)}'.";
+
+        string[] populated = details is null ? [] : PopulatedMembers(details).ToArray();
+        if (populated.Length == 0) return null;
+
+        if (kind == ItemKind.Availability)
+            return "Kind 'Availability' uses the top-level Availability field, not KindDetails.";
+
+        string[] allowed = kind is { } k && Allowed.TryGetValue(k, out var a) ? a : [];
+        if (populated.FirstOrDefault(m => !allowed.Contains(m)) is { } offending)
+            return allowed.Length == 0
+                ? $"KindDetails.{offending} does not apply to kind '{KindName(kind)}' (no kind-details members apply)."
+                : $"KindDetails.{offending} does not apply to kind '{kind}' (allowed: {string.Join(", ", allowed)}).";
+
+        if (details!.Travel is { } t && string.IsNullOrWhiteSpace(t.ToPlace))
+            return "Travel.ToPlace is required (members replace wholesale — resend the full Travel member including ToPlace).";
+
+        return null;
+    }
+
+    private static string KindName(ItemKind? kind) => kind?.ToString() ?? "none";
+
+    private static IEnumerable<string> PopulatedMembers(ItemKindDetailsRequest d)
+    {
+        if (d.Travel is not null) yield return nameof(d.Travel);
+        if (d.Flight is not null) yield return nameof(d.Flight);
+        if (d.Train is not null) yield return nameof(d.Train);
+        if (d.Bus is not null) yield return nameof(d.Bus);
+        if (d.Car is not null) yield return nameof(d.Car);
+        if (d.Lodging is not null) yield return nameof(d.Lodging);
+        if (d.Appointment is not null) yield return nameof(d.Appointment);
+        if (d.Ticketed is not null) yield return nameof(d.Ticketed);
+        if (d.Delivery is not null) yield return nameof(d.Delivery);
+        if (d.Bill is not null) yield return nameof(d.Bill);
+    }
+
     /// <summary>Resolve the request into a details carrier for <paramref name="kind"/>. <c>Availability</c> keeps its
-    /// dedicated top-level field. Returns null when there is nothing to set (so the caller preserves existing details).</summary>
+    /// dedicated top-level field. Returns null when there is nothing to set (so the caller preserves existing details).
+    /// Callers must <see cref="Validate"/> first.</summary>
     public static async Task<ItemKindDetails?> BuildAsync(
         ItemKind? kind, ItemKindDetailsRequest? d, AvailabilityStatus? availability, PlaceService places, CancellationToken ct)
     {
@@ -20,7 +79,8 @@ internal static class KindDetailsMapper
         TravelDetail? travel = null;
         if (d.Travel is { } t)
             travel = new TravelDetail(
-                await places.ResolveLabelAsync(t.ToPlace, ct) ?? Guid.Empty,
+                await places.ResolveLabelAsync(t.ToPlace, ct)
+                    ?? throw new InvalidOperationException("Travel.ToPlace must be validated before BuildAsync."),
                 await places.ResolveLabelAsync(t.FromPlace, ct), t.DepartAt, t.ArriveAt, t.Carrier, t.BookingReference);
 
         CarDetail? car = null;

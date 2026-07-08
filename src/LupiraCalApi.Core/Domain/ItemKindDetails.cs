@@ -2,8 +2,10 @@ namespace LupiraCalApi.Domain;
 
 /// <summary>
 /// Strongly-typed, kind-specific detail for a <see cref="CalendarItem"/> (table-per-type, realized as nested
-/// records on the item snapshot). At most one is populated, matching <see cref="CalendarItem.Kind"/>. Location
-/// (hotel, clinic, venue) uses the item's <c>PlaceId</c>; provider references reuse a <c>Contact</c> id.
+/// records on the item snapshot). Populated members match <see cref="CalendarItem.Kind"/>: the travel family
+/// (Flight/Train/Bus/Car) pairs its specialization with the common <see cref="TravelDetail"/>; every other kind
+/// uses its single member (enforced by <c>KindDetailsMapper.Validate</c>). Location (hotel, clinic, venue) uses
+/// the item's <c>PlaceId</c>; provider references reuse a <c>Contact</c> id.
 /// </summary>
 public sealed record ItemKindDetails(
     TravelDetail? Travel = null,
