@@ -68,11 +68,11 @@ public sealed class ContactService(IDocumentSession session, AccessResolver acce
     // ---- CardDAV write path ----
 
     public async Task<OpResult<DavWriteResult>> PutVcfAsync(
-        Guid principalId, Guid addressBookId, string vcardUid, string rawVcard, string? ifMatch, bool ifNoneMatchStar, CancellationToken ct = default)
+        Guid principalId, Guid addressBookId, string externalId, string rawVcard, string? ifMatch, bool ifNoneMatchStar, CancellationToken ct = default)
     {
         if (!await access.CanWriteAddressBookAsync(principalId, addressBookId, ct)) return OpResult<DavWriteResult>.Forbidden("No write access to this address book.");
 
-        var id = DeterministicGuid.From(vcardUid);
+        var id = DeterministicGuid.From(externalId);
         var stream = await session.Events.FetchForWriting<Contact>(id, ct);
         var existing = stream.Aggregate;
         // Streams are keyed by vCard UID alone, so a UID can resolve to a contact in another address book; applying
@@ -86,16 +86,16 @@ public sealed class ContactService(IDocumentSession session, AccessResolver acce
         var p = VCardSerializer.ParseVCard(rawVcard);
         var fields = new ContactFields(null, p.GivenName, null, p.FamilyName, null, null, p.Emails, p.Phones, p.Birthday, null);
         // PUT parses into structured fields; the ETag is the hash of the canonical vCard regenerated from them (matching CardDAV GET), not the raw blob.
-        var hash = ContentHash.Of(CanonicalVcard(vcardUid, fields));
-        stream.AppendOne(new ContactVcardPut(id, addressBookId, vcardUid, fields, hash));   // also clears soft-delete
+        var hash = ContentHash.Of(CanonicalVcard(externalId, fields));
+        stream.AppendOne(new ContactImported(id, addressBookId, externalId, fields, hash));   // also clears soft-delete
         await session.SaveChangesAsync(ct);
         return OpResult<DavWriteResult>.Ok(new DavWriteResult(!live, hash));
     }
 
-    public async Task<OpResult> DeleteByUidAsync(Guid principalId, Guid addressBookId, string vcardUid, string? ifMatch, CancellationToken ct = default)
+    public async Task<OpResult> DeleteByUidAsync(Guid principalId, Guid addressBookId, string externalId, string? ifMatch, CancellationToken ct = default)
     {
         if (!await access.CanWriteAddressBookAsync(principalId, addressBookId, ct)) return OpResult.Forbidden("No write access to this address book.");
-        var id = DeterministicGuid.From(vcardUid);
+        var id = DeterministicGuid.From(externalId);
         var stream = await session.Events.FetchForWriting<Contact>(id, ct);
         var c = stream.Aggregate;
         // c.AddressBookId != addressBookId guards the UID-collision case (the contact lives in another book).

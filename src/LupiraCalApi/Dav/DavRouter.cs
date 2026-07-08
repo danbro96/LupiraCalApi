@@ -160,7 +160,7 @@ public static class DavRouter
         if (deep)
         {
             foreach (var i in await AcceptedItemsAsync(session, calId, ct))
-                responses.Add(Response($"{baseUrl}/dav/u/{user.Id}/cal/{cal.Id}/{i.IcalUid}.ics",
+                responses.Add(Response($"{baseUrl}/dav/u/{user.Id}/cal/{cal.Id}/{i.ExternalId}.ics",
                     new XElement(D + "getetag", Etag(i.ContentHash)),
                     new XElement(D + "getcontenttype", "text/calendar; charset=utf-8")));
         }
@@ -206,7 +206,7 @@ public static class DavRouter
         {
             var contacts = await session.Query<Contact>().Where(x => x.AddressBookId == abId && x.DeletedAt == null).ToListAsync(ct);
             foreach (var x in contacts)
-                responses.Add(Response($"{baseUrl}/dav/u/{user.Id}/card/{book.Id}/{x.VcardUid}.vcf",
+                responses.Add(Response($"{baseUrl}/dav/u/{user.Id}/card/{book.Id}/{x.ExternalId}.vcf",
                     new XElement(D + "getetag", Etag(x.ContentHash)),
                     new XElement(D + "getcontenttype", "text/vcard; charset=utf-8")));
         }
@@ -237,7 +237,7 @@ public static class DavRouter
         var requested = DavProtocol.ExtractHrefUids(body, ".ics");
         if (requested.Count > 0)
         {
-            items = [.. items.Where(i => requested.Contains(i.IcalUid))];                  // calendar-multiget
+            items = [.. items.Where(i => requested.Contains(i.ExternalId))];                  // calendar-multiget
         }
         else if (DavProtocol.ParseTimeRange(doc) is { } range)                              // calendar-query time-range
         {
@@ -247,7 +247,7 @@ public static class DavRouter
 
         var responses = new List<XElement>();
         foreach (var i in items)
-            responses.Add(Response($"{baseUrl}/dav/u/{user.Id}/cal/{calId}/{i.IcalUid}.ics",
+            responses.Add(Response($"{baseUrl}/dav/u/{user.Id}/cal/{calId}/{i.ExternalId}.ics",
                 new XElement(D + "getetag", Etag(i.ContentHash)),
                 new XElement(C + "calendar-data", await ItemIcsAsync(ctx, i, ct))));
         await WriteMultiStatus(ctx, MultiStatus([.. responses]));
@@ -271,7 +271,7 @@ public static class DavRouter
         if (token is null)   // initial sync: every accepted live resource
         {
             foreach (var i in await AcceptedItemsAsync(session, calId, ct))
-                responses.Add(Response(Href(i.IcalUid), new XElement(D + "getetag", Etag(i.ContentHash))));
+                responses.Add(Response(Href(i.ExternalId), new XElement(D + "getetag", Etag(i.ContentHash))));
         }
         else                 // diffs since token: items whose stream changed, that are/were in this calendar
         {
@@ -283,8 +283,8 @@ public static class DavRouter
                 var membership = i.Calendars.FirstOrDefault(m => m.CalendarId == calId);
                 if (membership is null) continue;   // never been in this calendar
                 responses.Add(i.DeletedAt is not null || membership.Status != CalendarEntryStatus.Accepted
-                    ? DeletedResponse(Href(i.IcalUid))
-                    : Response(Href(i.IcalUid), new XElement(D + "getetag", Etag(i.ContentHash))));
+                    ? DeletedResponse(Href(i.ExternalId))
+                    : Response(Href(i.ExternalId), new XElement(D + "getetag", Etag(i.ContentHash))));
             }
         }
         await WriteMultiStatus(ctx, MultiStatusWithToken(newToken, [.. responses]));
@@ -301,9 +301,9 @@ public static class DavRouter
 
         var contacts = await session.Query<Contact>().Where(x => x.AddressBookId == abId && x.DeletedAt == null).ToListAsync(ct);
         var requested = DavProtocol.ExtractHrefUids(body, ".vcf");
-        if (requested.Count > 0) contacts = [.. contacts.Where(x => requested.Contains(x.VcardUid))];
+        if (requested.Count > 0) contacts = [.. contacts.Where(x => requested.Contains(x.ExternalId))];
 
-        var responses = contacts.Select(x => Response($"{baseUrl}/dav/u/{user.Id}/card/{abId}/{x.VcardUid}.vcf",
+        var responses = contacts.Select(x => Response($"{baseUrl}/dav/u/{user.Id}/card/{abId}/{x.ExternalId}.vcf",
             new XElement(D + "getetag", Etag(x.ContentHash)),
             new XElement(CR + "address-data", VCardSerializer.From(x))));
         await WriteMultiStatus(ctx, MultiStatus([.. responses]));
@@ -320,7 +320,7 @@ public static class DavRouter
         if (token is null)
         {
             foreach (var x in await session.Query<Contact>().Where(c => c.AddressBookId == abId && c.DeletedAt == null).ToListAsync(ct))
-                responses.Add(Response(Href(x.VcardUid), new XElement(D + "getetag", Etag(x.ContentHash))));
+                responses.Add(Response(Href(x.ExternalId), new XElement(D + "getetag", Etag(x.ContentHash))));
         }
         else
         {
@@ -329,8 +329,8 @@ public static class DavRouter
             var contacts = await session.Query<Contact>().Where(c => changedIds.Contains(c.Id) && c.AddressBookId == abId).ToListAsync(ct);
             foreach (var x in contacts)
                 responses.Add(x.DeletedAt is not null
-                    ? DeletedResponse(Href(x.VcardUid))
-                    : Response(Href(x.VcardUid), new XElement(D + "getetag", Etag(x.ContentHash))));
+                    ? DeletedResponse(Href(x.ExternalId))
+                    : Response(Href(x.ExternalId), new XElement(D + "getetag", Etag(x.ContentHash))));
         }
         await WriteMultiStatus(ctx, MultiStatusWithToken(newToken, [.. responses]));
     }

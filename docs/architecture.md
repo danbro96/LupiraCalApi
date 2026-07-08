@@ -121,7 +121,7 @@ classDiagram
     class CalendarItem {
         <<event-sourced>>
         Guid Id
-        string IcalUid
+        string ExternalId
         string? Title
         ItemStatus? Status
         bool IsAllDay
@@ -174,7 +174,7 @@ classDiagram
         <<event-sourced>>
         Guid Id
         Guid AddressBookId
-        string VcardUid
+        string ExternalId
         string? GivenName
         string? FamilyName
         string? Nickname
@@ -203,7 +203,7 @@ classDiagram
         Guid AddressBookId
         ContactGroupKind Kind
         string Name
-        string? GroupVcardUid
+        string? ExternalId
         List~Guid~ MemberContactIds
         DateTimeOffset? DeletedAt
     }

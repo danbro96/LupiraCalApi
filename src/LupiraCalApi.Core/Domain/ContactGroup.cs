@@ -11,7 +11,7 @@ public sealed class ContactGroup
     public Guid AddressBookId { get; set; }
     public ContactGroupKind Kind { get; set; }
     public string Name { get; set; } = "";
-    public string? GroupVcardUid { get; set; }
+    public string? ExternalId { get; set; }
     public List<Guid> MemberContactIds { get; set; } = new();
     public DateTimeOffset? DeletedAt { get; set; }
 
@@ -21,7 +21,7 @@ public sealed class ContactGroup
         AddressBookId = e.AddressBookId;
         Kind = e.Kind;
         Name = e.Name;
-        GroupVcardUid = e.GroupVcardUid;
+        ExternalId = e.ExternalId;
     }
 
     public void Apply(ContactGroupRenamed e) => Name = e.Name;

@@ -19,7 +19,8 @@ public static class ICalSerializer
     public static string ToICalendar(
         string uid, string? title, string? description, string? location, ItemStatus? status,
         bool isAllDay, DateTimeOffset? startsAt, DateTimeOffset? endsAt,
-        DateOnly? startDate, DateOnly? endDate, string? recurrenceRule)
+        DateOnly? startDate, DateOnly? endDate, string? recurrenceRule,
+        string? recurrenceExceptions = null, string? recurrenceOverrides = null)
     {
         var calendar = new IcalCalendar();
         var ev = new CalendarEvent { Uid = uid, DtStamp = StableStamp };
@@ -50,13 +51,31 @@ public static class ICalSerializer
             ev.RecurrenceRule = new RecurrencePattern(recurrenceRule);
 
         calendar.Events.Add(ev);
-        return new CalendarSerializer().SerializeToString(calendar) ?? string.Empty;
+        var ics = new CalendarSerializer().SerializeToString(calendar) ?? string.Empty;
+
+        // The structured model has no shape for per-instance exceptions, so EXDATE/RDATE and RECURRENCE-ID override
+        // VEVENTs are re-inserted verbatim: EXDATE/RDATE into the master (the only VEVENT so far, hence the first
+        // END:VEVENT), overrides just before END:VCALENDAR. Deterministic → the regenerated ICS (and its ETag) is stable.
+        if (!string.IsNullOrWhiteSpace(recurrenceExceptions))
+        {
+            var end = ics.IndexOf("END:VEVENT", StringComparison.Ordinal);
+            if (end >= 0) ics = ics.Insert(end, NormalizeCrlf(recurrenceExceptions) + "\r\n");
+        }
+        if (!string.IsNullOrWhiteSpace(recurrenceOverrides))
+        {
+            var end = ics.LastIndexOf("END:VCALENDAR", StringComparison.Ordinal);
+            if (end >= 0) ics = ics.Insert(end, NormalizeCrlf(recurrenceOverrides) + "\r\n");
+        }
+        return ics;
     }
+
+    static string NormalizeCrlf(string s) => s.Replace("\r\n", "\n").Replace("\n", "\r\n").TrimEnd('\r', '\n');
 
     /// <summary>Regenerate the canonical ICS for an item from its structured fields. <paramref name="locationLabel"/> is the
     /// item's <see cref="Place"/> name (resolved by the caller, which has the session).</summary>
     public static string From(CalendarItem i, string? locationLabel) =>
-        ToICalendar(i.IcalUid, i.Title, i.Description, locationLabel, i.Status, i.IsAllDay, i.StartsAt, i.EndsAt, i.StartDate, i.EndDate, i.RecurrenceRule);
+        ToICalendar(i.ExternalId, i.Title, i.Description, locationLabel, i.Status, i.IsAllDay, i.StartsAt, i.EndsAt,
+            i.StartDate, i.EndDate, i.RecurrenceRule, i.RecurrenceExceptions, i.RecurrenceOverrides);
 
     public static ParsedEvent ParseICalendar(string raw)
     {
@@ -65,7 +84,8 @@ public static class ICalSerializer
         catch (Exception ex) { throw new FormatException("Invalid iCalendar payload.", ex); }
         if (calendar is null) throw new FormatException("Invalid iCalendar payload.");
 
-        // The master is the VEVENT without a RECURRENCE-ID; overrides (if any) stay in the raw blob.
+        // The master is the VEVENT without a RECURRENCE-ID; its structured fields are parsed below. Per-instance
+        // override VEVENTs (and EXDATE/RDATE) are captured verbatim further down since the model can't represent them.
         var ev = calendar.Events.FirstOrDefault(x => x.RecurrenceIdentifier is null)
             ?? calendar.Events.FirstOrDefault()
             ?? throw new FormatException("No VEVENT in payload.");
@@ -88,7 +108,22 @@ public static class ICalSerializer
         var m = Regex.Match(raw, @"^RRULE:(.+)$", RegexOptions.Multiline);
         var rrule = m.Success ? m.Groups[1].Value.Trim() : null;
 
+        // Verbatim recurrence supplement: the master block's EXDATE/RDATE lines (fold continuations included) and any
+        // RECURRENCE-ID override VEVENTs. Round-tripped opaquely so single-occurrence edits survive GET.
+        var vevents = Regex.Matches(raw, @"BEGIN:VEVENT\r?\n.*?END:VEVENT", RegexOptions.Singleline).Select(x => x.Value).ToList();
+        bool IsOverride(string b) => Regex.IsMatch(b, @"^RECURRENCE-ID[;:]", RegexOptions.Multiline);
+        var overrideBlocks = vevents.Where(IsOverride).ToList();
+        var masterBlock = vevents.FirstOrDefault(b => !IsOverride(b));
+
+        string? exceptions = null;
+        if (masterBlock is not null)
+        {
+            var ex = Regex.Matches(masterBlock, @"^(?:EXDATE|RDATE)[;:].*(?:\r?\n[ \t].*)*", RegexOptions.Multiline).Select(x => x.Value).ToList();
+            if (ex.Count > 0) exceptions = string.Join("\n", ex);
+        }
+        var overrides = overrideBlocks.Count > 0 ? string.Join("\n", overrideBlocks) : null;
+
         return new ParsedEvent(ev.Summary, ev.Description, ev.Location, allDay,
-            startsAt, endsAt, ev.Start?.TzId, ev.End?.TzId, startDate, endDate, rrule);
+            startsAt, endsAt, ev.Start?.TzId, ev.End?.TzId, startDate, endDate, rrule, exceptions, overrides);
     }
 }

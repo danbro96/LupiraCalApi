@@ -16,14 +16,14 @@ public sealed class ContactSocialProfile
 }
 
 /// <summary>
-/// The contact (VCARD) aggregate + inline snapshot, belonging to one address book. The structured fields are canonical;
+/// The contact aggregate + inline snapshot, belonging to one address book. The structured fields are canonical;
 /// CardDAV regenerates the vCard on demand and <c>ContentHash</c> (the ETag) is derived from it. Postal addresses reference <see cref="Place"/>.
 /// </summary>
 public sealed class Contact
 {
     public Guid Id { get; set; }
     public Guid AddressBookId { get; set; }
-    public string VcardUid { get; set; } = "";
+    public string ExternalId { get; set; } = "";
 
     public string? NamePrefix { get; set; }
     public string? GivenName { get; set; }
@@ -43,14 +43,14 @@ public sealed class Contact
     public List<ContactSocialProfile> Profiles { get; set; } = new();
     public DateTimeOffset? DeletedAt { get; set; }
 
-    /// <summary>Composed display name (no stored FN). Falls back to the nickname, then the vCard uid.</summary>
+    /// <summary>Composed display name (no stored full name). Falls back to the nickname, then the external id.</summary>
     public string DisplayName
     {
         get
         {
             var name = string.Join(' ', new[] { NamePrefix, GivenName, MiddleName, FamilyName, NameSuffix }
                 .Where(s => !string.IsNullOrWhiteSpace(s)));
-            return name.Length > 0 ? name : (Nickname ?? VcardUid);
+            return name.Length > 0 ? name : (Nickname ?? ExternalId);
         }
     }
 
@@ -58,17 +58,17 @@ public sealed class Contact
     {
         Id = e.ContactId;
         AddressBookId = e.AddressBookId;
-        VcardUid = e.VcardUid;
+        ExternalId = e.ExternalId;
         SetFields(e.Fields);
         ContentHash = e.ContentHash;
         DeletedAt = null;
     }
 
-    public void Apply(ContactVcardPut e)
+    public void Apply(ContactImported e)
     {
         Id = e.ContactId;
         AddressBookId = e.AddressBookId;
-        VcardUid = e.VcardUid;
+        ExternalId = e.ExternalId;
         SetFields(e.Parsed);
         ContentHash = e.ContentHash;
         DeletedAt = null;

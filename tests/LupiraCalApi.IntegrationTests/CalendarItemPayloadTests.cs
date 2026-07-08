@@ -120,7 +120,7 @@ public sealed class CalendarItemPayloadTests(CalApiTestFactory factory) : Integr
         (await api.PutAsJsonAsync($"/items/{item.Id}/prompt", Prompt(secret))).EnsureSuccessStatusCode();
 
         var dav = Factory.DavClient(Email);
-        var ics = await (await dav.GetAsync($"/dav/u/{uid}/cal/{calId}/{item.IcalUid}.ics")).Content.ReadAsStringAsync();
+        var ics = await (await dav.GetAsync($"/dav/u/{uid}/cal/{calId}/{item.ExternalId}.ics")).Content.ReadAsStringAsync();
         Assert.DoesNotContain(secret, ics);
     }
 }

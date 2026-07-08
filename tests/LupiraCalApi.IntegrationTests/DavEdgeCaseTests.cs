@@ -47,8 +47,8 @@ public sealed class DavEdgeCaseTests(CalApiTestFactory factory) : IntegrationTes
         var item = (await create.Content.ReadFromJsonAsync<CalendarItemDto>())!;
         (await api.PostAsync($"/items/{item.Id}/calendars/{cal2}/accept", null)).EnsureSuccessStatusCode();
 
-        var url1 = $"/dav/u/{uid}/cal/{cal1}/{item.IcalUid}.ics";
-        var url2 = $"/dav/u/{uid}/cal/{cal2}/{item.IcalUid}.ics";
+        var url1 = $"/dav/u/{uid}/cal/{cal1}/{item.ExternalId}.ics";
+        var url2 = $"/dav/u/{uid}/cal/{cal2}/{item.ExternalId}.ics";
         Assert.Equal(HttpStatusCode.OK, (await dav.GetAsync(url1)).StatusCode);
         Assert.Equal(HttpStatusCode.OK, (await dav.GetAsync(url2)).StatusCode);
 

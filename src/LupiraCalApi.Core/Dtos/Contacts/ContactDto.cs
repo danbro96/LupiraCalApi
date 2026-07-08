@@ -7,7 +7,7 @@ public sealed class ContactDto
 {
     public required Guid Id { get; set; }
     public required Guid AddressBookId { get; set; }
-    public required string VcardUid { get; set; }
+    public required string ExternalId { get; set; }
     public required string DisplayName { get; set; }
     public string? GivenName { get; set; }
     public string? FamilyName { get; set; }

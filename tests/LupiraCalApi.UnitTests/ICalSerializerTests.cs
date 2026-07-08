@@ -71,16 +71,44 @@ public class ICalSerializerTests
         Assert.Throws<FormatException>(() => ICalSerializer.ParseICalendar(ics));
     }
 
+    const string MasterWithExdateAndOverride =
+        "BEGIN:VCALENDAR\r\nVERSION:2.0\r\nPRODID:-//t//EN\r\n" +
+        "BEGIN:VEVENT\r\nUID:e1@x\r\nDTSTART:20260701T090000Z\r\nDTEND:20260701T100000Z\r\nSUMMARY:Master\r\nRRULE:FREQ=DAILY\r\nEXDATE:20260703T090000Z\r\nEND:VEVENT\r\n" +
+        "BEGIN:VEVENT\r\nUID:e1@x\r\nRECURRENCE-ID:20260702T090000Z\r\nDTSTART:20260702T100000Z\r\nDTEND:20260702T110000Z\r\nSUMMARY:Override\r\nEND:VEVENT\r\n" +
+        "END:VCALENDAR\r\n";
+
     [Fact]
     public void Parser_picks_the_master_vevent_over_a_recurrence_override()
     {
-        const string ics =
-            "BEGIN:VCALENDAR\r\nVERSION:2.0\r\nPRODID:-//t//EN\r\n" +
-            "BEGIN:VEVENT\r\nUID:e1@x\r\nDTSTART:20260701T090000Z\r\nDTEND:20260701T100000Z\r\nSUMMARY:Master\r\nRRULE:FREQ=DAILY\r\nEND:VEVENT\r\n" +
-            "BEGIN:VEVENT\r\nUID:e1@x\r\nRECURRENCE-ID:20260702T090000Z\r\nDTSTART:20260702T100000Z\r\nDTEND:20260702T110000Z\r\nSUMMARY:Override\r\nEND:VEVENT\r\n" +
-            "END:VCALENDAR\r\n";
-
-        var p = ICalSerializer.ParseICalendar(ics);
+        var p = ICalSerializer.ParseICalendar(MasterWithExdateAndOverride);
         Assert.Equal("Master", p.Title);
+    }
+
+    [Fact]
+    public void Exdate_and_override_vevents_are_captured_verbatim()
+    {
+        var p = ICalSerializer.ParseICalendar(MasterWithExdateAndOverride);
+
+        Assert.Contains("EXDATE:20260703T090000Z", p.RecurrenceExceptions);
+        Assert.Contains("RECURRENCE-ID:20260702T090000Z", p.RecurrenceOverrides);
+        Assert.Contains("SUMMARY:Override", p.RecurrenceOverrides);
+    }
+
+    [Fact]
+    public void Regenerated_ics_re_emits_the_supplement_and_is_byte_stable()
+    {
+        var p = ICalSerializer.ParseICalendar(MasterWithExdateAndOverride);
+        string Regen() => ICalSerializer.ToICalendar("e1@x", p.Title, p.Description, null, null, false,
+            p.StartsAt, p.EndsAt, p.StartDate, p.EndDate, p.RecurrenceRule, p.RecurrenceExceptions, p.RecurrenceOverrides);
+
+        var first = Regen();
+        Assert.Equal(first, Regen());                              // deterministic → stable ETag across reads
+        Assert.Contains("EXDATE:20260703T090000Z", first);
+        Assert.Contains("RECURRENCE-ID:20260702T090000Z", first);
+        Assert.Contains("SUMMARY:Override", first);
+
+        var reparsed = ICalSerializer.ParseICalendar(first);        // survives a full round-trip
+        Assert.Contains("EXDATE:20260703T090000Z", reparsed.RecurrenceExceptions);
+        Assert.Contains("RECURRENCE-ID:20260702T090000Z", reparsed.RecurrenceOverrides);
     }
 }

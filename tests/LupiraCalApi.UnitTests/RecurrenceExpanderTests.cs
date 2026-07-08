@@ -110,4 +110,43 @@ public class RecurrenceExpanderTests
 
         Assert.Equal(start, Assert.Single(occ));
     }
+
+    // A master VEVENT (weekly) plus an EXDATE (drops 07-08) and a RECURRENCE-ID override (moves 07-15 09:00 → 14:00).
+    // Confirms Ical.Net resolves exceptions and per-instance overrides when the whole set is in one calendar.
+    const string MasterWithOverrideAndException = """
+        BEGIN:VCALENDAR
+        VERSION:2.0
+        PRODID:-//test//EN
+        BEGIN:VEVENT
+        UID:uid@x
+        DTSTAMP:20000101T000000Z
+        DTSTART:20260701T090000Z
+        DTEND:20260701T100000Z
+        SUMMARY:Recurring
+        RRULE:FREQ=WEEKLY
+        EXDATE:20260708T090000Z
+        END:VEVENT
+        BEGIN:VEVENT
+        UID:uid@x
+        DTSTAMP:20000101T000000Z
+        RECURRENCE-ID:20260715T090000Z
+        DTSTART:20260715T140000Z
+        DTEND:20260715T150000Z
+        SUMMARY:Recurring moved
+        END:VEVENT
+        END:VCALENDAR
+        """;
+
+    [Fact]
+    public void Exdate_and_recurrence_id_override_are_honored()
+    {
+        var occ = Expander.Expand(MasterWithOverrideAndException,
+            new DateTimeOffset(2026, 7, 1, 0, 0, 0, TimeSpan.Zero),
+            new DateTimeOffset(2026, 7, 29, 0, 0, 0, TimeSpan.Zero));
+
+        Assert.DoesNotContain(new DateTimeOffset(2026, 7, 8, 9, 0, 0, TimeSpan.Zero), occ);   // EXDATE dropped it
+        Assert.DoesNotContain(new DateTimeOffset(2026, 7, 15, 9, 0, 0, TimeSpan.Zero), occ);  // original slot gone
+        Assert.Contains(new DateTimeOffset(2026, 7, 15, 14, 0, 0, TimeSpan.Zero), occ);       // moved to 14:00
+        Assert.Equal(3, occ.Count);                                                          // 07-01, 07-15(moved), 07-22
+    }
 }

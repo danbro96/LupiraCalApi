@@ -11,7 +11,7 @@ internal static class CalendarItemMapper
     public static CalendarItemDto ToResponse(this CalendarItem i, CompletenessScore? completeness) => new()
     {
         Id = i.Id,
-        IcalUid = i.IcalUid,
+        ExternalId = i.ExternalId,
         Title = i.Title,
         Description = i.Description,
         Status = i.Status,

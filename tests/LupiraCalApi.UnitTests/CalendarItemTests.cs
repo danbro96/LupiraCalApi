@@ -10,7 +10,7 @@ public class CalendarItemTests
     static CalendarItemFields Fields() => new(
         "Lunch", "with team", ItemStatus.Confirmed, false,
         new DateTimeOffset(2026, 7, 1, 9, 0, 0, TimeSpan.Zero), new DateTimeOffset(2026, 7, 1, 10, 0, 0, TimeSpan.Zero),
-        "UTC", null, null, null, null, ItemKind.Generic, null, null, ["work"]);
+        "UTC", null, null, null, null, null, null, ItemKind.Generic, null, null, ["work"]);
 
     static CalendarItem Scheduled(Guid id, string hash = "h")
     {
@@ -66,7 +66,7 @@ public class CalendarItemTests
         i.Apply(new ItemDeleted(id));
         Assert.NotNull(i.DeletedAt);
 
-        i.Apply(new ItemIcsPut(id, "u@x", Fields(), "h2"));
+        i.Apply(new ItemImported(id, "u@x", Fields(), "h2"));
         Assert.Null(i.DeletedAt);
         Assert.Equal("h2", i.ContentHash);
     }

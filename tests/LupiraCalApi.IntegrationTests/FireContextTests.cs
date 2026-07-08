@@ -113,7 +113,7 @@ public sealed class FireContextTests(CalApiTestFactory factory) : IntegrationTes
     {
         var itemId = Guid.NewGuid();
         var start = DateTimeOffset.UtcNow.AddDays(10);
-        var fields = new CalendarItemFields("Fire", null, null, false, start, start.AddHours(1), "UTC", null, null, null, null, null, null, null, null);
+        var fields = new CalendarItemFields("Fire", null, null, false, start, start.AddHours(1), "UTC", null, null, null, null, null, null, null, null, null, null);
         var prompt = new ItemPrompt(PromptIntent.Monitor, null, "check in", OutputKind.Summary, null, null, FallbackMode.Retry,
             new PromptFire(PromptFireKind.OnStart, null, null), true);
 

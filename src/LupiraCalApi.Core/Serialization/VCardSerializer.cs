@@ -10,7 +10,7 @@ public static class VCardSerializer
 {
     /// <summary>Regenerate the canonical vCard for a contact from its structured fields (organisation lives on a ContactGroup, so it's omitted).</summary>
     public static string From(Contact c) =>
-        Build(c.VcardUid, ComposeFullName(c.NamePrefix, c.GivenName, c.MiddleName, c.FamilyName, c.NameSuffix, c.Nickname),
+        Build(c.ExternalId, ComposeFullName(c.NamePrefix, c.GivenName, c.MiddleName, c.FamilyName, c.NameSuffix, c.Nickname),
             c.GivenName, c.FamilyName, null, c.Emails, c.Phones, c.Birthday);
 
     /// <summary>The vCard <c>FN</c>: the name parts joined, else the nickname, else empty. Shared by the create path and <see cref="From"/> so bytes (and the ETag) match.</summary>

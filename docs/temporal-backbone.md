@@ -113,7 +113,7 @@ event ItemActionSet(Guid ItemId, ItemAction Action);   event ItemActionCleared(G
 ### 4. Canonical fields; iCal/vCard becomes a projection
 Previously `SourceIcalendar` / `SourceVcard` were stored as the DAV source of truth, with DAV PUT authoritative for the blob. Since DAV is secondary:
 - **Structured domain fields become canonical.** Drop the stored source blobs as source of truth; **generate ICS/vCard on demand** for DAV responses; derive `ContentHash`/ETag from canonical state.
-- DAV PUT parses into structured fields (no blob retained); `ItemIcsPut` / `ContactVcardPut` become parse-to-fields events rather than blob-store events.
+- DAV PUT parses into structured fields (no blob retained); `ItemImported` / `ContactImported` become parse-to-fields events rather than blob-store events.
 - This removes the last place iCal semantics shape the model.
 
 ### 5. Completeness score (derived — drives Elicit prioritisation)

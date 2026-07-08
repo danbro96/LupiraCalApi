@@ -22,7 +22,7 @@ public sealed class CanonicalDavTests(CalApiTestFactory factory) : IntegrationTe
         {
             CalendarId = calId, Title = "Original", IsAllDay = false, StartsAt = Start, EndsAt = Start.AddHours(1), StartTimezone = "UTC",
         })).Content.ReadFromJsonAsync<CalendarItemDto>())!;
-        var url = $"/dav/u/{uid}/cal/{calId}/{item.IcalUid}.ics";
+        var url = $"/dav/u/{uid}/cal/{calId}/{item.ExternalId}.ics";
 
         var first = await dav.GetAsync(url);
         Assert.Contains("SUMMARY:Original", await first.Content.ReadAsStringAsync());

@@ -50,7 +50,7 @@ public class ContactTests
         c.Apply(new ContactCreated(id, book, "u@x", Name(null, "A", null, "B", null, null), "h1"));
         c.Apply(new ContactDeleted(id));
 
-        c.Apply(new ContactVcardPut(id, book, "u@x", Name(null, "A", null, "B", null, null), "h2"));
+        c.Apply(new ContactImported(id, book, "u@x", Name(null, "A", null, "B", null, null), "h2"));
         Assert.Null(c.DeletedAt);
         Assert.Equal("h2", c.ContentHash);
     }

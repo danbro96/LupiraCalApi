@@ -28,7 +28,7 @@ public sealed class CalendarItemService(IDocumentSession session, AccessResolver
         var uid = $"{Guid.NewGuid():N}@cal.lupira.com";
         var id = DeterministicGuid.From(uid);
         var fields = new CalendarItemFields(r.Title, r.Description, status, r.IsAllDay, r.StartsAt, r.EndsAt,
-            r.StartTimezone, null, r.StartDate, r.EndDate, r.RecurrenceRule, kind, placeId, null, r.Tags);
+            r.StartTimezone, null, r.StartDate, r.EndDate, r.RecurrenceRule, null, null, kind, placeId, null, r.Tags);
         var kindDetails = await KindDetailsMapper.BuildAsync(kind, r.KindDetails, r.Availability, places, ct);
         // Hash the canonical ICS built from the resolved place label (not the raw input) so it matches what DAV GET regenerates.
         var locationLabel = await places.LabelOfAsync(placeId, ct);
@@ -127,7 +127,8 @@ public sealed class CalendarItemService(IDocumentSession session, AccessResolver
             return OpResult<CalendarItemDto>.Invalid(detailsError);
 
         var fields = new CalendarItemFields(title, description, status, item.IsAllDay, startsAt, endsAt,
-            item.StartTimezone, item.EndTimezone, item.StartDate, item.EndDate, rrule, kind, placeId, item.ParentItemId, tags);
+            item.StartTimezone, item.EndTimezone, item.StartDate, item.EndDate, rrule,
+            item.RecurrenceExceptions, item.RecurrenceOverrides, kind, placeId, item.ParentItemId, tags);
 
         var incoming = await KindDetailsMapper.BuildAsync(kind, r.KindDetails, r.Availability, places, ct);
         // null incoming keeps existing details (Apply only overwrites when non-null); reclassifying with none clears the old kind's details.
@@ -135,7 +136,7 @@ public sealed class CalendarItemService(IDocumentSession session, AccessResolver
             ? (kindChanged ? new ItemKindDetails() : null)
             : (kindChanged ? incoming : KindDetailsMapper.Merge(item.KindDetails, incoming));
         var locationLabel = await places.LabelOfAsync(placeId, ct);
-        var hash = ContentHash.Of(ICalSerializer.ToICalendar(item.IcalUid, title, description, locationLabel, status, item.IsAllDay, startsAt, endsAt, item.StartDate, item.EndDate, rrule));
+        var hash = ContentHash.Of(ICalSerializer.ToICalendar(item.ExternalId, title, description, locationLabel, status, item.IsAllDay, startsAt, endsAt, item.StartDate, item.EndDate, rrule, item.RecurrenceExceptions, item.RecurrenceOverrides));
 
         stream.AppendOne(new ItemRevised(id, fields, kindDetails, hash));
         await session.SaveChangesAsync(ct);
@@ -229,11 +230,11 @@ public sealed class CalendarItemService(IDocumentSession session, AccessResolver
     // ---- DAV write path: upsert/delete a resource keyed by its URL uid (and the calendar it's addressed under) ----
 
     public async Task<OpResult<DavWriteResult>> PutIcsAsync(
-        Guid principalId, Guid calendarId, string icalUid, string rawIcs, string? ifMatch, bool ifNoneMatchStar, CancellationToken ct = default)
+        Guid principalId, Guid calendarId, string externalId, string rawIcs, string? ifMatch, bool ifNoneMatchStar, CancellationToken ct = default)
     {
         if (!await access.CanWriteCalendarAsync(principalId, calendarId, ct)) return OpResult<DavWriteResult>.Forbidden("No write access to this calendar.");
 
-        var id = DeterministicGuid.From(icalUid);
+        var id = DeterministicGuid.From(externalId);
         var stream = await session.Events.FetchForWriting<CalendarItem>(id, ct);
         var existing = stream.Aggregate;
         // Streams are keyed by iCal UID alone, so a UID can resolve to another principal's item. Only allow writing
@@ -254,12 +255,13 @@ public sealed class CalendarItemService(IDocumentSession session, AccessResolver
 
         var placeId = await places.ResolveLabelAsync(p.Location, ct);
         var fields = new CalendarItemFields(p.Title, p.Description, null, p.IsAllDay, p.StartsAt, p.EndsAt,
-            p.StartTimezone, p.EndTimezone, p.StartDate, p.EndDate, p.RecurrenceRule, null, placeId, null, null);
+            p.StartTimezone, p.EndTimezone, p.StartDate, p.EndDate, p.RecurrenceRule,
+            p.RecurrenceExceptions, p.RecurrenceOverrides, null, placeId, null, null);
         // PUT parses into structured fields; the ETag is the hash of the canonical ICS regenerated from them (matching DAV GET), not the raw blob.
         var label = await places.LabelOfAsync(placeId, ct);
-        var hash = ContentHash.Of(ICalSerializer.ToICalendar(icalUid, fields.Title, fields.Description, label, fields.Status, fields.IsAllDay, fields.StartsAt, fields.EndsAt, fields.StartDate, fields.EndDate, fields.RecurrenceRule));
+        var hash = ContentHash.Of(ICalSerializer.ToICalendar(externalId, fields.Title, fields.Description, label, fields.Status, fields.IsAllDay, fields.StartsAt, fields.EndsAt, fields.StartDate, fields.EndDate, fields.RecurrenceRule, fields.RecurrenceExceptions, fields.RecurrenceOverrides));
 
-        stream.AppendOne(new ItemIcsPut(id, icalUid, fields, hash));   // also clears any soft-delete (resurrect)
+        stream.AppendOne(new ItemImported(id, externalId, fields, hash));   // also clears any soft-delete (resurrect)
         if (existing is null || !existing.IsAcceptedIn(calendarId))
             stream.AppendOne(new AddedToCalendar(id, calendarId, CalendarEntryStatus.Accepted, DateTimeOffset.UtcNow));
 
@@ -267,11 +269,11 @@ public sealed class CalendarItemService(IDocumentSession session, AccessResolver
         return OpResult<DavWriteResult>.Ok(new DavWriteResult(!liveInCal, hash));
     }
 
-    public async Task<OpResult> DeleteByUidAsync(Guid principalId, Guid calendarId, string icalUid, string? ifMatch, CancellationToken ct = default)
+    public async Task<OpResult> DeleteByUidAsync(Guid principalId, Guid calendarId, string externalId, string? ifMatch, CancellationToken ct = default)
     {
         if (!await access.CanWriteCalendarAsync(principalId, calendarId, ct)) return OpResult.Forbidden("No write access to this calendar.");
 
-        var id = DeterministicGuid.From(icalUid);
+        var id = DeterministicGuid.From(externalId);
         var stream = await session.Events.FetchForWriting<CalendarItem>(id, ct);
         var item = stream.Aggregate;
         if (item is null || item.DeletedAt is not null || !item.IsAcceptedIn(calendarId)) return OpResult.NotFound();

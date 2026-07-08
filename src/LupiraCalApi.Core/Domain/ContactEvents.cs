@@ -1,10 +1,10 @@
 namespace LupiraCalApi.Domain;
 
 /// <summary>Created via REST/MCP from structured fields (hash derived from the canonical vCard).</summary>
-public record ContactCreated(Guid ContactId, Guid AddressBookId, string VcardUid, ContactFields Fields, string ContentHash);
+public record ContactCreated(Guid ContactId, Guid AddressBookId, string ExternalId, ContactFields Fields, string ContentHash);
 
-/// <summary>Created or replaced from a CardDAV vCard PUT — parsed into structured fields (no blob retained); hash derived from the canonical form.</summary>
-public record ContactVcardPut(Guid ContactId, Guid AddressBookId, string VcardUid, ContactFields Parsed, string ContentHash);
+/// <summary>Created or replaced from a CardDAV PUT — parsed into structured fields (no blob retained); hash derived from the canonical form.</summary>
+public record ContactImported(Guid ContactId, Guid AddressBookId, string ExternalId, ContactFields Parsed, string ContentHash);
 
 public record ContactRevised(Guid ContactId, ContactFields Fields, string ContentHash);
 public record ContactDeleted(Guid ContactId);

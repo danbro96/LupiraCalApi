@@ -15,7 +15,7 @@ public sealed class CalendarMembershipDto
 public sealed class CalendarItemDto
 {
     public required Guid Id { get; set; }
-    public required string IcalUid { get; set; }
+    public required string ExternalId { get; set; }
     public string? Title { get; set; }
     public string? Description { get; set; }
 

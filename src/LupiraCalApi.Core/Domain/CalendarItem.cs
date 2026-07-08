@@ -22,14 +22,14 @@ public sealed class CalendarMembership
 }
 
 /// <summary>
-/// The calendar item (VEVENT) aggregate + inline snapshot. Calendar-independent: it lives in zero-or-many calendars
+/// The calendar item aggregate + inline snapshot. Calendar-independent: it lives in zero-or-many calendars
 /// via <see cref="Calendars"/>. The structured fields are canonical; DAV regenerates the ICS on demand and <c>ContentHash</c>
 /// (the ETag) is derived from that canonical form. Participation and kind-details are embedded read models.
 /// </summary>
 public sealed class CalendarItem
 {
     public Guid Id { get; set; }
-    public string IcalUid { get; set; } = "";
+    public string ExternalId { get; set; } = "";
 
     public string? Title { get; set; }
     public string? Description { get; set; }
@@ -42,6 +42,8 @@ public sealed class CalendarItem
     public DateOnly? StartDate { get; set; }
     public DateOnly? EndDate { get; set; }
     public string? RecurrenceRule { get; set; }
+    public string? RecurrenceExceptions { get; set; }
+    public string? RecurrenceOverrides { get; set; }
     public ItemKind? Kind { get; set; }
     public Guid? PlaceId { get; set; }
     public Guid? ParentItemId { get; set; }
@@ -68,17 +70,17 @@ public sealed class CalendarItem
     public void Apply(ItemScheduled e)
     {
         Id = e.ItemId;
-        IcalUid = e.IcalUid;
+        ExternalId = e.ExternalId;
         SetFields(e.Fields);
         KindDetails = e.KindDetails;
         ContentHash = e.ContentHash;
         DeletedAt = null;
     }
 
-    public void Apply(ItemIcsPut e)
+    public void Apply(ItemImported e)
     {
         Id = e.ItemId;
-        IcalUid = e.IcalUid;
+        ExternalId = e.ExternalId;
         SetFields(e.Parsed);
         ContentHash = e.ContentHash;
         DeletedAt = null;
@@ -164,6 +166,8 @@ public sealed class CalendarItem
         StartDate = f.StartDate;
         EndDate = f.EndDate;
         RecurrenceRule = f.RecurrenceRule;
+        RecurrenceExceptions = f.RecurrenceExceptions;
+        RecurrenceOverrides = f.RecurrenceOverrides;
         if (f.Kind is { } k) Kind = k;
         PlaceId = f.PlaceId;
         ParentItemId = f.ParentItemId;
