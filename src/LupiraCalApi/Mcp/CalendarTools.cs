@@ -32,14 +32,14 @@ public sealed class CalendarTools
         return Require(await items.SearchAsync(u.Id, query, from, to, calendarId, tag));
     }
 
-    [McpServerTool, Description("Create a calendar item; file it into a calendar (CalendarId) or leave it unfiled for curation. KindDetails members must match Kind: Flight/Train/Bus/Car pair their own member with the shared Travel member (Travel.ToPlace required when Travel is sent; Car normally uses its own Pickup/Dropoff); Travel/Lodging/Appointment/Ticketed/Delivery/Bill use their single member; kind Availability uses the Availability field, not KindDetails.")]
+    [McpServerTool, Description("Create a calendar item; file it into a calendar (CalendarId) or leave it unfiled for curation. Category is the event type (General, Meeting, Appointment, Meal, Occasion, Outing, Trip, Stay, Activity, Focus, Chore). Details are composable: Booking (provider/confirmation/reference/amount/partySize) attaches to any category; Travel (Mode + ToPlace/FromPlace labels) applies to a Trip and requires ToPlace. A presence/availability segment uses the top-level Availability field. Bills and deliveries are LupiraTasks tasks, not calendar items — link them with link_item_to_task.")]
     public static async Task<CalendarItemDto> create_item(CalendarItemService items, CurrentUser user, CreateCalendarItemRequest request)
     {
         var u = await user.GetAsync();
         return Require(await items.CreateAsync(u.Id, request));
     }
 
-    [McpServerTool, Description("Update a calendar item: any subset of title, description, location (free text → place), status, times, recurrence, tags, Kind, and kind-details (flight no., provider, booking refs, …). Omitted fields are unchanged; a supplied kind-details member replaces that member wholesale (resend the full member; Travel requires ToPlace). KindDetails members must match the item's Kind (travel family pairs with Travel; Availability uses the Availability field); changing Kind drops the previous kind's details.")]
+    [McpServerTool, Description("Update a calendar item: any subset of title, description, location (free text → place), status, times, recurrence, tags, Category, and composable Details (Booking, Travel). Omitted fields are unchanged; a supplied details member replaces that member wholesale (resend the full member; Travel requires ToPlace and applies only to Category 'Trip'). Changing Category drops the previous details. The top-level Availability field sets the presence segment's status.")]
     public static async Task<CalendarItemDto> update_item(CalendarItemService items, CurrentUser user,
         [Description("Calendar item id.")] Guid itemId, UpdateCalendarItemRequest request)
     {

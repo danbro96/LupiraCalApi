@@ -12,28 +12,28 @@ public class CompletenessScorerTests
     [Fact]
     public void Exempt_calendar_scores_null()
     {
-        var item = new CalendarItem { Kind = ItemKind.Generic };
+        var item = new CalendarItem { Category = ItemCategory.General };
         Assert.Null(CompletenessScorer.ScoreItem(item, calendarExempt: true));
     }
 
     [Fact]
-    public void Availability_kind_scores_null()
+    public void Presence_segment_scores_null()
     {
-        var item = new CalendarItem { Kind = ItemKind.Availability, KindDetails = new ItemKindDetails(Availability: new AvailabilityDetail(AvailabilityStatus.Office)) };
+        var item = new CalendarItem { Details = new ItemDetails(Presence: new PresenceDetail(AvailabilityStatus.Office)) };
         Assert.Null(CompletenessScorer.ScoreItem(item, calendarExempt: false));
     }
 
     [Fact]
     public void Item_carrying_a_payload_scores_null()
     {
-        var item = new CalendarItem { Kind = ItemKind.Generic, Prompt = SamplePrompt() };
+        var item = new CalendarItem { Category = ItemCategory.General, Prompt = SamplePrompt() };
         Assert.Null(CompletenessScorer.ScoreItem(item, calendarExempt: false));
     }
 
     [Fact]
-    public void Empty_generic_item_scores_zero_with_heaviest_gaps_first()
+    public void Empty_meeting_scores_zero_with_heaviest_gaps_first()
     {
-        var item = new CalendarItem { Kind = ItemKind.Generic };
+        var item = new CalendarItem { Category = ItemCategory.Meeting };
         var score = CompletenessScorer.ScoreItem(item, false)!;
 
         Assert.Equal(0, score.Score);
@@ -44,11 +44,11 @@ public class CompletenessScorerTests
     }
 
     [Fact]
-    public void Fully_documented_generic_meeting_scores_one()
+    public void Fully_documented_meeting_scores_one()
     {
         var item = new CalendarItem
         {
-            Kind = ItemKind.Generic,
+            Category = ItemCategory.Meeting,
             PlaceId = Guid.NewGuid(),
             StartsAt = new DateTimeOffset(2026, 7, 1, 9, 0, 0, TimeSpan.Zero),
             Title = "Sync",
@@ -66,7 +66,7 @@ public class CompletenessScorerTests
     {
         var item = new CalendarItem
         {
-            Kind = ItemKind.Generic,
+            Category = ItemCategory.Meeting,
             PlaceId = Guid.NewGuid(),
             StartsAt = DateTimeOffset.UtcNow,
             Title = "Standup",
@@ -81,21 +81,21 @@ public class CompletenessScorerTests
     }
 
     [Fact]
-    public void Flight_rubric_reads_kind_details()
+    public void Trip_rubric_reads_travel_details()
     {
         var item = new CalendarItem
         {
-            Kind = ItemKind.Flight,
+            Category = ItemCategory.Trip,
             StartsAt = new DateTimeOffset(2026, 7, 1, 9, 0, 0, TimeSpan.Zero),
             EndsAt = new DateTimeOffset(2026, 7, 1, 12, 0, 0, TimeSpan.Zero),
-            KindDetails = new ItemKindDetails(
-                Travel: new TravelDetail(Guid.NewGuid(), null, null, null, null, "BR-123"),
-                Flight: new FlightDetail("SK123", "5", "A12", null, "14C", null)),
+            Details = new ItemDetails(
+                Booking: new BookingDetail(null, null, "BR-123", null, null, null, null),
+                Travel: new TravelLeg(TransportMode.Flight, Guid.NewGuid(), Guid.NewGuid(), null, null, "SAS", "SK123", null, null, "14C", null)),
         };
         var score = CompletenessScorer.ScoreItem(item, false)!;
 
-        Assert.True(score.Score > 0.9, $"expected near-complete flight, got {score.Score}");
-        Assert.DoesNotContain(score.Gaps, g => g.Field == "flightNumber");
+        Assert.True(score.Score > 0.9, $"expected near-complete trip, got {score.Score}");
+        Assert.DoesNotContain(score.Gaps, g => g.Field == "carrier");
     }
 
     [Fact]

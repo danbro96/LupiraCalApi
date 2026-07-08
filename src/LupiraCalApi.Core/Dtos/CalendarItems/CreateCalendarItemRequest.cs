@@ -2,7 +2,7 @@ namespace LupiraCalApi.Dtos.CalendarItems;
 
 /// <summary>Create an item via REST/MCP. <c>CalendarId</c> optional — when set, the item is accepted into that calendar;
 /// when null, the item is created unfiled (e.g. an automated source) for later curation. <c>Location</c> is free text
-/// resolved to a <see cref="LupiraCalApi.Domain.Place"/>. <c>Kind</c>/<c>Status</c> are the enum names.</summary>
+/// resolved to a <see cref="LupiraCalApi.Domain.Place"/>. <c>Category</c>/<c>Status</c> are the enum names.</summary>
 public sealed class CreateCalendarItemRequest
 {
     public Guid? CalendarId { get; set; }
@@ -17,12 +17,12 @@ public sealed class CreateCalendarItemRequest
     public DateOnly? StartDate { get; set; }
     public DateOnly? EndDate { get; set; }
     public string? RecurrenceRule { get; set; }
-    public string? Kind { get; set; }
+    public string? Category { get; set; }
     public string[]? Tags { get; set; }
 
-    /// <summary>When <c>Kind</c> is <c>Availability</c>, the segment's status (whole-day or timed via Starts/Ends).</summary>
+    /// <summary>Sets the item's presence segment status (whole-day or timed via Starts/Ends) — availability lives on the availability calendar.</summary>
     public Domain.AvailabilityStatus? Availability { get; set; }
 
-    /// <summary>Kind-specific detail for the chosen <c>Kind</c> (flight number, provider, booking refs, …); place refs are free-text labels.</summary>
-    public ItemKindDetailsRequest? KindDetails { get; set; }
+    /// <summary>Composable detail: a <c>Booking</c> (any category) and/or a <c>Travel</c> leg (a <c>Trip</c>); Travel place refs are free-text labels.</summary>
+    public ItemDetailsRequest? Details { get; set; }
 }

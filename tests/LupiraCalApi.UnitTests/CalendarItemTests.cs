@@ -10,7 +10,7 @@ public class CalendarItemTests
     static CalendarItemFields Fields() => new(
         "Lunch", "with team", ItemStatus.Confirmed, false,
         new DateTimeOffset(2026, 7, 1, 9, 0, 0, TimeSpan.Zero), new DateTimeOffset(2026, 7, 1, 10, 0, 0, TimeSpan.Zero),
-        "UTC", null, null, null, null, null, null, ItemKind.Generic, null, null, ["work"]);
+        "UTC", null, null, null, null, null, null, ItemCategory.General, null, null, ["work"]);
 
     static CalendarItem Scheduled(Guid id, string hash = "h")
     {
@@ -30,6 +30,7 @@ public class CalendarItemTests
         Assert.True(i.IsAcceptedIn(cal));
         Assert.Equal("hash1", i.ContentHash);
         Assert.Equal(ItemStatus.Confirmed, i.Status);
+        Assert.Equal(ItemCategory.General, i.Category);
     }
 
     [Fact]
@@ -84,31 +85,31 @@ public class CalendarItemTests
     }
 
     [Fact]
-    public void Revised_reclassifies_the_kind_and_sets_kind_details()
+    public void Revised_reclassifies_the_category_and_sets_details()
     {
         var id = Guid.NewGuid();
-        var i = Scheduled(id, "h1");   // Generic, no details
-        Assert.Equal(ItemKind.Generic, i.Kind);
+        var i = Scheduled(id, "h1");   // General, no details
+        Assert.Equal(ItemCategory.General, i.Category);
 
-        var flight = Fields() with { Kind = ItemKind.Flight };
-        var details = new ItemKindDetails(Flight: new FlightDetail("SK123", "5", "A12", null, "14C", null));
-        i.Apply(new ItemRevised(id, flight, details, "h2"));
+        var trip = Fields() with { Category = ItemCategory.Trip };
+        var details = new ItemDetails(Travel: new TravelLeg(TransportMode.Flight, Guid.NewGuid(), null, null, null, "SAS", "SK123", null, null, "14C", null));
+        i.Apply(new ItemRevised(id, trip, details, "h2"));
 
-        Assert.Equal(ItemKind.Flight, i.Kind);
-        Assert.Equal("SK123", i.KindDetails!.Flight!.FlightNumber);
+        Assert.Equal(ItemCategory.Trip, i.Category);
+        Assert.Equal("SK123", i.Details!.Travel!.ServiceNumber);
     }
 
     [Fact]
-    public void Revised_with_null_kind_details_keeps_the_existing_details()
+    public void Revised_with_null_details_keeps_the_existing_details()
     {
         var id = Guid.NewGuid();
         var i = Scheduled(id, "h1");
-        i.Apply(new ItemRevised(id, Fields() with { Kind = ItemKind.Flight }, new ItemKindDetails(Flight: new FlightDetail("SK123", null, null, null, null, null)), "h2"));
+        i.Apply(new ItemRevised(id, Fields() with { Category = ItemCategory.Trip }, new ItemDetails(Travel: new TravelLeg(TransportMode.Flight, Guid.NewGuid(), null, null, null, null, "SK123", null, null, null, null)), "h2"));
 
         i.Apply(new ItemRevised(id, Fields() with { Title = "Renamed" }, null, "h3"));
 
         Assert.Equal("Renamed", i.Title);
-        Assert.Equal("SK123", i.KindDetails!.Flight!.FlightNumber);   // details survive a field-only revision
+        Assert.Equal("SK123", i.Details!.Travel!.ServiceNumber);   // details survive a field-only revision
     }
 
     [Fact]

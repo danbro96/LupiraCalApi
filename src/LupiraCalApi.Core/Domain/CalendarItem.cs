@@ -24,7 +24,7 @@ public sealed class CalendarMembership
 /// <summary>
 /// The calendar item aggregate + inline snapshot. Calendar-independent: it lives in zero-or-many calendars
 /// via <see cref="Calendars"/>. The structured fields are canonical; DAV regenerates the ICS on demand and <c>ContentHash</c>
-/// (the ETag) is derived from that canonical form. Participation and kind-details are embedded read models.
+/// (the ETag) is derived from that canonical form. Participation and composable details are embedded read models.
 /// </summary>
 public sealed class CalendarItem
 {
@@ -44,11 +44,11 @@ public sealed class CalendarItem
     public string? RecurrenceRule { get; set; }
     public string? RecurrenceExceptions { get; set; }
     public string? RecurrenceOverrides { get; set; }
-    public ItemKind? Kind { get; set; }
+    public ItemCategory? Category { get; set; }
     public Guid? PlaceId { get; set; }
     public Guid? ParentItemId { get; set; }
     public string[]? Tags { get; set; }
-    public ItemKindDetails? KindDetails { get; set; }
+    public ItemDetails? Details { get; set; }
 
     public string ContentHash { get; set; } = "";
     public string Metadata { get; set; } = "{}";
@@ -72,7 +72,7 @@ public sealed class CalendarItem
         Id = e.ItemId;
         ExternalId = e.ExternalId;
         SetFields(e.Fields);
-        KindDetails = e.KindDetails;
+        Details = e.Details;
         ContentHash = e.ContentHash;
         DeletedAt = null;
     }
@@ -89,7 +89,7 @@ public sealed class CalendarItem
     public void Apply(ItemRevised e)
     {
         SetFields(e.Fields);
-        if (e.KindDetails is not null) KindDetails = e.KindDetails;
+        if (e.Details is not null) Details = e.Details;
         ContentHash = e.ContentHash;
     }
 
@@ -168,7 +168,7 @@ public sealed class CalendarItem
         RecurrenceRule = f.RecurrenceRule;
         RecurrenceExceptions = f.RecurrenceExceptions;
         RecurrenceOverrides = f.RecurrenceOverrides;
-        if (f.Kind is { } k) Kind = k;
+        if (f.Category is { } c) Category = c;
         PlaceId = f.PlaceId;
         ParentItemId = f.ParentItemId;
         if (f.Tags is not null) Tags = f.Tags;

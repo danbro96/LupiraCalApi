@@ -73,16 +73,15 @@ public sealed class PlacesRestTests(CalApiTestFactory factory) : IntegrationTest
             CalendarId = calId, Title = "Flight", IsAllDay = false,
             StartsAt = new DateTimeOffset(2026, 8, 1, 9, 0, 0, TimeSpan.Zero),
             EndsAt = new DateTimeOffset(2026, 8, 1, 11, 0, 0, TimeSpan.Zero), StartTimezone = "UTC",
-            Kind = "Flight",
-            KindDetails = new ItemKindDetailsRequest
+            Category = "Trip",
+            Details = new ItemDetailsRequest
             {
-                Travel = new TravelDetailRequest { ToPlace = "Arlanda" },
-                Flight = new FlightDetail("SK1", null, null, null, null, null),
+                Travel = new TravelLegRequest { Mode = TransportMode.Flight, ToPlace = "Arlanda", ServiceNumber = "SK1" },
             },
         });
         resp.EnsureSuccessStatusCode();
         var flight = (await resp.Content.ReadFromJsonAsync<CalendarItemDto>())!;
-        var toPlaceId = flight.KindDetails!.Travel!.ToPlaceId;
+        var toPlaceId = flight.Details!.Travel!.ToPlaceId;
 
         var items = await api.GetFromJsonAsync<List<CalendarItemDto>>($"/places/{toPlaceId}/items");
         Assert.Contains(items!, i => i.Id == flight.Id);

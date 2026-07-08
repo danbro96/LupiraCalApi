@@ -22,19 +22,19 @@ public sealed class CalendarItemService(IDocumentSession session, AccessResolver
 
         var placeId = await places.ResolveLabelAsync(r.Location, ct);
         if (!TryParseDefined<ItemStatus>(r.Status, out var status)) return OpResult<CalendarItemDto>.Invalid(UnknownEnum<ItemStatus>("status", r.Status!));
-        if (!TryParseDefined<ItemKind>(r.Kind, out var kind)) return OpResult<CalendarItemDto>.Invalid(UnknownEnum<ItemKind>("kind", r.Kind!));
-        if (KindDetailsMapper.Validate(kind, r.KindDetails, r.Availability) is { } detailsError)
+        if (!TryParseDefined<ItemCategory>(r.Category, out var category)) return OpResult<CalendarItemDto>.Invalid(UnknownEnum<ItemCategory>("category", r.Category!));
+        if (ItemDetailsMapper.Validate(category, r.Details) is { } detailsError)
             return OpResult<CalendarItemDto>.Invalid(detailsError);
         var uid = $"{Guid.NewGuid():N}@cal.lupira.com";
         var id = DeterministicGuid.From(uid);
         var fields = new CalendarItemFields(r.Title, r.Description, status, r.IsAllDay, r.StartsAt, r.EndsAt,
-            r.StartTimezone, null, r.StartDate, r.EndDate, r.RecurrenceRule, null, null, kind, placeId, null, r.Tags);
-        var kindDetails = await KindDetailsMapper.BuildAsync(kind, r.KindDetails, r.Availability, places, ct);
+            r.StartTimezone, null, r.StartDate, r.EndDate, r.RecurrenceRule, null, null, category, placeId, null, r.Tags);
+        var details = await ItemDetailsMapper.BuildAsync(r.Details, r.Availability, places, ct);
         // Hash the canonical ICS built from the resolved place label (not the raw input) so it matches what DAV GET regenerates.
         var locationLabel = await places.LabelOfAsync(placeId, ct);
         var hash = ContentHash.Of(ICalSerializer.ToICalendar(uid, r.Title, r.Description, locationLabel, status, r.IsAllDay, r.StartsAt, r.EndsAt, r.StartDate, r.EndDate, r.RecurrenceRule));
 
-        var events = new List<object> { new ItemScheduled(id, uid, fields, kindDetails, hash) };
+        var events = new List<object> { new ItemScheduled(id, uid, fields, details, hash) };
         if (r.CalendarId is { } calId)
             events.Add(new AddedToCalendar(id, calId, CalendarEntryStatus.Accepted, DateTimeOffset.UtcNow));
 
@@ -107,8 +107,7 @@ public sealed class CalendarItemService(IDocumentSession session, AccessResolver
 
     private static bool ReferencesPlace(CalendarItem i, Guid placeId) =>
         i.PlaceId == placeId
-        || (i.KindDetails?.Travel is { } t && (t.ToPlaceId == placeId || t.FromPlaceId == placeId))
-        || (i.KindDetails?.Car is { } c && (c.PickupPlaceId == placeId || c.DropoffPlaceId == placeId));
+        || (i.Details?.Travel is { } t && (t.ToPlaceId == placeId || t.FromPlaceId == placeId));
 
     public async Task<OpResult<CalendarItemDto>> GetAsync(Guid principalId, Guid id, CancellationToken ct = default)
     {
@@ -128,7 +127,7 @@ public sealed class CalendarItemService(IDocumentSession session, AccessResolver
         if (!await CanWriteItemAsync(principalId, item, ct)) return OpResult<CalendarItemDto>.Forbidden("No write access to this item.");
 
         if (!TryParseDefined<ItemStatus>(r.Status, out var statusIn)) return OpResult<CalendarItemDto>.Invalid(UnknownEnum<ItemStatus>("status", r.Status!));
-        if (!TryParseDefined<ItemKind>(r.Kind, out var kindIn)) return OpResult<CalendarItemDto>.Invalid(UnknownEnum<ItemKind>("kind", r.Kind!));
+        if (!TryParseDefined<ItemCategory>(r.Category, out var categoryIn)) return OpResult<CalendarItemDto>.Invalid(UnknownEnum<ItemCategory>("category", r.Category!));
 
         var title = r.Title ?? item.Title;
         var description = r.Description ?? item.Description;
@@ -139,26 +138,26 @@ public sealed class CalendarItemService(IDocumentSession session, AccessResolver
         var tags = r.Tags ?? item.Tags;
         var placeId = r.Location is not null ? await places.ResolveLabelAsync(r.Location, ct) : item.PlaceId;
 
-        var kind = kindIn ?? item.Kind;
-        var kindChanged = kind != item.Kind;
+        var category = categoryIn ?? item.Category;
+        var categoryChanged = category != item.Category;
 
-        // Validate against the resolved kind (an omitted r.Kind means "the item's current kind").
-        if (KindDetailsMapper.Validate(kind, r.KindDetails, r.Availability) is { } detailsError)
+        // Validate against the resolved category (an omitted r.Category means "the item's current category").
+        if (ItemDetailsMapper.Validate(category, r.Details) is { } detailsError)
             return OpResult<CalendarItemDto>.Invalid(detailsError);
 
         var fields = new CalendarItemFields(title, description, status, item.IsAllDay, startsAt, endsAt,
             item.StartTimezone, item.EndTimezone, item.StartDate, item.EndDate, rrule,
-            item.RecurrenceExceptions, item.RecurrenceOverrides, kind, placeId, item.ParentItemId, tags);
+            item.RecurrenceExceptions, item.RecurrenceOverrides, category, placeId, item.ParentItemId, tags);
 
-        var incoming = await KindDetailsMapper.BuildAsync(kind, r.KindDetails, r.Availability, places, ct);
-        // null incoming keeps existing details (Apply only overwrites when non-null); reclassifying with none clears the old kind's details.
-        var kindDetails = incoming is null
-            ? (kindChanged ? new ItemKindDetails() : null)
-            : (kindChanged ? incoming : KindDetailsMapper.Merge(item.KindDetails, incoming));
+        var incoming = await ItemDetailsMapper.BuildAsync(r.Details, r.Availability, places, ct);
+        // null incoming keeps existing details (Apply only overwrites when non-null); reclassifying with none clears the previous details.
+        var details = incoming is null
+            ? (categoryChanged ? new ItemDetails() : null)
+            : (categoryChanged ? incoming : ItemDetailsMapper.Merge(item.Details, incoming));
         var locationLabel = await places.LabelOfAsync(placeId, ct);
         var hash = ContentHash.Of(ICalSerializer.ToICalendar(item.ExternalId, title, description, locationLabel, status, item.IsAllDay, startsAt, endsAt, item.StartDate, item.EndDate, rrule, item.RecurrenceExceptions, item.RecurrenceOverrides));
 
-        stream.AppendOne(new ItemRevised(id, fields, kindDetails, hash));
+        stream.AppendOne(new ItemRevised(id, fields, details, hash));
         await session.SaveChangesAsync(ct);
         var updated = await session.LoadAsync<CalendarItem>(id, ct);
         return OpResult<CalendarItemDto>.Ok(await ToDtoAsync(updated!, ct));

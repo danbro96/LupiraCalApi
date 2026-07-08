@@ -2194,83 +2194,6 @@
           "Rescore"
         ]
       },
-      "AppointmentDetail": {
-        "required": [
-          "providerContactId",
-          "appointmentType",
-          "referenceNumber",
-          "preparationNotes"
-        ],
-        "type": "object",
-        "properties": {
-          "providerContactId": {
-            "type": [
-              "null",
-              "string"
-            ],
-            "format": "uuid"
-          },
-          "appointmentType": {
-            "type": [
-              "null",
-              "string"
-            ]
-          },
-          "referenceNumber": {
-            "type": [
-              "null",
-              "string"
-            ]
-          },
-          "preparationNotes": {
-            "type": [
-              "null",
-              "string"
-            ]
-          }
-        }
-      },
-      "AppointmentDetailRequest": {
-        "type": "object",
-        "properties": {
-          "providerContactId": {
-            "type": [
-              "null",
-              "string"
-            ],
-            "format": "uuid"
-          },
-          "appointmentType": {
-            "type": [
-              "null",
-              "string"
-            ]
-          },
-          "referenceNumber": {
-            "type": [
-              "null",
-              "string"
-            ]
-          },
-          "preparationNotes": {
-            "type": [
-              "null",
-              "string"
-            ]
-          }
-        }
-      },
-      "AvailabilityDetail": {
-        "required": [
-          "status"
-        ],
-        "type": "object",
-        "properties": {
-          "status": {
-            "$ref": "#/components/schemas/AvailabilityStatus"
-          }
-        }
-      },
       "AvailabilityStatus": {
         "enum": [
           "Office",
@@ -2280,16 +2203,43 @@
           "Leave"
         ]
       },
-      "BillDetail": {
+      "BookingDetail": {
         "required": [
+          "providerContactId",
+          "confirmationNumber",
+          "reference",
+          "url",
           "amount",
           "currency",
-          "payee",
-          "invoiceNumber",
-          "paidAt"
+          "partySize"
         ],
         "type": "object",
         "properties": {
+          "providerContactId": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "uuid"
+          },
+          "confirmationNumber": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "reference": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "url": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
           "amount": {
             "pattern": "^-?(?:0|[1-9]\\d*)(?:\\.\\d+)?$",
             "type": [
@@ -2305,66 +2255,14 @@
               "string"
             ]
           },
-          "payee": {
+          "partySize": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
             "type": [
               "null",
-              "string"
-            ]
-          },
-          "invoiceNumber": {
-            "type": [
-              "null",
-              "string"
-            ]
-          },
-          "paidAt": {
-            "type": [
-              "null",
+              "integer",
               "string"
             ],
-            "format": "date-time"
-          }
-        }
-      },
-      "BusDetail": {
-        "required": [
-          "operator",
-          "serviceNumber",
-          "departureStop",
-          "arrivalStop",
-          "seatReservation"
-        ],
-        "type": "object",
-        "properties": {
-          "operator": {
-            "type": [
-              "null",
-              "string"
-            ]
-          },
-          "serviceNumber": {
-            "type": [
-              "null",
-              "string"
-            ]
-          },
-          "departureStop": {
-            "type": [
-              "null",
-              "string"
-            ]
-          },
-          "arrivalStop": {
-            "type": [
-              "null",
-              "string"
-            ]
-          },
-          "seatReservation": {
-            "type": [
-              "null",
-              "string"
-            ]
+            "format": "int32"
           }
         }
       },
@@ -2459,23 +2357,23 @@
               "string"
             ]
           },
-          "kind": {
+          "category": {
             "oneOf": [
               {
                 "type": "null"
               },
               {
-                "$ref": "#/components/schemas/ItemKind"
+                "$ref": "#/components/schemas/ItemCategory"
               }
             ]
           },
-          "kindDetails": {
+          "details": {
             "oneOf": [
               {
                 "type": "null"
               },
               {
-                "$ref": "#/components/schemas/ItemKindDetails"
+                "$ref": "#/components/schemas/ItemDetails"
               }
             ]
           },
@@ -2642,87 +2540,6 @@
           },
           "status": {
             "$ref": "#/components/schemas/CalendarEntryStatus"
-          }
-        }
-      },
-      "CarDetail": {
-        "required": [
-          "driverContactId",
-          "vehicle",
-          "licensePlate",
-          "pickupPlaceId",
-          "dropoffPlaceId"
-        ],
-        "type": "object",
-        "properties": {
-          "driverContactId": {
-            "type": [
-              "null",
-              "string"
-            ],
-            "format": "uuid"
-          },
-          "vehicle": {
-            "type": [
-              "null",
-              "string"
-            ]
-          },
-          "licensePlate": {
-            "type": [
-              "null",
-              "string"
-            ]
-          },
-          "pickupPlaceId": {
-            "type": [
-              "null",
-              "string"
-            ],
-            "format": "uuid"
-          },
-          "dropoffPlaceId": {
-            "type": [
-              "null",
-              "string"
-            ],
-            "format": "uuid"
-          }
-        }
-      },
-      "CarDetailRequest": {
-        "type": "object",
-        "properties": {
-          "driverContactId": {
-            "type": [
-              "null",
-              "string"
-            ],
-            "format": "uuid"
-          },
-          "vehicle": {
-            "type": [
-              "null",
-              "string"
-            ]
-          },
-          "licensePlate": {
-            "type": [
-              "null",
-              "string"
-            ]
-          },
-          "pickupPlace": {
-            "type": [
-              "null",
-              "string"
-            ]
-          },
-          "dropoffPlace": {
-            "type": [
-              "null",
-              "string"
-            ]
           }
         }
       },
@@ -3111,7 +2928,7 @@
               "string"
             ]
           },
-          "kind": {
+          "category": {
             "type": [
               "null",
               "string"
@@ -3136,13 +2953,13 @@
               }
             ]
           },
-          "kindDetails": {
+          "details": {
             "oneOf": [
               {
                 "type": "null"
               },
               {
-                "$ref": "#/components/schemas/ItemKindDetailsRequest"
+                "$ref": "#/components/schemas/ItemDetailsRequest"
               }
             ]
           }
@@ -3312,97 +3129,12 @@
           }
         }
       },
-      "DeliveryDetail": {
-        "required": [
-          "carrier",
-          "trackingNumber",
-          "trackingUrl",
-          "orderReference"
-        ],
-        "type": "object",
-        "properties": {
-          "carrier": {
-            "type": [
-              "null",
-              "string"
-            ]
-          },
-          "trackingNumber": {
-            "type": [
-              "null",
-              "string"
-            ]
-          },
-          "trackingUrl": {
-            "type": [
-              "null",
-              "string"
-            ]
-          },
-          "orderReference": {
-            "type": [
-              "null",
-              "string"
-            ]
-          }
-        }
-      },
       "FallbackMode": {
         "enum": [
           "Retry",
           "Ask",
           "Drop"
         ]
-      },
-      "FlightDetail": {
-        "required": [
-          "flightNumber",
-          "terminal",
-          "gate",
-          "gateClosesAt",
-          "seatAssignment",
-          "baggageAllowance"
-        ],
-        "type": "object",
-        "properties": {
-          "flightNumber": {
-            "type": [
-              "null",
-              "string"
-            ]
-          },
-          "terminal": {
-            "type": [
-              "null",
-              "string"
-            ]
-          },
-          "gate": {
-            "type": [
-              "null",
-              "string"
-            ]
-          },
-          "gateClosesAt": {
-            "type": [
-              "null",
-              "string"
-            ],
-            "format": "date-time"
-          },
-          "seatAssignment": {
-            "type": [
-              "null",
-              "string"
-            ]
-          },
-          "baggageAllowance": {
-            "type": [
-              "null",
-              "string"
-            ]
-          }
-        }
       },
       "GapSeverity": {
         "enum": [
@@ -3508,238 +3240,77 @@
           }
         }
       },
-      "ItemKind": {
+      "ItemCategory": {
         "enum": [
-          "Generic",
-          "Travel",
-          "Flight",
-          "Train",
-          "Bus",
-          "Car",
-          "Lodging",
+          "General",
+          "Meeting",
           "Appointment",
-          "Ticketed",
-          "Delivery",
-          "Bill",
-          "Availability",
+          "Meal",
+          "Occasion",
+          "Outing",
+          "Trip",
+          "Stay",
+          "Activity",
+          "Focus",
+          "Chore",
           null
         ]
       },
-      "ItemKindDetails": {
+      "ItemDetails": {
         "type": "object",
         "properties": {
+          "booking": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/BookingDetail"
+              }
+            ]
+          },
           "travel": {
             "oneOf": [
               {
                 "type": "null"
               },
               {
-                "$ref": "#/components/schemas/TravelDetail"
+                "$ref": "#/components/schemas/TravelLeg"
               }
             ]
           },
-          "flight": {
+          "presence": {
             "oneOf": [
               {
                 "type": "null"
               },
               {
-                "$ref": "#/components/schemas/FlightDetail"
-              }
-            ]
-          },
-          "train": {
-            "oneOf": [
-              {
-                "type": "null"
-              },
-              {
-                "$ref": "#/components/schemas/TrainDetail"
-              }
-            ]
-          },
-          "bus": {
-            "oneOf": [
-              {
-                "type": "null"
-              },
-              {
-                "$ref": "#/components/schemas/BusDetail"
-              }
-            ]
-          },
-          "car": {
-            "oneOf": [
-              {
-                "type": "null"
-              },
-              {
-                "$ref": "#/components/schemas/CarDetail"
-              }
-            ]
-          },
-          "lodging": {
-            "oneOf": [
-              {
-                "type": "null"
-              },
-              {
-                "$ref": "#/components/schemas/LodgingDetail"
-              }
-            ]
-          },
-          "appointment": {
-            "oneOf": [
-              {
-                "type": "null"
-              },
-              {
-                "$ref": "#/components/schemas/AppointmentDetail"
-              }
-            ]
-          },
-          "ticketed": {
-            "oneOf": [
-              {
-                "type": "null"
-              },
-              {
-                "$ref": "#/components/schemas/TicketedDetail"
-              }
-            ]
-          },
-          "delivery": {
-            "oneOf": [
-              {
-                "type": "null"
-              },
-              {
-                "$ref": "#/components/schemas/DeliveryDetail"
-              }
-            ]
-          },
-          "bill": {
-            "oneOf": [
-              {
-                "type": "null"
-              },
-              {
-                "$ref": "#/components/schemas/BillDetail"
-              }
-            ]
-          },
-          "availability": {
-            "oneOf": [
-              {
-                "type": "null"
-              },
-              {
-                "$ref": "#/components/schemas/AvailabilityDetail"
+                "$ref": "#/components/schemas/PresenceDetail"
               }
             ]
           }
         }
       },
-      "ItemKindDetailsRequest": {
+      "ItemDetailsRequest": {
         "type": "object",
         "properties": {
+          "booking": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/BookingDetail"
+              }
+            ]
+          },
           "travel": {
             "oneOf": [
               {
                 "type": "null"
               },
               {
-                "$ref": "#/components/schemas/TravelDetailRequest"
-              }
-            ]
-          },
-          "flight": {
-            "oneOf": [
-              {
-                "type": "null"
-              },
-              {
-                "$ref": "#/components/schemas/FlightDetail"
-              }
-            ]
-          },
-          "train": {
-            "oneOf": [
-              {
-                "type": "null"
-              },
-              {
-                "$ref": "#/components/schemas/TrainDetail"
-              }
-            ]
-          },
-          "bus": {
-            "oneOf": [
-              {
-                "type": "null"
-              },
-              {
-                "$ref": "#/components/schemas/BusDetail"
-              }
-            ]
-          },
-          "car": {
-            "oneOf": [
-              {
-                "type": "null"
-              },
-              {
-                "$ref": "#/components/schemas/CarDetailRequest"
-              }
-            ]
-          },
-          "lodging": {
-            "oneOf": [
-              {
-                "type": "null"
-              },
-              {
-                "$ref": "#/components/schemas/LodgingDetail"
-              }
-            ]
-          },
-          "appointment": {
-            "oneOf": [
-              {
-                "type": "null"
-              },
-              {
-                "$ref": "#/components/schemas/AppointmentDetailRequest"
-              }
-            ]
-          },
-          "ticketed": {
-            "oneOf": [
-              {
-                "type": "null"
-              },
-              {
-                "$ref": "#/components/schemas/TicketedDetail"
-              }
-            ]
-          },
-          "delivery": {
-            "oneOf": [
-              {
-                "type": "null"
-              },
-              {
-                "$ref": "#/components/schemas/DeliveryDetail"
-              }
-            ]
-          },
-          "bill": {
-            "oneOf": [
-              {
-                "type": "null"
-              },
-              {
-                "$ref": "#/components/schemas/BillDetail"
+                "$ref": "#/components/schemas/TravelLegRequest"
               }
             ]
           }
@@ -3817,50 +3388,6 @@
         ]
       },
       "JsonNode": { },
-      "LodgingDetail": {
-        "required": [
-          "confirmationNumber",
-          "checkInAt",
-          "checkOutAt",
-          "roomType",
-          "provider"
-        ],
-        "type": "object",
-        "properties": {
-          "confirmationNumber": {
-            "type": [
-              "null",
-              "string"
-            ]
-          },
-          "checkInAt": {
-            "type": [
-              "null",
-              "string"
-            ],
-            "format": "date-time"
-          },
-          "checkOutAt": {
-            "type": [
-              "null",
-              "string"
-            ],
-            "format": "date-time"
-          },
-          "roomType": {
-            "type": [
-              "null",
-              "string"
-            ]
-          },
-          "provider": {
-            "type": [
-              "null",
-              "string"
-            ]
-          }
-        }
-      },
       "MeDto": {
         "required": [
           "id",
@@ -4001,6 +3528,17 @@
           "Address",
           "Venue"
         ]
+      },
+      "PresenceDetail": {
+        "required": [
+          "status"
+        ],
+        "type": "object",
+        "properties": {
+          "status": {
+            "$ref": "#/components/schemas/AvailabilityStatus"
+          }
+        }
       },
       "ProblemDetails": {
         "type": "object",
@@ -4254,102 +3792,40 @@
           }
         }
       },
-      "TicketedDetail": {
-        "required": [
-          "performer",
-          "seat",
-          "ticketReference",
-          "doorsOpenAt",
-          "provider"
-        ],
-        "type": "object",
-        "properties": {
-          "performer": {
-            "type": [
-              "null",
-              "string"
-            ]
-          },
-          "seat": {
-            "type": [
-              "null",
-              "string"
-            ]
-          },
-          "ticketReference": {
-            "type": [
-              "null",
-              "string"
-            ]
-          },
-          "doorsOpenAt": {
-            "type": [
-              "null",
-              "string"
-            ],
-            "format": "date-time"
-          },
-          "provider": {
-            "type": [
-              "null",
-              "string"
-            ]
-          }
-        }
+      "TransportMode": {
+        "enum": [
+          "Flight",
+          "Train",
+          "Metro",
+          "Tram",
+          "Bus",
+          "Coach",
+          "Car",
+          "Ferry",
+          "Bike",
+          "Walk",
+          "Other"
+        ]
       },
-      "TrainDetail": {
+      "TravelLeg": {
         "required": [
-          "trainNumber",
-          "coach",
-          "seat",
-          "departurePlatform",
-          "arrivalPlatform"
-        ],
-        "type": "object",
-        "properties": {
-          "trainNumber": {
-            "type": [
-              "null",
-              "string"
-            ]
-          },
-          "coach": {
-            "type": [
-              "null",
-              "string"
-            ]
-          },
-          "seat": {
-            "type": [
-              "null",
-              "string"
-            ]
-          },
-          "departurePlatform": {
-            "type": [
-              "null",
-              "string"
-            ]
-          },
-          "arrivalPlatform": {
-            "type": [
-              "null",
-              "string"
-            ]
-          }
-        }
-      },
-      "TravelDetail": {
-        "required": [
+          "mode",
           "toPlaceId",
           "fromPlaceId",
           "departAt",
           "arriveAt",
           "carrier",
-          "bookingReference"
+          "serviceNumber",
+          "departurePoint",
+          "arrivalPoint",
+          "seat",
+          "driverContactId"
         ],
         "type": "object",
         "properties": {
+          "mode": {
+            "$ref": "#/components/schemas/TransportMode"
+          },
           "toPlaceId": {
             "type": "string",
             "format": "uuid"
@@ -4381,17 +3857,45 @@
               "string"
             ]
           },
-          "bookingReference": {
+          "serviceNumber": {
             "type": [
               "null",
               "string"
             ]
+          },
+          "departurePoint": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "arrivalPoint": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "seat": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "driverContactId": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "uuid"
           }
         }
       },
-      "TravelDetailRequest": {
+      "TravelLegRequest": {
         "type": "object",
         "properties": {
+          "mode": {
+            "$ref": "#/components/schemas/TransportMode"
+          },
           "toPlace": {
             "type": [
               "null",
@@ -4424,11 +3928,36 @@
               "string"
             ]
           },
-          "bookingReference": {
+          "serviceNumber": {
             "type": [
               "null",
               "string"
             ]
+          },
+          "departurePoint": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "arrivalPoint": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "seat": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "driverContactId": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "uuid"
           }
         }
       },
@@ -4479,7 +4008,7 @@
               "string"
             ]
           },
-          "kind": {
+          "category": {
             "type": [
               "null",
               "string"
@@ -4504,13 +4033,13 @@
               }
             ]
           },
-          "kindDetails": {
+          "details": {
             "oneOf": [
               {
                 "type": "null"
               },
               {
-                "$ref": "#/components/schemas/ItemKindDetailsRequest"
+                "$ref": "#/components/schemas/ItemDetailsRequest"
               }
             ]
           }

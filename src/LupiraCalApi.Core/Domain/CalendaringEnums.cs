@@ -13,8 +13,15 @@ public enum CalendarClass { Agenda, System }
 [JsonConverter(typeof(JsonStringEnumConverter<CalendarKind>))]
 public enum CalendarKind { Personal, Group, Birthdays, Availability, Inbox, LlmPrompts, UserCheckIn, DevOps, FoodPlan, Generic }
 
-/// <summary>Specialized-item discriminator; selects the strongly-typed kind detail (see <see cref="ItemKindDetails"/>).</summary>
-public enum ItemKind { Generic, Travel, Flight, Train, Bus, Car, Lodging, Appointment, Ticketed, Delivery, Bill, Availability }
+/// <summary>What a calendar event is (its semantic identity). Reservation/travel/presence specifics are carried by
+/// composable optionals on the item (see <see cref="ItemDetails"/>), not by this discriminator.</summary>
+[JsonConverter(typeof(JsonStringEnumConverter<ItemCategory>))]
+public enum ItemCategory { General, Meeting, Appointment, Meal, Occasion, Outing, Trip, Stay, Activity, Focus, Chore }
+
+/// <summary>Mode of a <see cref="TravelLeg"/>. Rail split: <c>Train</c> = mainline/commuter, <c>Metro</c> = rapid transit,
+/// <c>Tram</c> = light/narrow-gauge rail; <c>Coach</c> = long-distance bus vs local <c>Bus</c>.</summary>
+[JsonConverter(typeof(JsonStringEnumConverter<TransportMode>))]
+public enum TransportMode { Flight, Train, Metro, Tram, Bus, Coach, Car, Ferry, Bike, Walk, Other }
 
 /// <summary>A presence/availability segment's status. A day may hold several segments (whole-day or timed).</summary>
 [JsonConverter(typeof(JsonStringEnumConverter<AvailabilityStatus>))]

@@ -10,13 +10,13 @@ public sealed class UpdateCalendarItemRequest
     public DateTimeOffset? EndsAt { get; set; }
     public string? RecurrenceRule { get; set; }
 
-    /// <summary>Reclassify the item (enum name). Changing the kind drops stale details of the previous kind.</summary>
-    public string? Kind { get; set; }
+    /// <summary>Reclassify the item (enum name). Changing the category drops the previous details.</summary>
+    public string? Category { get; set; }
     public string[]? Tags { get; set; }
 
-    /// <summary>For <c>Availability</c> items: change the segment's status.</summary>
+    /// <summary>Change the item's presence segment status.</summary>
     public Domain.AvailabilityStatus? Availability { get; set; }
 
-    /// <summary>Kind-specific detail to set/merge (flight number, provider, booking refs, …); place refs are free-text labels.</summary>
-    public ItemKindDetailsRequest? KindDetails { get; set; }
+    /// <summary>Composable detail to set/merge: a <c>Booking</c> and/or a <c>Travel</c> leg; a supplied member replaces that member wholesale.</summary>
+    public ItemDetailsRequest? Details { get; set; }
 }

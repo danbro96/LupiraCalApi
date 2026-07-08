@@ -10,11 +10,11 @@ public sealed class CompletenessTests(CalApiTestFactory factory) : IntegrationTe
     const string Email = "alice@x.test";
     static readonly DateTimeOffset Start = new(2026, 7, 1, 9, 0, 0, TimeSpan.Zero);
 
-    private static async Task<CalendarItemDto> CreateItemAsync(HttpClient api, Guid calId, string title, string? location = null, string? description = null)
+    private static async Task<CalendarItemDto> CreateItemAsync(HttpClient api, Guid calId, string title, string? location = null, string? description = null, string? category = null)
     {
         var resp = await api.PostAsJsonAsync("/items", new CreateCalendarItemRequest
         {
-            CalendarId = calId, Title = title, Description = description, Location = location,
+            CalendarId = calId, Title = title, Description = description, Location = location, Category = category,
             IsAllDay = false, StartsAt = Start, EndsAt = Start.AddHours(1), StartTimezone = "UTC",
         });
         resp.EnsureSuccessStatusCode();
@@ -46,11 +46,11 @@ public sealed class CompletenessTests(CalApiTestFactory factory) : IntegrationTe
     {
         var api = Factory.ApiClient(Email);
         var calId = await CreateCalendarAsync(api);
-        var item = await CreateItemAsync(api, calId, "Bare");
+        var item = await CreateItemAsync(api, calId, "Bare", category: "Meeting");
 
         var got = await api.GetFromJsonAsync<CalendarItemDto>($"/items/{item.Id}");
         Assert.NotNull(got!.Completeness);
-        // location(2) and attendees(2) are the heaviest gaps and lead the list.
+        // For a Meeting, location(2) and attendees(2) are the heaviest gaps and lead the list.
         Assert.Equal(["location", "attendees"], got.Completeness!.Gaps.Take(2).Select(g => g.Field));
     }
 

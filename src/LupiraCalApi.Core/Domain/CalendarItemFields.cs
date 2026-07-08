@@ -22,7 +22,7 @@ public sealed record CalendarItemFields(
     string? RecurrenceRule,
     string? RecurrenceExceptions,
     string? RecurrenceOverrides,
-    ItemKind? Kind,
+    ItemCategory? Category,
     Guid? PlaceId,
     Guid? ParentItemId,
     string[]? Tags);

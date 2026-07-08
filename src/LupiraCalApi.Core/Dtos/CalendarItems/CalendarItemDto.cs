@@ -29,10 +29,9 @@ public sealed class CalendarItemDto
     public DateOnly? EndDate { get; set; }
     public string? RecurrenceRule { get; set; }
 
-    [JsonConverter(typeof(JsonStringEnumConverter<ItemKind>))]
-    public ItemKind? Kind { get; set; }
+    public ItemCategory? Category { get; set; }
 
-    public ItemKindDetails? KindDetails { get; set; }
+    public ItemDetails? Details { get; set; }
 
     public Guid? PlaceId { get; set; }
     public Guid? ParentItemId { get; set; }

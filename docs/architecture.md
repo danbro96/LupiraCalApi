@@ -23,7 +23,7 @@ A single Marten store in one Postgres schema (`MartenRegistrations.UseLupiraCal`
   an **inline snapshot** projection (read-your-write). Their full history (scheduled, revised, cancelled,
   attendee invited/responded, added-to/removed-from calendar, prompt/action set/cleared, …) lives in the
   event log; the snapshot is the current read model. Embedded read models (`Attendees`, `Calendars`,
-  `Addresses`, `Profiles`, `KindDetails`, the event-bound `Prompt`/`Action`) ride *on* the snapshot — there
+  `Addresses`, `Profiles`, `Details`, the event-bound `Prompt`/`Action`) ride *on* the snapshot — there
   are no separate projection tables for them.
 - **Plain documents** — `Principal`, `Calendar`, `AddressBook`, `CalendarOwner`, `AddressBookOwner`,
   `Place`, `Relation`. Reference/identity/sharing data whose history isn't event-worthy. Indexed by the
@@ -130,7 +130,7 @@ classDiagram
         DateOnly? StartDate
         DateOnly? EndDate
         string? RecurrenceRule
-        ItemKind? Kind
+        ItemCategory? Category
         Guid? PlaceId
         Guid? ParentItemId
         string[]? Tags
@@ -156,19 +156,11 @@ classDiagram
         Guid CalendarId
         CalendarEntryStatus Status
     }
-    class ItemKindDetails {
+    class ItemDetails {
         <<embedded>>
-        TravelDetail? Travel
-        FlightDetail? Flight
-        TrainDetail? Train
-        BusDetail? Bus
-        CarDetail? Car
-        LodgingDetail? Lodging
-        AppointmentDetail? Appointment
-        TicketedDetail? Ticketed
-        DeliveryDetail? Delivery
-        BillDetail? Bill
-        AvailabilityDetail? Availability
+        BookingDetail? Booking
+        TravelLeg? Travel
+        PresenceDetail? Presence
     }
     class Contact {
         <<event-sourced>>
@@ -226,7 +218,31 @@ classDiagram
         PromptFire Fire
         bool Enabled
     }
-    class AvailabilityDetail {
+    class BookingDetail {
+        <<embedded>>
+        Guid? ProviderContactId
+        string? ConfirmationNumber
+        string? Reference
+        string? Url
+        decimal? Amount
+        string? Currency
+        int? PartySize
+    }
+    class TravelLeg {
+        <<embedded>>
+        TransportMode Mode
+        Guid ToPlaceId
+        Guid? FromPlaceId
+        DateTimeOffset? DepartAt
+        DateTimeOffset? ArriveAt
+        string? Carrier
+        string? ServiceNumber
+        string? DeparturePoint
+        string? ArrivalPoint
+        string? Seat
+        Guid? DriverContactId
+    }
+    class PresenceDetail {
         <<embedded>>
         AvailabilityStatus Status
     }
@@ -240,10 +256,12 @@ classDiagram
     CalendarMembership "*" --> "1" Calendar
     CalendarItem "1" *-- "*" ItemAttendee
     ItemAttendee "*" --> "1" Contact
-    CalendarItem "1" *-- "0..1" ItemKindDetails
+    CalendarItem "1" *-- "0..1" ItemDetails
     CalendarItem "1" *-- "0..1" ItemPrompt : XOR payload
     CalendarItem "1" *-- "0..1" ItemAction : XOR payload
-    ItemKindDetails "1" *-- "0..1" AvailabilityDetail
+    ItemDetails "1" *-- "0..1" BookingDetail
+    ItemDetails "1" *-- "0..1" TravelLeg
+    ItemDetails "1" *-- "0..1" PresenceDetail
     CalendarItem "*" --> "0..1" Place
     CalendarItem "*" --> "0..1" CalendarItem : parent of
 
@@ -298,7 +316,8 @@ Names are structured vCard parts (no stored full name — the `FN` is composed w
 | Enum | Members | Maps to |
 |---|---|---|
 | `ItemStatus` | `Tentative` · `Confirmed` · `Cancelled` | iCalendar VEVENT `STATUS` |
-| `ItemKind` | `Generic` · `Travel` · `Flight` · `Train` · `Bus` · `Car` · `Lodging` · `Appointment` · `Ticketed` · `Delivery` · `Bill` · `Availability` | selects the `ItemKindDetails` member |
+| `ItemCategory` | `General` · `Meeting` · `Appointment` · `Meal` · `Occasion` · `Outing` · `Trip` · `Stay` · `Activity` · `Focus` · `Chore` | a calendar event's semantic type |
+| `TransportMode` | `Flight` · `Train` · `Metro` · `Tram` · `Bus` · `Coach` · `Car` · `Ferry` · `Bike` · `Walk` · `Other` | mode of a `TravelLeg` (a `Trip`) |
 | `CalendarClass` | `Agenda` · `System` | agenda (user-facing, DAV-projected) vs. agent-managed system calendar |
 | `CalendarKind` | `Personal` · `Group` · `Birthdays` · `Availability` · `Inbox` · `LlmPrompts` · `UserCheckIn` · `DevOps` · `FoodPlan` · `Generic` | a calendar's purpose within the standard set |
 | `AvailabilityStatus` | `Office` · `Home` · `Vacation` · `Sick` · `Leave` | a presence segment's status |
@@ -310,25 +329,18 @@ Names are structured vCard parts (no stored full name — the `FN` is composed w
 | `Access` | `Owner` · `ReadWrite` · `Read` | a principal's permission on a container |
 | `PlaceKind` | `Country` · `City` · `Address` · `Venue` | level of a `Place` tree node |
 
-## Item-kind details
+## Item details
 
-`ItemKindDetails` is a flat record carrier holding optional kind-specific records; the populated one matches
-`CalendarItem.Kind`. Location reuses the item's `PlaceId`; provider references reuse a `Contact` id. (The
-Flight/Train/Bus/Car records conceptually extend `TravelDetail` but are modeled as flat siblings.)
+`ItemDetails` is a composable carrier of optional value objects — a `Booking`, a `TravelLeg`, and/or a `Presence`
+segment — independent of `CalendarItem.Category`. Any combination may be set (a booked flight carries both `Booking`
+and `Travel`). Location reuses the item's `PlaceId`; provider/driver references reuse a `Contact` id. Bills and
+deliveries are not modeled here — they live in LupiraTasks and are surfaced on the agenda via a `Relation`.
 
-| `ItemKind` | Detail record | Key fields |
+| Detail | Applies to | Key fields |
 |---|---|---|
-| `Travel` | `TravelDetail` | `ToPlaceId` (required), `FromPlaceId`, `DepartAt`, `ArriveAt`, `Carrier`, `BookingReference` |
-| `Flight` | `FlightDetail` | `FlightNumber`, `Terminal`, `Gate`, `GateClosesAt`, `SeatAssignment`, `BaggageAllowance` |
-| `Train` | `TrainDetail` | `TrainNumber`, `Coach`, `Seat`, `DeparturePlatform`, `ArrivalPlatform` |
-| `Bus` | `BusDetail` | `Operator`, `ServiceNumber`, `DepartureStop`, `ArrivalStop`, `SeatReservation` |
-| `Car` | `CarDetail` | `DriverContactId`, `Vehicle`, `LicensePlate`, `PickupPlaceId`, `DropoffPlaceId` |
-| `Lodging` | `LodgingDetail` | `ConfirmationNumber`, `CheckInAt`, `CheckOutAt`, `RoomType`, `Provider` |
-| `Appointment` | `AppointmentDetail` | `ProviderContactId`, `AppointmentType`, `ReferenceNumber`, `PreparationNotes` |
-| `Ticketed` | `TicketedDetail` | `Performer`, `Seat`, `TicketReference`, `DoorsOpenAt`, `Provider` |
-| `Delivery` | `DeliveryDetail` | `Carrier`, `TrackingNumber`, `TrackingUrl`, `OrderReference` |
-| `Bill` | `BillDetail` | `Amount`, `Currency`, `Payee`, `InvoiceNumber`, `PaidAt` |
-| `Availability` | `AvailabilityDetail` | `Status` (whole-day or timed presence segment; a day may hold several) |
+| `Booking` (`BookingDetail`) | any category | `ProviderContactId`, `ConfirmationNumber`, `Reference`, `Url`, `Amount`, `Currency`, `PartySize` |
+| `Travel` (`TravelLeg`) | a `Trip` | `Mode`, `ToPlaceId` (required), `FromPlaceId`, `DepartAt`, `ArriveAt`, `Carrier`, `ServiceNumber`, `DeparturePoint`, `ArrivalPoint`, `Seat`, `DriverContactId` |
+| `Presence` (`PresenceDetail`) | authored via the request's `Availability` field | `Status` (whole-day or timed presence segment; a day may hold several) |
 
 ## Calendar classification
 
@@ -364,9 +376,10 @@ A derived `Completeness` (a `0..1` score, the unmet fields ranked heaviest-first
 on `GET /items` and `GET /contacts` to drive the assistant's elicitation/enrichment ranking. It is computed by
 `CompletenessResolver`/`CompletenessScorer` at read time — **not stored on the snapshot** — because exemption
 depends on the item's *calendar* kinds and a contact's organisation lives on a separate `ContactGroup`. The rubric
-is kind-aware (a Flight needs flight no./gate; a meeting needs location/attendees) and scores *presence*, not
+is category-aware (a `Trip` needs from/to + carrier; a `Meeting` needs location/attendees) and scores *presence*, not
 quality (`1` present · `0.5` weak · `0` absent). Exempt records score `null` (not applicable): system-calendar /
-Birthdays / Availability items, and any item carrying a fired payload. `GapSeverity` is `Weak`|`Absent`.
+Birthdays / Availability-calendar items, any item with a `Presence` segment, and any item carrying a fired payload.
+`GapSeverity` is `Weak`|`Absent`.
 
 ## Scheduling / firing
 

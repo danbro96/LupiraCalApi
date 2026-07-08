@@ -16,7 +16,7 @@ public sealed record CompletenessScore(double Score, int RubricVersion, IReadOnl
 /// <summary>
 /// Pure, kind-aware completeness rubric for items and contacts. Scores <em>presence</em>, not quality — crude on purpose,
 /// enough to rank thin-vs-rich. Exempt records score <c>null</c>. Calendar-context exemption (Birthdays/Availability/system
-/// calendars) is decided by the caller and passed in; snapshot-local exemptions (the Availability kind, a fired payload)
+/// calendars) is decided by the caller and passed in; snapshot-local exemptions (a presence segment, a fired payload)
 /// are handled here.
 /// </summary>
 public static class CompletenessScorer
@@ -25,49 +25,50 @@ public static class CompletenessScorer
 
     public static CompletenessScore? ScoreItem(CalendarItem item, bool calendarExempt)
     {
-        if (calendarExempt || item.Kind == ItemKind.Availability || item.Prompt is not null || item.Action is not null)
+        if (calendarExempt || item.Details?.Presence is not null || item.Prompt is not null || item.Action is not null)
             return null;
 
         var fields = new List<(string Field, double Weight, double Presence)>();
-        var d = item.KindDetails;
+        var d = item.Details;
 
-        switch (item.Kind ?? ItemKind.Generic)   // an unkinded timed item scores as a generic meeting
+        switch (item.Category ?? ItemCategory.General)   // an uncategorised timed item scores as a general event
         {
-            case ItemKind.Appointment:
+            case ItemCategory.Trip:
+                fields.Add(("fromToPlace", 2, TravelFromTo(d?.Travel)));
+                fields.Add(("departArriveTimes", 1, BothTimes(item)));
+                fields.Add(("carrier", 1, Text(d?.Travel?.Carrier)));
+                fields.Add(("booking", 1, Booking(d)));
+                fields.Add(("seat", 0.5, Text(d?.Travel?.Seat)));
+                break;
+
+            case ItemCategory.Stay:
                 fields.Add(("location", 2, Place(item)));
-                fields.Add(("provider", 2, Has(d?.Appointment?.ProviderContactId)));
+                fields.Add(("checkInOut", 1, BothTimes(item)));
+                fields.Add(("booking", 1, Booking(d)));
+                break;
+
+            case ItemCategory.Appointment:
+                fields.Add(("location", 2, Place(item)));
+                fields.Add(("provider", 2, Has(d?.Booking?.ProviderContactId)));
                 fields.Add(("time", 1, Time(item)));
-                fields.Add(("prepNotes", 1, Text(d?.Appointment?.PreparationNotes)));
-                fields.Add(("reference", 1, Text(d?.Appointment?.ReferenceNumber)));
                 break;
 
-            case ItemKind.Flight:
-                fields.Add(("flightNumber", 2, Text(d?.Flight?.FlightNumber)));
-                fields.Add(("departArriveTimes", 1, BothTimes(item)));
-                fields.Add(("gateTerminal", 1, Pair(d?.Flight?.Gate, d?.Flight?.Terminal)));
-                fields.Add(("bookingRef", 1, Text(d?.Travel?.BookingReference)));
-                fields.Add(("seat", 0.5, Text(d?.Flight?.SeatAssignment)));
+            case ItemCategory.Meal:
+            case ItemCategory.Outing:
+                fields.Add(("location", 2, Place(item)));
+                fields.Add(("time", 1, Time(item)));
+                fields.Add(("booking", 1, Booking(d)));
                 break;
 
-            case ItemKind.Travel:
-            case ItemKind.Train:
-            case ItemKind.Bus:
-                fields.Add(("fromToPlace", 2, FromTo(d?.Travel)));
-                fields.Add(("departArriveTimes", 1, BothTimes(item)));
-                fields.Add(("carrier", 1, Carrier(d)));
-                fields.Add(("bookingRef", 1, Text(d?.Travel?.BookingReference)));
-                fields.Add(("seat", 0.5, Text(d?.Train?.Seat ?? d?.Bus?.SeatReservation)));
-                break;
-
-            case ItemKind.Generic:
+            case ItemCategory.Meeting:
                 fields.Add(("location", 2, Place(item)));
                 fields.Add(("attendees", 2, Attendees(item)));
                 fields.Add(("time", 1, Time(item)));
                 fields.Add(("description", 1, Description(item)));
                 break;
 
-            // Car/Lodging/Ticketed/Delivery/Bill have no rubric in the doc — a generic location/time/description cut
-            // (no attendees, so a bill/delivery isn't penalised for missing them).
+            // General/Occasion/Activity/Focus/Chore: a location/time/description cut (no attendees, so a
+            // solo focus block or errand isn't penalised for missing them).
             default:
                 fields.Add(("location", 2, Place(item)));
                 fields.Add(("time", 1, Time(item)));
@@ -122,14 +123,7 @@ public static class CompletenessScorer
         return i.Attendees.All(a => a.Status == ParticipationStatus.NeedsAction) ? 0.5 : 1;   // listed but none RSVP'd → weak
     }
 
-    private static double Pair(string? a, string? b) => (!string.IsNullOrWhiteSpace(a), !string.IsNullOrWhiteSpace(b)) switch
-    {
-        (true, true) => 1,
-        (false, false) => 0,
-        _ => 0.5,
-    };
-
-    private static double FromTo(TravelDetail? t)
+    private static double TravelFromTo(TravelLeg? t)
     {
         if (t is null) return 0;
         var to = t.ToPlaceId != Guid.Empty;
@@ -137,8 +131,8 @@ public static class CompletenessScorer
         return (from, to) switch { (true, true) => 1, (false, false) => 0, _ => 0.5 };
     }
 
-    private static double Carrier(ItemKindDetails? d) =>
-        Text(d?.Travel?.Carrier) == 1 || Text(d?.Train?.TrainNumber) == 1 || Text(d?.Bus?.Operator) == 1 ? 1 : 0;
+    private static double Booking(ItemDetails? d) =>
+        d?.Booking is { } b && (Text(b.ConfirmationNumber) == 1 || Text(b.Reference) == 1) ? 1 : 0;
 
     private static double Has(Guid? id) => id is not null ? 1 : 0;
     private static double Text(string? s) => string.IsNullOrWhiteSpace(s) ? 0 : 1;
