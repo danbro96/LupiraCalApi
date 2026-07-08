@@ -90,6 +90,26 @@ public sealed class CalendarItemService(IDocumentSession session, AccessResolver
         return OpResult<List<CalendarItemOccurrenceDto>>.Ok([.. results.OrderBy(x => x.Start)]);
     }
 
+    /// <summary>Reverse index: items anchored to a place — as their location (<c>PlaceId</c>) or a travel/car endpoint.
+    /// Full items (not recurrence-expanded), scoped to calendars the principal can read.</summary>
+    public async Task<OpResult<List<CalendarItemDto>>> ByPlaceAsync(Guid principalId, Guid placeId, CancellationToken ct = default)
+    {
+        var calIds = await access.AccessibleCalendarIdsAsync(principalId, ct);
+        var candidates = await session.Query<CalendarItem>().Where(i => i.DeletedAt == null).ToListAsync(ct);
+        var items = candidates
+            .Where(i => i.Calendars.Any(m => m.Status == CalendarEntryStatus.Accepted && calIds.Contains(m.CalendarId))
+                && ReferencesPlace(i, placeId))
+            .OrderBy(i => i.StartsAt).ThenBy(i => i.Title)
+            .ToList();
+        var scores = await completeness.ScoreItemsAsync(items, ct);
+        return OpResult<List<CalendarItemDto>>.Ok(items.Select(i => i.ToResponse(scores[i.Id])).ToList());
+    }
+
+    private static bool ReferencesPlace(CalendarItem i, Guid placeId) =>
+        i.PlaceId == placeId
+        || (i.KindDetails?.Travel is { } t && (t.ToPlaceId == placeId || t.FromPlaceId == placeId))
+        || (i.KindDetails?.Car is { } c && (c.PickupPlaceId == placeId || c.DropoffPlaceId == placeId));
+
     public async Task<OpResult<CalendarItemDto>> GetAsync(Guid principalId, Guid id, CancellationToken ct = default)
     {
         var item = await session.LoadAsync<CalendarItem>(id, ct);

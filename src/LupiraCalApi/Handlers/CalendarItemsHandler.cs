@@ -16,6 +16,12 @@ public sealed class CalendarItemsHandler(CurrentUser user, CalendarItemService i
         return OpResultMap.OkProblem(await items.SearchAsync(u.Id, query, from, to, calendarId, tag, ct));
     }
 
+    public async Task<Results<Ok<List<CalendarItemDto>>, UnauthorizedHttpResult>> ByPlaceAsync(Guid placeId, CancellationToken ct)
+    {
+        var u = await user.GetAsync(ct);
+        return OpResultMap.OkOnly(await items.ByPlaceAsync(u.Id, placeId, ct));
+    }
+
     public async Task<Results<Ok<CalendarItemDto>, ProblemHttpResult, UnauthorizedHttpResult>> CreateAsync(CreateCalendarItemRequest body, CancellationToken ct)
     {
         var u = await user.GetAsync(ct);

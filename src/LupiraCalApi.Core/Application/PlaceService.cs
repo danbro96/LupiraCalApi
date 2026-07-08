@@ -37,4 +37,19 @@ public sealed class PlaceService(IDocumentSession session)
         var places = await session.Query<Place>().Where(p => ids.Contains(p.Id)).ToListAsync(ct);
         return OpResult<List<PlaceDto>>.Ok(places.Select(p => p.ToResponse()).ToList());
     }
+
+    /// <summary>Browse/search the catalog by name (case-insensitive contains), kind, and/or parent (for the hierarchy tree).</summary>
+    public async Task<OpResult<List<PlaceDto>>> SearchAsync(string? search, PlaceKind? kind, Guid? parentPlaceId, CancellationToken ct = default)
+    {
+        IQueryable<Place> q = session.Query<Place>();
+        if (kind is { } k) q = q.Where(p => p.Kind == k);
+        if (parentPlaceId is { } pid) q = q.Where(p => p.ParentPlaceId == pid);
+        if (!string.IsNullOrWhiteSpace(search))
+        {
+            var term = search.Trim();
+            q = q.Where(p => p.Name.Contains(term, StringComparison.OrdinalIgnoreCase));
+        }
+        var places = await q.OrderBy(p => p.Name).Take(200).ToListAsync(ct);
+        return OpResult<List<PlaceDto>>.Ok(places.Select(p => p.ToResponse()).ToList());
+    }
 }
