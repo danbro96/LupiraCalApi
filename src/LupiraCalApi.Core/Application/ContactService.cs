@@ -54,6 +54,43 @@ public sealed class ContactService(IDocumentSession session, AccessResolver acce
         return OpResult<ContactDto>.Ok(await ToDtoAsync(c, ct));
     }
 
+    /// <summary>Merge-update an existing contact: provided scalars overwrite, provided email/phone/tag arrays
+    /// union onto the existing values (deduped), null fields are kept. Never wipes unmentioned fields.</summary>
+    public async Task<OpResult<ContactDto>> ReviseAsync(Guid principalId, Guid id, ReviseContactRequest r, CancellationToken ct = default)
+    {
+        var stream = await session.Events.FetchForWriting<Contact>(id, ct);
+        var c = stream.Aggregate;
+        if (c is null || c.DeletedAt is not null) return OpResult<ContactDto>.NotFound();
+        if (!await access.CanWriteAddressBookAsync(principalId, c.AddressBookId, ct)) return OpResult<ContactDto>.Forbidden("No write access to this contact.");
+
+        var merged = new ContactFields(
+            r.NamePrefix ?? c.NamePrefix,
+            r.GivenName ?? c.GivenName,
+            r.MiddleName ?? c.MiddleName,
+            r.FamilyName ?? c.FamilyName,
+            r.NameSuffix ?? c.NameSuffix,
+            r.Nickname ?? c.Nickname,
+            MergeDistinct(c.Emails, r.Emails),
+            MergeDistinct(c.Phones, r.Phones),
+            r.Birthday ?? c.Birthday,
+            MergeDistinct(c.Tags, r.Tags));
+        var hash = ContentHash.Of(CanonicalVcard(c.ExternalId, merged));
+
+        stream.AppendOne(new ContactRevised(id, merged, hash));
+        await session.SaveChangesAsync(ct);
+        var updated = await session.LoadAsync<Contact>(id, ct);
+        return OpResult<ContactDto>.Ok(await ToDtoAsync(updated!, ct));
+    }
+
+    // Union an incoming multi-value field onto the existing one (case-insensitive dedupe); a null/empty
+    // incoming keeps the existing values (enrichment adds, never clears).
+    private static string[]? MergeDistinct(string[]? existing, string[]? incoming)
+    {
+        if (incoming is null || incoming.Length == 0) return existing;
+        if (existing is null || existing.Length == 0) return incoming;
+        return [.. existing.Concat(incoming).Distinct(StringComparer.OrdinalIgnoreCase)];
+    }
+
     public async Task<OpResult> DeleteAsync(Guid principalId, Guid id, CancellationToken ct = default)
     {
         var stream = await session.Events.FetchForWriting<Contact>(id, ct);

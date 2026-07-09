@@ -38,6 +38,42 @@ public sealed class ContactsRestTests(CalApiTestFactory factory) : IntegrationTe
     }
 
     [Fact]
+    public async Task Revise_merges_new_fields_without_wiping_existing()
+    {
+        var api = Factory.ApiClient(Email);
+        var abId = await CreateAddressBookAsync(api);
+        var contact = await CreateContactAsync(api, abId, "Jane", "Doe", "jane@x.test");
+
+        // Enrichment: add a phone + a second email, set a birthday. Name + original email must survive.
+        var resp = await api.PutAsJsonAsync($"/contacts/{contact.Id}", new ReviseContactRequest
+        {
+            Emails = ["jane.doe@work.test"],
+            Phones = ["+46700000000"],
+            Birthday = new DateOnly(1990, 4, 1),
+        });
+        resp.EnsureSuccessStatusCode();
+        var revised = (await resp.Content.ReadFromJsonAsync<ContactDto>())!;
+
+        Assert.Equal("Jane Doe", revised.DisplayName);                     // name kept
+        Assert.Contains("jane@x.test", revised.Emails!);                   // original email kept
+        Assert.Contains("jane.doe@work.test", revised.Emails!);            // new email added
+        Assert.Contains("+46700000000", revised.Phones!);
+        Assert.Equal(new DateOnly(1990, 4, 1), revised.Birthday);
+    }
+
+    [Fact]
+    public async Task Revise_without_write_access_is_forbidden()
+    {
+        var owner = Factory.ApiClient(Email);
+        var abId = await CreateAddressBookAsync(owner);
+        var contact = await CreateContactAsync(owner, abId, "Jane", "Doe");
+
+        var stranger = Factory.ApiClient("mallory@x.test");
+        var resp = await stranger.PutAsJsonAsync($"/contacts/{contact.Id}", new ReviseContactRequest { Nickname = "hax" });
+        Assert.Equal(HttpStatusCode.Forbidden, resp.StatusCode);
+    }
+
+    [Fact]
     public async Task Delete_then_get_is_not_found()
     {
         var api = Factory.ApiClient(Email);

@@ -26,6 +26,12 @@ public sealed class ContactsHandler(CurrentUser user, ContactService contacts)
         return OpResultMap.OkNotFoundProblem(await contacts.GetAsync(u.Id, id, ct));
     }
 
+    public async Task<Results<Ok<ContactDto>, NotFound, ProblemHttpResult, UnauthorizedHttpResult>> ReviseAsync(Guid id, ReviseContactRequest body, CancellationToken ct)
+    {
+        var u = await user.GetAsync(ct);
+        return OpResultMap.OkNotFoundProblem(await contacts.ReviseAsync(u.Id, id, body, ct));
+    }
+
     public async Task<Results<NoContent, NotFound, ProblemHttpResult, UnauthorizedHttpResult>> DeleteAsync(Guid id, CancellationToken ct)
     {
         var u = await user.GetAsync(ct);

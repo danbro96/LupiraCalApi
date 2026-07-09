@@ -31,6 +31,14 @@ public static class ContactsEndpoints
             .Produces(StatusCodes.Status404NotFound)
             .Produces(StatusCodes.Status401Unauthorized);
 
+        group.MapPut("/{id:guid}", (Guid id, ReviseContactRequest body, ContactsHandler h, CancellationToken ct) => h.ReviseAsync(id, body, ct))
+            .WithName("ReviseContact")
+            .WithSummary("Update a contact (merge — provided fields overwrite/append, unmentioned fields are kept).")
+            .Produces<ContactDto>(StatusCodes.Status200OK)
+            .Produces(StatusCodes.Status404NotFound)
+            .ProducesProblem(StatusCodes.Status403Forbidden)
+            .Produces(StatusCodes.Status401Unauthorized);
+
         group.MapDelete("/{id:guid}", (Guid id, ContactsHandler h, CancellationToken ct) => h.DeleteAsync(id, ct))
             .WithName("DeleteContact")
             .WithSummary("Delete a contact (soft delete + tombstone).")
