@@ -25,6 +25,14 @@ services:
       Ldap__ReaderSecret: ${LUPIRA_CAL_LDAP_SECRET:?required}
       Ldap__Filter: "(&(objectClass=user)(mail={0}))"   # login by email
 
+      # Gazetteer — cal delegates free-text location resolution to LupiraGeoApi (client-credentials, aud lupira-geo)
+      # and mirrors the resolved place locally. Set GEO_CLIENT_SECRET to authenticate; clear GEO_BASE_URL to disable.
+      Geo__BaseUrl: ${GEO_BASE_URL:-https://geo-api.lupira.com}
+      Geo__TokenUrl: ${GEO_TOKEN_URL:-https://auth.lupira.com/application/o/token/}
+      Geo__ClientId: ${GEO_CLIENT_ID:-lupira-geo-svc}
+      Geo__ClientSecret: ${GEO_CLIENT_SECRET:-}
+      Geo__Scope: ${GEO_SCOPE:-lupira-geo-aud}
+
       # MCP surface (/mcp) is the most powerful surface — keep it off the public internet.
 
       # OTEL — optional OTLP export (http/protobuf; 5-min metric cadence). Unset endpoint = silent no-op.
