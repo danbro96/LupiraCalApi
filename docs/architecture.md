@@ -26,9 +26,9 @@ A single Marten store in one Postgres schema (`MartenRegistrations.UseLupiraCal`
   `Addresses`, `Profiles`, `Details`, the event-bound `Prompt`/`Action`) ride *on* the snapshot — there
   are no separate projection tables for them.
 - **Plain documents** — `Principal`, `Calendar`, `AddressBook`, `CalendarOwner`, `AddressBookOwner`,
-  `Place`, `Relation`. Reference/identity/sharing data whose history isn't event-worthy. Indexed by the
+  `Relation`. Reference/identity/sharing data whose history isn't event-worthy. Indexed by the
   fields services query on (`Principal.AuthentikSub`/`Email`, the owner docs' `PrincipalId`/container id,
-  `Place.Name`, `Relation.FromId`).
+  `Relation.FromId`).
 - **Operational relational state** — `cal.scheduled_fire`, a plain Npgsql table (not a Marten document)
   written by the scheduling materializer. It is transient, rebuildable from the items, so it sits
   deliberately outside event sourcing (see *Scheduling / firing*).
@@ -44,7 +44,7 @@ via a one-shot `--apply-schema` run (`ApplyAllConfiguredChangesToDatabaseAsync`,
 ## Bounded context
 
 **In scope** — calendaring (items, recurrence expansion, kinds), contacts (vCards, groups/organizations),
-first-class participation, item↔calendar curation, a shared hierarchical place catalog, multi-owner sharing
+first-class participation, item↔calendar curation, geo place references (LupiraGeoApi), multi-owner sharing
 of containers, opaque cross-API relations, calendar classification (agenda vs. agent-managed system
 calendars), event-bound payloads (an LLM prompt or a deterministic action that fires at a time), a derived
 completeness signal over items and contacts, and the firing **materializer** that computes *what is due*.
@@ -99,15 +99,6 @@ classDiagram
         Guid PrincipalId
         Access Access
     }
-    class Place {
-        <<document>>
-        Guid Id
-        Guid? ParentPlaceId
-        PlaceKind Kind
-        string Name
-        double? Latitude
-        double? Longitude
-    }
     class Relation {
         <<document>>
         Guid Id
@@ -132,6 +123,7 @@ classDiagram
         string? RecurrenceRule
         ItemCategory? Category
         Guid? PlaceId
+        string? LocationLabel
         Guid? ParentItemId
         string[]? Tags
         ItemPrompt? Prompt
@@ -180,7 +172,8 @@ classDiagram
     }
     class ContactPostalAddress {
         <<embedded>>
-        Guid PlaceId
+        Guid? PlaceId
+        string? FormattedAddress
         ContactAddressType Type
     }
     class ContactSocialProfile {
@@ -231,8 +224,10 @@ classDiagram
     class TravelLeg {
         <<embedded>>
         TransportMode Mode
-        Guid ToPlaceId
+        Guid? ToPlaceId
         Guid? FromPlaceId
+        string? ToLabel
+        string? FromLabel
         DateTimeOffset? DepartAt
         DateTimeOffset? ArriveAt
         string? Carrier
@@ -262,17 +257,14 @@ classDiagram
     ItemDetails "1" *-- "0..1" BookingDetail
     ItemDetails "1" *-- "0..1" TravelLeg
     ItemDetails "1" *-- "0..1" PresenceDetail
-    CalendarItem "*" --> "0..1" Place
     CalendarItem "*" --> "0..1" CalendarItem : parent of
 
     AddressBook "1" --> "*" Contact : contains
     AddressBook "1" --> "*" ContactGroup : contains
     ContactGroup "*" --> "*" Contact : members
     Contact "1" *-- "*" ContactPostalAddress
-    ContactPostalAddress "*" --> "1" Place
     Contact "1" *-- "*" ContactSocialProfile
 
-    Place "0..1" --> "*" Place : within
     Principal "0..1" --> "0..1" Contact : self
 
     CalendarItem "*" ..> "*" Relation : cross-API
@@ -300,14 +292,17 @@ events folded into the snapshot; `Status` is the latest RSVP. "No-show" is deriv
 
 ### Places
 
-`Place` is a shared hierarchical catalog (`ParentPlaceId` links Address → City → Country). Both a calendar
-item (`PlaceId`) and a contact's postal address (`ContactPostalAddress.PlaceId`) point at a node, so a city
-and a full street address coexist and roll up, and cities/countries are entered once.
+Places live in **LupiraGeoApi**, not here. A calendar item (`PlaceId` + denormalized `LocationLabel`), a travel
+leg (`ToPlaceId`/`FromPlaceId` + `ToLabel`/`FromLabel`), and a contact's postal address (`PlaceId` +
+`FormattedAddress`) reference a geo place by id (no FK, no local catalog). Free-text locations are resolved once at
+write time via `IGeoResolver` (the host's `GeoApiClient` → geo, or a no-op when geo is unconfigured, in which case the
+label is the raw text). The denormalized label means ICS generation and the read DTOs never call geo. `GET
+/items/by-place/{placeId}` is the reverse index (items at a geo place).
 
 ### Contacts & groups
 
 Names are structured vCard parts (no stored full name — the `FN` is composed when the vCard is generated).
-`Emails`/`Phones` are arrays; postal addresses reference `Place`; social profiles are open
+`Emails`/`Phones` are arrays; postal addresses hold an optional geo place id + `FormattedAddress`; social profiles are open
 `Service`/`Handle`/`Url` triples. A contact's employer is **membership in an `Organization`-kind
 `ContactGroup`**, not a free-text field; `MemberContactIds` is maintained by add/remove events.
 
@@ -327,19 +322,18 @@ Names are structured vCard parts (no stored full name — the `FN` is composed w
 | `ContactGroupKind` | `Group` · `Organization` | personal grouping vs. company/institution |
 | `ContactAddressType` | `Home` · `Work` · `Other` | vCard `ADR` TYPE |
 | `Access` | `Owner` · `ReadWrite` · `Read` | a principal's permission on a container |
-| `PlaceKind` | `Country` · `City` · `Address` · `Venue` | level of a `Place` tree node |
 
 ## Item details
 
 `ItemDetails` is a composable carrier of optional value objects — a `Booking`, a `TravelLeg`, and/or a `Presence`
 segment — independent of `CalendarItem.Category`. Any combination may be set (a booked flight carries both `Booking`
-and `Travel`). Location reuses the item's `PlaceId`; provider/driver references reuse a `Contact` id. Bills and
+and `Travel`). Location reuses the item's `PlaceId` + `LocationLabel`; provider/driver references reuse a `Contact` id. Bills and
 deliveries are not modeled here — they live in LupiraTasks and are surfaced on the agenda via a `Relation`.
 
 | Detail | Applies to | Key fields |
 |---|---|---|
 | `Booking` (`BookingDetail`) | any category | `ProviderContactId`, `ConfirmationNumber`, `Reference`, `Url`, `Amount`, `Currency`, `PartySize` |
-| `Travel` (`TravelLeg`) | a `Trip` | `Mode`, `ToPlaceId` (required), `FromPlaceId`, `DepartAt`, `ArriveAt`, `Carrier`, `ServiceNumber`, `DeparturePoint`, `ArrivalPoint`, `Seat`, `DriverContactId` |
+| `Travel` (`TravelLeg`) | a `Trip` | `Mode`, `ToPlaceId`/`ToLabel`, `FromPlaceId`/`FromLabel`, `DepartAt`, `ArriveAt`, `Carrier`, `ServiceNumber`, `DeparturePoint`, `ArrivalPoint`, `Seat`, `DriverContactId` (`ToPlace` free-text required on write) |
 | `Presence` (`PresenceDetail`) | authored via the request's `Availability` field | `Status` (whole-day or timed presence segment; a day may hold several) |
 
 ## Calendar classification
@@ -401,7 +395,7 @@ the three can never disagree. The **dispatcher** is the separate `lupira-cal-wor
 
 CalDAV/CardDAV is a **secondary, non-bearing** view over the canonical structured fields. GET/REPORT/multiget
 regenerate iCal/vCard deterministically on demand (`ICalSerializer.From`/`VCardSerializer.From`; the location is
-resolved from `Place`), and the ETag is the `ContentHash` derived from that same canonical form, so it is stable
+the item's denormalized `LocationLabel`), and the ETag is the `ContentHash` derived from that same canonical form, so it is stable
 across reads. A DAV `PUT` parses the body into structured fields (no blob is retained); recurrence expansion runs
 off the regenerated ICS. Only `Agenda` calendars and an item's `Accepted` memberships are exposed.
 

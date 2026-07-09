@@ -109,9 +109,9 @@ event ItemActionSet(Guid ItemId, ItemAction Action);   event ItemActionCleared(G
 
 ### 3. Item taxonomy — `ItemCategory` + composable `ItemDetails`
 - `ItemCategory { General, Meeting, Appointment, Meal, Occasion, Outing, Trip, Stay, Activity, Focus, Chore }` on the item. Details are a **composable bag**, not a per-kind union: `ItemDetails(BookingDetail? Booking, TravelLeg? Travel, PresenceDetail? Presence)` — a booked flight sets `Booking` + `Travel` on one item.
-- `TravelLeg(TransportMode Mode, ToPlaceId, FromPlaceId?, DepartAt?, ArriveAt?, Carrier?, ServiceNumber?, DeparturePoint?, ArrivalPoint?, Seat?, DriverContactId?)`; `TransportMode { Flight, Train, Metro, Tram, Bus, Coach, Car, Ferry, Bike, Walk, Other }` — flights/trains are modes of a `Trip` leg, not categories. `BookingDetail(ProviderContactId?, ConfirmationNumber?, Reference?, Url?, Amount?, Currency?, PartySize?)` is category-free.
+- `TravelLeg(TransportMode Mode, ToPlaceId?, FromPlaceId?, ToLabel?, FromLabel?, DepartAt?, ArriveAt?, Carrier?, ServiceNumber?, DeparturePoint?, ArrivalPoint?, Seat?, DriverContactId?)`; `TransportMode { Flight, Train, Metro, Tram, Bus, Coach, Car, Ferry, Bike, Walk, Other }` — flights/trains are modes of a `Trip` leg, not categories. `BookingDetail(ProviderContactId?, ConfirmationNumber?, Reference?, Url?, Amount?, Currency?, PartySize?)` is category-free.
 - **Validation:** `Travel` applies only to `Trip` (and requires `ToPlace`); unknown enum names → 400 listing valid values; partial details are legal (progressive enrichment).
-- **Places are canonical location:** `CalendarItem.PlaceId` points into a hierarchical `Place` catalog (`Country → City → Address → Venue`); free-text labels resolve to places on write; DAV ICS renders the label on demand.
+- **Places live in LupiraGeoApi:** `CalendarItem.PlaceId` (and `TravelLeg.ToPlaceId`/`FromPlaceId`) reference a geo place id; a denormalized `LocationLabel`/`ToLabel`/`FromLabel` is stored on write. Free-text resolves through `IGeoResolver` (geo when configured, else the raw text is kept as the label); DAV ICS renders the label with no lookup.
 
 ### Availability — partial-day presence segments
 - A presence item carries `ItemDetails.Presence` = `PresenceDetail(AvailabilityStatus Status)`, `Status = Office | Home | Vacation | Sick | Leave`, on the Availability calendar.

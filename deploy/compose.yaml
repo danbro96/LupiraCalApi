@@ -26,7 +26,7 @@ services:
       Ldap__Filter: "(&(objectClass=user)(mail={0}))"   # login by email
 
       # Gazetteer — cal delegates free-text location resolution to LupiraGeoApi (client-credentials, aud lupira-geo)
-      # and mirrors the resolved place locally. Set GEO_CLIENT_SECRET to authenticate; clear GEO_BASE_URL to disable.
+      # storing the geo place id + a denormalized label on the item. Set GEO_CLIENT_SECRET to authenticate; clear GEO_BASE_URL to disable.
       Geo__BaseUrl: ${GEO_BASE_URL:-http://lupira-geo-api:8080/}   # in-network hop, not the public tunnel URL
       Geo__TokenUrl: ${GEO_TOKEN_URL:-https://auth.lupira.com/application/o/token/}
       Geo__ClientId: ${GEO_CLIENT_ID:-lupira-geo-svc}
