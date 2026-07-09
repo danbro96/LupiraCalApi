@@ -1,9 +1,10 @@
 namespace LupiraCalApi.Domain;
 
-/// <summary>A contact's postal address: a reference to an <c>address</c>-kind <see cref="Place"/> with a vCard type.</summary>
+/// <summary>A contact's postal address: an optional LupiraGeoApi place id + a denormalized formatted address, with a vCard type.</summary>
 public sealed class ContactPostalAddress
 {
-    public Guid PlaceId { get; set; }
+    public Guid? PlaceId { get; set; }
+    public string? FormattedAddress { get; set; }
     public ContactAddressType Type { get; set; }
 }
 
@@ -17,7 +18,7 @@ public sealed class ContactSocialProfile
 
 /// <summary>
 /// The contact aggregate + inline snapshot, belonging to one address book. The structured fields are canonical;
-/// CardDAV regenerates the vCard on demand and <c>ContentHash</c> (the ETag) is derived from it. Postal addresses reference <see cref="Place"/>.
+/// CardDAV regenerates the vCard on demand and <c>ContentHash</c> (the ETag) is derived from it. Postal addresses carry an optional geo place id + formatted address.
 /// </summary>
 public sealed class Contact
 {
@@ -89,7 +90,7 @@ public sealed class Contact
     }
 
     public void Apply(ContactAddressesReplaced e) =>
-        Addresses = e.Addresses.Select(a => new ContactPostalAddress { PlaceId = a.PlaceId, Type = a.Type }).ToList();
+        Addresses = e.Addresses.Select(a => new ContactPostalAddress { PlaceId = a.PlaceId, FormattedAddress = a.FormattedAddress, Type = a.Type }).ToList();
 
     public void Apply(ContactProfilesReplaced e) =>
         Profiles = e.Profiles.Select(p => new ContactSocialProfile { Service = p.Service, Handle = p.Handle, Url = p.Url }).ToList();

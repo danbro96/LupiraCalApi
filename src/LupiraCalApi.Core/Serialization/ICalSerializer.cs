@@ -72,7 +72,7 @@ public static class ICalSerializer
     static string NormalizeCrlf(string s) => s.Replace("\r\n", "\n").Replace("\n", "\r\n").TrimEnd('\r', '\n');
 
     /// <summary>Regenerate the canonical ICS for an item from its structured fields. <paramref name="locationLabel"/> is the
-    /// item's <see cref="Place"/> name (resolved by the caller, which has the session).</summary>
+    /// item's denormalized location label.</summary>
     public static string From(CalendarItem i, string? locationLabel) =>
         ToICalendar(i.ExternalId, i.Title, i.Description, locationLabel, i.Status, i.IsAllDay, i.StartsAt, i.EndsAt,
             i.StartDate, i.EndDate, i.RecurrenceRule, i.RecurrenceExceptions, i.RecurrenceOverrides);

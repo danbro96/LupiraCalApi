@@ -1,6 +1,5 @@
 using LupiraCalApi.Domain;
 using LupiraCalApi.Dtos.CalendarItems;
-using LupiraCalApi.Dtos.Places;
 using System.Net;
 using System.Net.Http.Json;
 using Xunit;
@@ -34,7 +33,7 @@ public sealed class ItemDetailsRestTests(CalApiTestFactory factory) : Integratio
     };
 
     [Fact]
-    public async Task Create_trip_with_travel_and_booking_round_trips_and_resolves_place()
+    public async Task Create_trip_with_travel_and_booking_round_trips_and_labels_the_destination()
     {
         var api = Factory.ApiClient(Email);
         var calId = await CreateCalendarAsync(api);
@@ -46,10 +45,8 @@ public sealed class ItemDetailsRestTests(CalApiTestFactory factory) : Integratio
         Assert.Equal(ItemCategory.Trip, dto.Category);
         Assert.Equal("SK123", dto.Details!.Travel!.ServiceNumber);
         Assert.Equal("BR-1", dto.Details.Booking!.Reference);
-        Assert.NotEqual(Guid.Empty, dto.Details.Travel.ToPlaceId);
-
-        var place = await api.GetFromJsonAsync<PlaceDto>($"/places/{dto.Details.Travel.ToPlaceId}");
-        Assert.Equal("Arlanda", place!.Name);
+        // Geo is unconfigured in tests, so ToPlaceId is null and the denormalized label falls back to the raw text.
+        Assert.Equal("Arlanda", dto.Details.Travel.ToLabel);
     }
 
     [Theory]

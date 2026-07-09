@@ -10,7 +10,7 @@ public class CalendarItemTests
     static CalendarItemFields Fields() => new(
         "Lunch", "with team", ItemStatus.Confirmed, false,
         new DateTimeOffset(2026, 7, 1, 9, 0, 0, TimeSpan.Zero), new DateTimeOffset(2026, 7, 1, 10, 0, 0, TimeSpan.Zero),
-        "UTC", null, null, null, null, null, null, ItemCategory.General, null, null, ["work"]);
+        "UTC", null, null, null, null, null, null, ItemCategory.General, null, null, null, ["work"]);
 
     static CalendarItem Scheduled(Guid id, string hash = "h")
     {

@@ -24,5 +24,6 @@ public sealed record CalendarItemFields(
     string? RecurrenceOverrides,
     ItemCategory? Category,
     Guid? PlaceId,
+    string? LocationLabel,
     Guid? ParentItemId,
     string[]? Tags);

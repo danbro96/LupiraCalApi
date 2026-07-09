@@ -13,14 +13,23 @@ namespace LupiraCalApi.Application;
 /// the inline <see cref="CalendarItem"/> snapshot is the read model. The raw <c>SourceIcalendar</c> blob + content
 /// hash ride on the events (DAV source of truth + ETag). Items are calendar-independent (many-to-many via curation).
 /// </summary>
-public sealed class CalendarItemService(IDocumentSession session, AccessResolver access, RecurrenceExpander expander, PlaceService places, CompletenessResolver completeness)
+public sealed class CalendarItemService(IDocumentSession session, AccessResolver access, RecurrenceExpander expander, IGeoResolver geo, CompletenessResolver completeness)
 {
+    /// <summary>Resolve free-text to a (geo place id, label). Geo owns resolution; when it's unconfigured/unreachable the
+    /// id is null and the label falls back to the trimmed input — no local place catalog.</summary>
+    private async Task<(Guid? PlaceId, string? Label)> ResolvePlaceAsync(string? text, CancellationToken ct)
+    {
+        if (string.IsNullOrWhiteSpace(text)) return (null, null);
+        if (geo.IsConfigured && await geo.ResolveAsync(text, ct) is { } r) return (r.PlaceId, r.Name);
+        return (null, text.Trim());
+    }
+
     public async Task<OpResult<CalendarItemDto>> CreateAsync(Guid principalId, CreateCalendarItemRequest r, CancellationToken ct = default)
     {
         if (r.CalendarId is { } pre && !await access.CanWriteCalendarAsync(principalId, pre, ct))
             return OpResult<CalendarItemDto>.Forbidden("No write access to this calendar.");
 
-        var placeId = await places.ResolveLabelAsync(r.Location, ct);
+        var (placeId, locationLabel) = await ResolvePlaceAsync(r.Location, ct);
         if (!TryParseDefined<ItemStatus>(r.Status, out var status)) return OpResult<CalendarItemDto>.Invalid(UnknownEnum<ItemStatus>("status", r.Status!));
         if (!TryParseDefined<ItemCategory>(r.Category, out var category)) return OpResult<CalendarItemDto>.Invalid(UnknownEnum<ItemCategory>("category", r.Category!));
         if (ItemDetailsMapper.Validate(category, r.Details) is { } detailsError)
@@ -28,10 +37,9 @@ public sealed class CalendarItemService(IDocumentSession session, AccessResolver
         var uid = $"{Guid.NewGuid():N}@cal.lupira.com";
         var id = DeterministicGuid.From(uid);
         var fields = new CalendarItemFields(r.Title, r.Description, status, r.IsAllDay, r.StartsAt, r.EndsAt,
-            r.StartTimezone, null, r.StartDate, r.EndDate, r.RecurrenceRule, null, null, category, placeId, null, r.Tags);
-        var details = await ItemDetailsMapper.BuildAsync(r.Details, r.Availability, places, ct);
-        // Hash the canonical ICS built from the resolved place label (not the raw input) so it matches what DAV GET regenerates.
-        var locationLabel = await places.LabelOfAsync(placeId, ct);
+            r.StartTimezone, null, r.StartDate, r.EndDate, r.RecurrenceRule, null, null, category, placeId, locationLabel, null, r.Tags);
+        var details = await ItemDetailsMapper.BuildAsync(r.Details, r.Availability, geo, ct);
+        // Hash the canonical ICS built from the denormalized location label (not the raw input) so it matches DAV GET.
         var hash = ContentHash.Of(ICalSerializer.ToICalendar(uid, r.Title, r.Description, locationLabel, status, r.IsAllDay, r.StartsAt, r.EndsAt, r.StartDate, r.EndDate, r.RecurrenceRule));
 
         var events = new List<object> { new ItemScheduled(id, uid, fields, details, hash) };
@@ -80,11 +88,11 @@ public sealed class CalendarItemService(IDocumentSession session, AccessResolver
             if (!string.IsNullOrWhiteSpace(i.RecurrenceRule))
             {
                 foreach (var occ in expander.Expand(i, windowStart, windowEnd))
-                    results.Add(new CalendarItemOccurrenceDto { Id = i.Id, Title = i.Title, PlaceId = i.PlaceId, IsAllDay = i.IsAllDay, Start = occ, End = duration is { } d ? occ + d : null, Completeness = score, Etag = i.ContentHash });
+                    results.Add(new CalendarItemOccurrenceDto { Id = i.Id, Title = i.Title, PlaceId = i.PlaceId, LocationLabel = i.LocationLabel, IsAllDay = i.IsAllDay, Start = occ, End = duration is { } d ? occ + d : null, Completeness = score, Etag = i.ContentHash });
             }
             else if (OccurrenceStart(i) is { } start && start >= windowStart && start < windowEnd)
             {
-                results.Add(new CalendarItemOccurrenceDto { Id = i.Id, Title = i.Title, PlaceId = i.PlaceId, IsAllDay = i.IsAllDay, Start = start, End = duration is { } d ? start + d : i.EndsAt, Completeness = score, Etag = i.ContentHash });
+                results.Add(new CalendarItemOccurrenceDto { Id = i.Id, Title = i.Title, PlaceId = i.PlaceId, LocationLabel = i.LocationLabel, IsAllDay = i.IsAllDay, Start = start, End = duration is { } d ? start + d : i.EndsAt, Completeness = score, Etag = i.ContentHash });
             }
         }
         return OpResult<List<CalendarItemOccurrenceDto>>.Ok([.. results.OrderBy(x => x.Start)]);
@@ -136,7 +144,7 @@ public sealed class CalendarItemService(IDocumentSession session, AccessResolver
         var endsAt = r.EndsAt ?? item.EndsAt;
         var rrule = r.RecurrenceRule ?? item.RecurrenceRule;
         var tags = r.Tags ?? item.Tags;
-        var placeId = r.Location is not null ? await places.ResolveLabelAsync(r.Location, ct) : item.PlaceId;
+        var (placeId, locationLabel) = r.Location is not null ? await ResolvePlaceAsync(r.Location, ct) : (item.PlaceId, item.LocationLabel);
 
         var category = categoryIn ?? item.Category;
         var categoryChanged = category != item.Category;
@@ -147,14 +155,13 @@ public sealed class CalendarItemService(IDocumentSession session, AccessResolver
 
         var fields = new CalendarItemFields(title, description, status, item.IsAllDay, startsAt, endsAt,
             item.StartTimezone, item.EndTimezone, item.StartDate, item.EndDate, rrule,
-            item.RecurrenceExceptions, item.RecurrenceOverrides, category, placeId, item.ParentItemId, tags);
+            item.RecurrenceExceptions, item.RecurrenceOverrides, category, placeId, locationLabel, item.ParentItemId, tags);
 
-        var incoming = await ItemDetailsMapper.BuildAsync(r.Details, r.Availability, places, ct);
+        var incoming = await ItemDetailsMapper.BuildAsync(r.Details, r.Availability, geo, ct);
         // null incoming keeps existing details (Apply only overwrites when non-null); reclassifying with none clears the previous details.
         var details = incoming is null
             ? (categoryChanged ? new ItemDetails() : null)
             : (categoryChanged ? incoming : ItemDetailsMapper.Merge(item.Details, incoming));
-        var locationLabel = await places.LabelOfAsync(placeId, ct);
         var hash = ContentHash.Of(ICalSerializer.ToICalendar(item.ExternalId, title, description, locationLabel, status, item.IsAllDay, startsAt, endsAt, item.StartDate, item.EndDate, rrule, item.RecurrenceExceptions, item.RecurrenceOverrides));
 
         stream.AppendOne(new ItemRevised(id, fields, details, hash));
@@ -272,13 +279,12 @@ public sealed class CalendarItemService(IDocumentSession session, AccessResolver
         try { p = ICalSerializer.ParseICalendar(rawIcs); }
         catch (FormatException ex) { return OpResult<DavWriteResult>.Invalid(ex.Message); }
 
-        var placeId = await places.ResolveLabelAsync(p.Location, ct);
+        var (placeId, locationLabel) = await ResolvePlaceAsync(p.Location, ct);
         var fields = new CalendarItemFields(p.Title, p.Description, null, p.IsAllDay, p.StartsAt, p.EndsAt,
             p.StartTimezone, p.EndTimezone, p.StartDate, p.EndDate, p.RecurrenceRule,
-            p.RecurrenceExceptions, p.RecurrenceOverrides, null, placeId, null, null);
+            p.RecurrenceExceptions, p.RecurrenceOverrides, null, placeId, locationLabel, null, null);
         // PUT parses into structured fields; the ETag is the hash of the canonical ICS regenerated from them (matching DAV GET), not the raw blob.
-        var label = await places.LabelOfAsync(placeId, ct);
-        var hash = ContentHash.Of(ICalSerializer.ToICalendar(externalId, fields.Title, fields.Description, label, fields.Status, fields.IsAllDay, fields.StartsAt, fields.EndsAt, fields.StartDate, fields.EndDate, fields.RecurrenceRule, fields.RecurrenceExceptions, fields.RecurrenceOverrides));
+        var hash = ContentHash.Of(ICalSerializer.ToICalendar(externalId, fields.Title, fields.Description, locationLabel, fields.Status, fields.IsAllDay, fields.StartsAt, fields.EndsAt, fields.StartDate, fields.EndDate, fields.RecurrenceRule, fields.RecurrenceExceptions, fields.RecurrenceOverrides));
 
         stream.AppendOne(new ItemImported(id, externalId, fields, hash));   // also clears any soft-delete (resurrect)
         if (existing is null || !existing.IsAcceptedIn(calendarId))

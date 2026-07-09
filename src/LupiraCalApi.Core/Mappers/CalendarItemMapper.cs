@@ -24,6 +24,7 @@ internal static class CalendarItemMapper
         Category = i.Category,
         Details = i.Details,
         PlaceId = i.PlaceId,
+        LocationLabel = i.LocationLabel,
         ParentItemId = i.ParentItemId,
         Tags = i.Tags,
         Metadata = JsonNode.Parse(string.IsNullOrWhiteSpace(i.Metadata) ? "{}" : i.Metadata),

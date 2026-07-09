@@ -41,10 +41,9 @@ public static class CoreServiceCollectionExtensions
         services.AddScoped<CompletenessResolver>();
         services.AddScoped<AccessResolver>();
         services.AddScoped<PrincipalDirectory>();
-        // Default: no external gazetteer → PlaceService uses the legacy local catalog. The host overrides this with an
-        // HTTP GeoApiClient when LupiraGeoApi is configured (Geo:BaseUrl).
+        // Default: no external gazetteer → free-text locations resolve to no id (label = raw text). The host overrides
+        // this with an HTTP GeoApiClient when LupiraGeoApi is configured (Geo:BaseUrl).
         services.TryAddSingleton<IGeoResolver, NullGeoResolver>();
-        services.AddScoped<PlaceService>();
         services.AddScoped<CalendarService>();
         services.AddScoped<CalendarItemService>();
         services.AddScoped<ContactService>();

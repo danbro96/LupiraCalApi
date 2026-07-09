@@ -3,7 +3,7 @@ namespace LupiraCalApi.Clients;
 /// <summary>
 /// Binds <c>Geo</c> — the cal → LupiraGeoApi hop (resolve a free-text location to a shared place). Service-authed:
 /// Authentik client-credentials in prod (<see cref="TokenUrl"/> + client id/secret, audience <c>lupira-geo</c>), or an
-/// <c>X-Dev-User</c> header locally. Unset <see cref="BaseUrl"/> ⇒ not configured ⇒ PlaceService uses the legacy local catalog.
+/// <c>X-Dev-User</c> header locally. Unset <see cref="BaseUrl"/> ⇒ not configured ⇒ free-text locations resolve to no place id (label = raw text).
 /// </summary>
 public sealed class GeoApiOptions
 {

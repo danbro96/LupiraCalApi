@@ -107,7 +107,7 @@ public static class CompletenessScorer
 
     // ---- presence helpers (1 present · 0.5 weak · 0 absent) ----
 
-    private static double Place(CalendarItem i) => i.PlaceId is not null ? 1 : 0;
+    private static double Place(CalendarItem i) => i.PlaceId is not null || !string.IsNullOrWhiteSpace(i.LocationLabel) ? 1 : 0;
     private static double Time(CalendarItem i) => i.StartsAt is not null || (i.IsAllDay && i.StartDate is not null) ? 1 : 0;
     private static double BothTimes(CalendarItem i) => (i.StartsAt is not null, i.EndsAt is not null) switch { (true, true) => 1, (false, false) => 0, _ => 0.5 };
 
@@ -126,8 +126,8 @@ public static class CompletenessScorer
     private static double TravelFromTo(TravelLeg? t)
     {
         if (t is null) return 0;
-        var to = t.ToPlaceId != Guid.Empty;
-        var from = t.FromPlaceId is not null;
+        var to = t.ToPlaceId is not null || !string.IsNullOrWhiteSpace(t.ToLabel);
+        var from = t.FromPlaceId is not null || !string.IsNullOrWhiteSpace(t.FromLabel);
         return (from, to) switch { (true, true) => 1, (false, false) => 0, _ => 0.5 };
     }
 

@@ -18,13 +18,13 @@ public static class MartenRegistrations
         opts.Projections.Snapshot<Contact>(SnapshotLifecycle.Inline);
         opts.Projections.Snapshot<ContactGroup>(SnapshotLifecycle.Inline);
 
-        // Plain documents (collections, identity, places, cross-API edges) + the indexes the services query by.
+        // Plain documents (collections, identity, cross-API edges) + the indexes the services query by. Places are owned
+        // by LupiraGeoApi — items/legs/contacts reference a geo place id by Guid (no local doc) + a denormalized label.
         opts.Schema.For<Principal>().Index(x => x.AuthentikSub).Index(x => x.Email);
         opts.Schema.For<Calendar>();
         opts.Schema.For<AddressBook>();
         opts.Schema.For<CalendarOwner>().Index(x => x.PrincipalId).Index(x => x.CalendarId);
         opts.Schema.For<AddressBookOwner>().Index(x => x.PrincipalId).Index(x => x.AddressBookId);
-        opts.Schema.For<Place>().Index(x => x.Name);
         opts.Schema.For<Relation>().Index(x => x.FromId);
 
         return opts;

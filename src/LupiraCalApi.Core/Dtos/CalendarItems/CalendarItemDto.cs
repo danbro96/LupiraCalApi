@@ -34,6 +34,7 @@ public sealed class CalendarItemDto
     public ItemDetails? Details { get; set; }
 
     public Guid? PlaceId { get; set; }
+    public string? LocationLabel { get; set; }
     public Guid? ParentItemId { get; set; }
     public string[]? Tags { get; set; }
     public JsonNode? Metadata { get; set; }

@@ -33,6 +33,12 @@ public static class CalendarItemsEndpoints
             .Produces(StatusCodes.Status404NotFound)
             .Produces(StatusCodes.Status401Unauthorized);
 
+        group.MapGet("/by-place/{placeId:guid}", (Guid placeId, CalendarItemsHandler h, CancellationToken ct) => h.ByPlaceAsync(placeId, ct))
+            .WithName("GetItemsByPlace")
+            .WithSummary("Calendar items anchored to a LupiraGeoApi place (its location, or a travel endpoint). Only items in a calendar you can read.")
+            .Produces<List<CalendarItemDto>>(StatusCodes.Status200OK)
+            .Produces(StatusCodes.Status401Unauthorized);
+
         group.MapPut("/{id:guid}", (Guid id, UpdateCalendarItemRequest body, CalendarItemsHandler h, CancellationToken ct) => h.UpdateAsync(id, body, ct))
             .WithName("UpdateItem")
             .WithSummary("Update a calendar item (only provided fields change).")

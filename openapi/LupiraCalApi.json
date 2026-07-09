@@ -695,6 +695,49 @@
         ]
       }
     },
+    "/items/by-place/{placeId}": {
+      "get": {
+        "tags": [
+          "CalendarItems"
+        ],
+        "summary": "Calendar items anchored to a LupiraGeoApi place (its location, or a travel endpoint). Only items in a calendar you can read.",
+        "operationId": "GetItemsByPlace",
+        "parameters": [
+          {
+            "name": "placeId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/CalendarItemDto"
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized"
+          }
+        },
+        "security": [
+          {
+            "Bearer": [ ]
+          }
+        ]
+      }
+    },
     "/items/{id}/metadata": {
       "post": {
         "tags": [
@@ -2080,159 +2123,6 @@
           }
         ]
       }
-    },
-    "/places": {
-      "get": {
-        "tags": [
-          "Places"
-        ],
-        "summary": "Browse/search the shared location catalog: filter by name (search), kind, or parentPlaceId; or batch-resolve by repeating ids= (ids wins; unknown ids omitted).",
-        "operationId": "GetPlaces",
-        "parameters": [
-          {
-            "name": "ids",
-            "in": "query",
-            "schema": {
-              "type": "array",
-              "items": {
-                "type": "string",
-                "format": "uuid"
-              }
-            }
-          },
-          {
-            "name": "search",
-            "in": "query",
-            "schema": {
-              "type": "string"
-            }
-          },
-          {
-            "name": "kind",
-            "in": "query",
-            "schema": {
-              "$ref": "#/components/schemas/PlaceKind"
-            }
-          },
-          {
-            "name": "parentPlaceId",
-            "in": "query",
-            "schema": {
-              "type": "string",
-              "format": "uuid"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "OK",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "array",
-                  "items": {
-                    "$ref": "#/components/schemas/PlaceDto"
-                  }
-                }
-              }
-            }
-          },
-          "401": {
-            "description": "Unauthorized"
-          }
-        },
-        "security": [
-          {
-            "Bearer": [ ]
-          }
-        ]
-      }
-    },
-    "/places/{id}": {
-      "get": {
-        "tags": [
-          "Places"
-        ],
-        "summary": "A single place from the shared location catalog.",
-        "operationId": "GetPlace",
-        "parameters": [
-          {
-            "name": "id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "format": "uuid"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "OK",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/PlaceDto"
-                }
-              }
-            }
-          },
-          "404": {
-            "description": "Not Found"
-          },
-          "401": {
-            "description": "Unauthorized"
-          }
-        },
-        "security": [
-          {
-            "Bearer": [ ]
-          }
-        ]
-      }
-    },
-    "/places/{id}/items": {
-      "get": {
-        "tags": [
-          "Places"
-        ],
-        "summary": "Calendar items anchored to this place (its location, or a travel/car endpoint). Only items in a calendar you can read.",
-        "operationId": "GetPlaceItems",
-        "parameters": [
-          {
-            "name": "id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "format": "uuid"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "OK",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "array",
-                  "items": {
-                    "$ref": "#/components/schemas/CalendarItemDto"
-                  }
-                }
-              }
-            }
-          },
-          "401": {
-            "description": "Unauthorized"
-          }
-        },
-        "security": [
-          {
-            "Bearer": [ ]
-          }
-        ]
-      }
     }
   },
   "components": {
@@ -2445,6 +2335,12 @@
             ],
             "format": "uuid"
           },
+          "locationLabel": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
           "parentItemId": {
             "type": [
               "null",
@@ -2543,6 +2439,12 @@
               "string"
             ],
             "format": "uuid"
+          },
+          "locationLabel": {
+            "type": [
+              "null",
+              "string"
+            ]
           },
           "isAllDay": {
             "type": "boolean"
@@ -2825,8 +2727,17 @@
         "type": "object",
         "properties": {
           "placeId": {
-            "type": "string",
+            "type": [
+              "null",
+              "string"
+            ],
             "format": "uuid"
+          },
+          "formattedAddress": {
+            "type": [
+              "null",
+              "string"
+            ]
           },
           "type": {
             "$ref": "#/components/schemas/ContactAddressType"
@@ -3537,59 +3448,6 @@
           "Delegated"
         ]
       },
-      "PlaceDto": {
-        "required": [
-          "id",
-          "kind",
-          "name"
-        ],
-        "type": "object",
-        "properties": {
-          "id": {
-            "type": "string",
-            "format": "uuid"
-          },
-          "parentPlaceId": {
-            "type": [
-              "null",
-              "string"
-            ],
-            "format": "uuid"
-          },
-          "kind": {
-            "$ref": "#/components/schemas/PlaceKind"
-          },
-          "name": {
-            "type": "string"
-          },
-          "latitude": {
-            "pattern": "^-?(?:0|[1-9]\\d*)(?:\\.\\d+)?(?:[eE][+-]?\\d+)?$",
-            "type": [
-              "null",
-              "number",
-              "string"
-            ],
-            "format": "double"
-          },
-          "longitude": {
-            "pattern": "^-?(?:0|[1-9]\\d*)(?:\\.\\d+)?(?:[eE][+-]?\\d+)?$",
-            "type": [
-              "null",
-              "number",
-              "string"
-            ],
-            "format": "double"
-          }
-        }
-      },
-      "PlaceKind": {
-        "enum": [
-          "Country",
-          "City",
-          "Address",
-          "Venue"
-        ]
-      },
       "PresenceDetail": {
         "required": [
           "status"
@@ -3963,7 +3821,10 @@
             "$ref": "#/components/schemas/TransportMode"
           },
           "toPlaceId": {
-            "type": "string",
+            "type": [
+              "null",
+              "string"
+            ],
             "format": "uuid"
           },
           "fromPlaceId": {
@@ -4023,6 +3884,18 @@
               "string"
             ],
             "format": "uuid"
+          },
+          "toLabel": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "fromLabel": {
+            "type": [
+              "null",
+              "string"
+            ]
           }
         }
       },
@@ -4221,9 +4094,6 @@
     },
     {
       "name": "ContactGroups"
-    },
-    {
-      "name": "Places"
     }
   ]
 }

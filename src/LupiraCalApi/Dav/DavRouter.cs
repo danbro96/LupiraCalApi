@@ -253,12 +253,9 @@ public static class DavRouter
         await WriteMultiStatus(ctx, MultiStatus([.. responses]));
     }
 
-    /// <summary>Regenerate an item's canonical ICS (location resolved from its Place), so DAV never depends on a stored blob.</summary>
-    static async Task<string> ItemIcsAsync(HttpContext ctx, CalendarItem i, CancellationToken ct)
-    {
-        var label = await ctx.RequestServices.GetRequiredService<PlaceService>().LabelOfAsync(i.PlaceId, ct);
-        return ICalSerializer.From(i, label);
-    }
+    /// <summary>Regenerate an item's canonical ICS from its denormalized location label, so DAV never depends on a stored blob.</summary>
+    static Task<string> ItemIcsAsync(HttpContext ctx, CalendarItem i, CancellationToken ct) =>
+        Task.FromResult(ICalSerializer.From(i, i.LocationLabel));
 
     static async Task CalendarSync(HttpContext ctx, IQuerySession session, string baseUrl, Principal user, Guid calId, XDocument doc)
     {

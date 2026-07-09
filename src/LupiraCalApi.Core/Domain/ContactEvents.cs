@@ -10,7 +10,7 @@ public record ContactRevised(Guid ContactId, ContactFields Fields, string Conten
 public record ContactDeleted(Guid ContactId);
 public record ContactRestored(Guid ContactId, string ContentHash);
 
-/// <summary>Replaces the contact's postal addresses (each → an <c>address</c>-kind <see cref="Place"/>).</summary>
+/// <summary>Replaces the contact's postal addresses (each an optional geo place id + formatted address).</summary>
 public record ContactAddressesReplaced(Guid ContactId, IReadOnlyList<ContactPostalAddress> Addresses);
 
 /// <summary>Replaces the contact's social/IM handles (vCard <c>IMPP</c>/<c>X-SOCIALPROFILE</c>).</summary>

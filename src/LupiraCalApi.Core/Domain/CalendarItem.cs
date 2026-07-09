@@ -46,6 +46,9 @@ public sealed class CalendarItem
     public string? RecurrenceOverrides { get; set; }
     public ItemCategory? Category { get; set; }
     public Guid? PlaceId { get; set; }
+    /// <summary>Denormalized display label for <see cref="PlaceId"/> (the geo place's canonical name, or the raw
+    /// free-text when geo didn't resolve it) — so ICS + read need no cross-service lookup.</summary>
+    public string? LocationLabel { get; set; }
     public Guid? ParentItemId { get; set; }
     public string[]? Tags { get; set; }
     public ItemDetails? Details { get; set; }
@@ -170,6 +173,7 @@ public sealed class CalendarItem
         RecurrenceOverrides = f.RecurrenceOverrides;
         if (f.Category is { } c) Category = c;
         PlaceId = f.PlaceId;
+        LocationLabel = f.LocationLabel;
         ParentItemId = f.ParentItemId;
         if (f.Tags is not null) Tags = f.Tags;
     }

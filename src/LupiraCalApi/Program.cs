@@ -39,10 +39,9 @@ builder.Services.AddScoped<RelationsHandler>();
 builder.Services.AddScoped<CurationHandler>();
 builder.Services.AddScoped<ParticipationHandler>();
 builder.Services.AddScoped<ContactGroupsHandler>();
-builder.Services.AddScoped<PlacesHandler>();
 
-// --- Gazetteer: when LupiraGeoApi is configured (Geo:BaseUrl), it owns place resolution/geocoding and PlaceService
-// keeps a local mirror; otherwise Core's NullGeoResolver leaves the legacy local catalog in place. ---
+// --- Gazetteer: LupiraGeoApi owns place resolution/geocoding (Geo:BaseUrl). When configured, free-text locations
+// resolve to a geo place id + label; otherwise Core's NullGeoResolver stores just the raw-text label. ---
 builder.Services.Configure<GeoApiOptions>(builder.Configuration.GetSection(GeoApiOptions.SectionName));
 var geoOptions = builder.Configuration.GetSection(GeoApiOptions.SectionName).Get<GeoApiOptions>() ?? new GeoApiOptions();
 if (geoOptions.IsConfigured)
@@ -203,7 +202,6 @@ app.MapRelations();
 app.MapCuration();
 app.MapParticipation();
 app.MapContactGroups();
-app.MapPlaces();
 
 // DAV service discovery (anonymous): clients probe these before auth, then follow to /dav/.
 app.MapMethods("/.well-known/caldav", ["GET", "PROPFIND", "OPTIONS"], () => Results.Redirect("/dav/", permanent: true));
