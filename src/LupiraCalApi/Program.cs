@@ -1,4 +1,6 @@
-﻿using LupiraCalApi.Auth;
+﻿using LupiraCalApi.Application;
+using LupiraCalApi.Auth;
+using LupiraCalApi.Clients;
 using LupiraCalApi.Dav;
 using LupiraCalApi.Domain;
 using LupiraCalApi.Endpoints;
@@ -38,6 +40,14 @@ builder.Services.AddScoped<CurationHandler>();
 builder.Services.AddScoped<ParticipationHandler>();
 builder.Services.AddScoped<ContactGroupsHandler>();
 builder.Services.AddScoped<PlacesHandler>();
+
+// --- Gazetteer: when LupiraGeoApi is configured (Geo:BaseUrl), it owns place resolution/geocoding and PlaceService
+// keeps a local mirror; otherwise Core's NullGeoResolver leaves the legacy local catalog in place. ---
+builder.Services.Configure<GeoApiOptions>(builder.Configuration.GetSection(GeoApiOptions.SectionName));
+var geoOptions = builder.Configuration.GetSection(GeoApiOptions.SectionName).Get<GeoApiOptions>() ?? new GeoApiOptions();
+if (geoOptions.IsConfigured)
+    builder.Services.AddHttpClient<IGeoResolver, GeoApiClient>(c =>
+        c.BaseAddress = new Uri(geoOptions.BaseUrl.EndsWith('/') ? geoOptions.BaseUrl : geoOptions.BaseUrl + "/"));
 
 // --- Auth: OIDC JWT for the REST surface (the agent obtains a member-scoped token via Authentik token-exchange);
 //           HTTP Basic -> LDAP outpost for /dav. One identity authority (Authentik). ---

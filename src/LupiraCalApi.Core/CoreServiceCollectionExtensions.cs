@@ -6,6 +6,7 @@ using LupiraCalApi.Domain;
 using LupiraCalApi.Scheduling;
 using Marten;
 using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.DependencyInjection.Extensions;
 
 namespace Microsoft.Extensions.DependencyInjection;
 
@@ -40,6 +41,9 @@ public static class CoreServiceCollectionExtensions
         services.AddScoped<CompletenessResolver>();
         services.AddScoped<AccessResolver>();
         services.AddScoped<PrincipalDirectory>();
+        // Default: no external gazetteer → PlaceService uses the legacy local catalog. The host overrides this with an
+        // HTTP GeoApiClient when LupiraGeoApi is configured (Geo:BaseUrl).
+        services.TryAddSingleton<IGeoResolver, NullGeoResolver>();
         services.AddScoped<PlaceService>();
         services.AddScoped<CalendarService>();
         services.AddScoped<CalendarItemService>();

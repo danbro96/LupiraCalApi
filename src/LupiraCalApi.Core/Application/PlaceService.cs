@@ -5,15 +5,35 @@ using Marten;
 
 namespace LupiraCalApi.Application;
 
-/// <summary>Resolves free-text locations (from REST input or a parsed ICS/vCard) to a reusable <see cref="Place"/> node,
-/// de-duping by name. Stores into the caller's session (no SaveChanges) so it commits in the same transaction.</summary>
-public sealed class PlaceService(IDocumentSession session)
+/// <summary>Resolves free-text locations (from REST input or a parsed ICS/vCard) to a reusable <see cref="Place"/> node.
+/// When LupiraGeoApi is configured (<see cref="IGeoResolver"/>), it owns resolution/geocoding and this keeps a local
+/// mirror keyed by the geo place id; otherwise it falls back to the legacy local catalog (dedupe by name). Stores into
+/// the caller's session (no SaveChanges) so it commits in the same transaction.</summary>
+public sealed class PlaceService(IDocumentSession session, IGeoResolver geo)
 {
-    /// <summary>Resolve a free-text label to a (deduped) <see cref="Place"/>; returns null for empty input.</summary>
+    /// <summary>Resolve a free-text label to a <see cref="Place"/> id; returns null for empty input.</summary>
     public async Task<Guid?> ResolveLabelAsync(string? label, CancellationToken ct = default)
     {
         if (string.IsNullOrWhiteSpace(label)) return null;
         var name = label.Trim();
+
+        if (geo.IsConfigured && await geo.ResolveAsync(name, ct) is { } r)
+        {
+            // Mirror the authoritative geo place locally (id == geo place id) so ICS generation + the place→items
+            // reverse index need no cross-service call.
+            var mirror = await session.LoadAsync<Place>(r.PlaceId, ct);
+            if (mirror is null)
+                session.Store(new Place { Id = r.PlaceId, Kind = PlaceKind.Venue, Name = r.Name, Latitude = r.Latitude, Longitude = r.Longitude });
+            else if (mirror.Name != r.Name || mirror.Latitude != r.Latitude || mirror.Longitude != r.Longitude)
+            {
+                mirror.Name = r.Name;
+                mirror.Latitude = r.Latitude;
+                mirror.Longitude = r.Longitude;
+                session.Store(mirror);
+            }
+            return r.PlaceId;
+        }
+
         var existing = await session.Query<Place>().FirstOrDefaultAsync(p => p.Name == name, ct);
         if (existing is not null) return existing.Id;
         var place = new Place { Id = Guid.NewGuid(), Kind = PlaceKind.Venue, Name = name };
