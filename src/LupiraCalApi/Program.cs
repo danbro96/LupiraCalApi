@@ -56,6 +56,17 @@ var authBuilder = builder.Services.AddAuthentication(JwtBearerDefaults.Authentic
         options.Authority = builder.Configuration["Auth:Authority"];
         options.Audience = builder.Configuration["Auth:Audience"];
         options.RequireHttpsMetadata = !builder.Environment.IsDevelopment();
+        options.Events = new JwtBearerEvents
+        {
+            // MCP auth spec: a 401 on /mcp advertises the RFC 9728 metadata so clients can discover the issuer.
+            OnChallenge = ctx =>
+            {
+                if (ctx.Request.Path.StartsWithSegments("/mcp"))
+                    ctx.Response.Headers.Append("WWW-Authenticate",
+                        $"Bearer resource_metadata=\"{McpResourceMetadata.ResourceMetadataUrl(ctx.Request)}\"");
+                return Task.CompletedTask;
+            },
+        };
     })
     .AddScheme<AuthenticationSchemeOptions, DavBasicAuthHandler>(DavConstants.Scheme, _ => { });
 
@@ -208,6 +219,7 @@ app.MapMethods("/.well-known/caldav", ["GET", "PROPFIND", "OPTIONS"], () => Resu
 app.MapMethods("/.well-known/carddav", ["GET", "PROPFIND", "OPTIONS"], () => Results.Redirect("/dav/", permanent: true));
 
 // Agent MCP transport (LAN/WireGuard-only; excluded from the Cloudflare Tunnel at the edge).
+app.MapMcpResourceMetadata(app.Configuration["Auth:Authority"]);
 app.MapMcp("/mcp").RequireAuthorization("ApiPolicy");
 
 // CalDAV/CardDAV catch-all (Basic auth). All HTTP verbs — including PROPFIND/REPORT/MKCALENDAR — reach

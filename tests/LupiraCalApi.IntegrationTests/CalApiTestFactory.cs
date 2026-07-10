@@ -36,6 +36,8 @@ public sealed class CalApiTestFactory : WebApplicationFactory<Program>
             cfg.AddInMemoryCollection(new Dictionary<string, string?>
             {
                 ["ConnectionStrings:Postgres"] = _postgres.GetConnectionString(),
+                // Never contacted (tests auth via X-Dev-User) — feeds the RFC 9728 metadata + JWT challenge.
+                ["Auth:Authority"] = "https://auth.test/application/o/lupira-cal/",
             }));
     }
 
@@ -66,6 +68,9 @@ public sealed class CalApiTestFactory : WebApplicationFactory<Program>
         client.DefaultRequestHeaders.Add("X-Dev-User", email);
         return client;
     }
+
+    /// <summary>A client with no auth header — for asserting unauthenticated requests are rejected.</summary>
+    public HttpClient AnonymousClient() => CreateClient();
 
     public HttpClient DavClient(string email)
     {
