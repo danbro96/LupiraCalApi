@@ -98,13 +98,14 @@ public sealed class CalendarTools
         return Require(await contacts.RemoveRelationAsync(u.Id, contactId, toContactId, ParseRelationKind(kind)));
     }
 
-    [McpServerTool, Description("List a contact's resolved relations, both directions: each entry's kind is the other contact's role relative to this one (incoming edges show the derived inverse, e.g. stored parent → incoming child).")]
+    [McpServerTool, Description("List a contact's resolved relations, both directions: each entry's kind is the other contact's role relative to this one (incoming edges show the derived inverse, e.g. stored parent → incoming child). Set includeInferred=true to also return kin derived from the parent/child graph (siblings, grandparents/-children, aunts/uncles, cousins, nieces/nephews), each tagged provenance=Inferred.")]
     public static async Task<IReadOnlyList<ContactRelationEntryDto>> list_contact_relations(
         ContactService contacts, CurrentUser user,
-        [Description("The contact whose relations to list.")] Guid contactId)
+        [Description("The contact whose relations to list.")] Guid contactId,
+        [Description("Also return kin derived from the parent/child graph, tagged provenance=Inferred.")] bool includeInferred = false)
     {
         var u = await user.GetAsync();
-        return Require(await contacts.ListRelationsAsync(u.Id, contactId));
+        return Require(await contacts.ListRelationsAsync(u.Id, contactId, includeInferred));
     }
 
     // Strict: a silently-defaulted kind would corrupt the edge.

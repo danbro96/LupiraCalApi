@@ -20,4 +20,7 @@ public static class ContactRelationKinds
         ContactRelationKind.Emergency => ContactRelationKind.Other,   // no true inverse
         _ => kind,   // remaining kinds are symmetric
     };
+
+    /// <summary>Widen a stored kind to the read-model <see cref="KinshipKind"/>; the two enums share leading ordinals.</summary>
+    public static KinshipKind AsKinship(this ContactRelationKind kind) => (KinshipKind)(int)kind;
 }

@@ -1234,7 +1234,7 @@
         "tags": [
           "Contacts"
         ],
-        "summary": "Resolved relations, both directions: each entry's kind is the other contact's role relative to this one (incoming = derived inverse).",
+        "summary": "Resolved relations, both directions: each entry's kind is the other contact's role relative to this one (incoming = derived inverse). Set includeInferred=true to also return kin derived from the parent/child graph (siblings, grandparents/-children, aunts/uncles, cousins, nieces/nephews), tagged Provenance=Inferred.",
         "operationId": "ListContactRelations",
         "parameters": [
           {
@@ -1244,6 +1244,13 @@
             "schema": {
               "type": "string",
               "format": "uuid"
+            }
+          },
+          {
+            "name": "includeInferred",
+            "in": "query",
+            "schema": {
+              "type": "boolean"
             }
           }
         ],
@@ -1334,6 +1341,63 @@
                 }
               }
             }
+          },
+          "403": {
+            "description": "Forbidden",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized"
+          }
+        },
+        "security": [
+          {
+            "Bearer": [ ]
+          }
+        ]
+      }
+    },
+    "/contacts/relations/normalize": {
+      "post": {
+        "tags": [
+          "Contacts"
+        ],
+        "summary": "One-time, idempotent cleanup: convert explicit Sibling edges whose endpoints have a recorded parent into shared parentage. Scoped to the caller's writable books; returns the number of edges converted.",
+        "operationId": "NormalizeContactSiblings",
+        "parameters": [
+          {
+            "name": "addressBookId",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "pattern": "^-?(?:0|[1-9]\\d*)$",
+                  "type": [
+                    "integer",
+                    "string"
+                  ],
+                  "format": "int32"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not Found"
           },
           "403": {
             "description": "Forbidden",
@@ -3011,7 +3075,7 @@
             "type": "string"
           },
           "kind": {
-            "$ref": "#/components/schemas/ContactRelationKind"
+            "$ref": "#/components/schemas/KinshipKind"
           },
           "label": {
             "type": [
@@ -3021,6 +3085,9 @@
           },
           "direction": {
             "$ref": "#/components/schemas/ContactRelationDirection"
+          },
+          "provenance": {
+            "$ref": "#/components/schemas/RelationProvenance"
           }
         }
       },
@@ -3654,6 +3721,25 @@
         ]
       },
       "JsonNode": { },
+      "KinshipKind": {
+        "enum": [
+          "Parent",
+          "Child",
+          "Sibling",
+          "Spouse",
+          "Partner",
+          "Friend",
+          "Colleague",
+          "Neighbor",
+          "Emergency",
+          "Other",
+          "Grandparent",
+          "Grandchild",
+          "AuntUncle",
+          "NieceNephew",
+          "Cousin"
+        ]
+      },
       "MeDto": {
         "required": [
           "id",
@@ -3914,6 +4000,12 @@
             ]
           }
         }
+      },
+      "RelationProvenance": {
+        "enum": [
+          "Explicit",
+          "Inferred"
+        ]
       },
       "ReviseContactRequest": {
         "type": "object",

@@ -37,12 +37,12 @@ public sealed class ContactRelationsTests(CalApiTestFactory factory) : Integrati
 
         var fromY = (await api.GetFromJsonAsync<List<ContactRelationEntryDto>>($"/contacts/{y.Id}/relations"))!;
         var outgoing = Assert.Single(fromY);
-        Assert.Equal((x.Id, ContactRelationKind.Parent, "dad", ContactRelationDirection.Outgoing),
+        Assert.Equal((x.Id, KinshipKind.Parent, "dad", ContactRelationDirection.Outgoing),
             (outgoing.ContactId, outgoing.Kind, outgoing.Label, outgoing.Direction));
 
         var fromX = (await api.GetFromJsonAsync<List<ContactRelationEntryDto>>($"/contacts/{x.Id}/relations"))!;
         var incoming = Assert.Single(fromX);
-        Assert.Equal((y.Id, ContactRelationKind.Child, null, ContactRelationDirection.Incoming),
+        Assert.Equal((y.Id, KinshipKind.Child, null, ContactRelationDirection.Incoming),
             (incoming.ContactId, incoming.Kind, incoming.Label, incoming.Direction));
     }
 

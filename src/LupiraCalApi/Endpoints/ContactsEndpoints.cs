@@ -47,11 +47,18 @@ public static class ContactsEndpoints
             .Produces(StatusCodes.Status404NotFound)
             .Produces(StatusCodes.Status401Unauthorized);
 
-        group.MapGet("/{id:guid}/relations", (Guid id, ContactsHandler h, CancellationToken ct) => h.ListRelationsAsync(id, ct))
+        group.MapGet("/{id:guid}/relations", (Guid id, bool? includeInferred, ContactsHandler h, CancellationToken ct) => h.ListRelationsAsync(id, includeInferred ?? false, ct))
             .WithName("ListContactRelations")
-            .WithSummary("Resolved relations, both directions: each entry's kind is the other contact's role relative to this one (incoming = derived inverse).")
+            .WithSummary("Resolved relations, both directions: each entry's kind is the other contact's role relative to this one (incoming = derived inverse). Set includeInferred=true to also return kin derived from the parent/child graph (siblings, grandparents/-children, aunts/uncles, cousins, nieces/nephews), tagged Provenance=Inferred.")
             .Produces<List<ContactRelationEntryDto>>(StatusCodes.Status200OK)
             .Produces(StatusCodes.Status404NotFound)
+            .ProducesProblem(StatusCodes.Status403Forbidden)
+            .Produces(StatusCodes.Status401Unauthorized);
+
+        group.MapPost("/relations/normalize", (Guid? addressBookId, ContactsHandler h, CancellationToken ct) => h.NormalizeSiblingsAsync(addressBookId, ct))
+            .WithName("NormalizeContactSiblings")
+            .WithSummary("One-time, idempotent cleanup: convert explicit Sibling edges whose endpoints have a recorded parent into shared parentage. Scoped to the caller's writable books; returns the number of edges converted.")
+            .Produces<int>(StatusCodes.Status200OK)
             .ProducesProblem(StatusCodes.Status403Forbidden)
             .Produces(StatusCodes.Status401Unauthorized);
 
