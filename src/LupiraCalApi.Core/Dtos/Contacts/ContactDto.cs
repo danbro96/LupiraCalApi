@@ -18,6 +18,9 @@ public sealed class ContactDto
     public string[]? Tags { get; set; }
     public required IReadOnlyList<ContactPostalAddress> Addresses { get; set; }
     public required IReadOnlyList<ContactSocialProfile> Profiles { get; set; }
+
+    /// <summary>Raw outgoing edges (unfiltered; targets may be deleted or unreadable). The <c>/relations</c> sub-resource is the resolved two-way view.</summary>
+    public required IReadOnlyList<ContactRelation> Relations { get; set; }
     public JsonNode? Metadata { get; set; }
 
     /// <summary>How well-documented this contact is. Drives contact-enrichment ranking (completeness × relevance).</summary>

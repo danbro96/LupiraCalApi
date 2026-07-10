@@ -17,7 +17,7 @@ public sealed class ContactService(IDocumentSession session, AccessResolver acce
         var uid = $"{Guid.NewGuid():N}@cal.lupira.com";
         var id = DeterministicGuid.From(uid);
         var fields = new ContactFields(r.NamePrefix, r.GivenName, r.MiddleName, r.FamilyName, r.NameSuffix, r.Nickname, r.Emails, r.Phones, r.Birthday, r.Tags);
-        var hash = ContentHash.Of(CanonicalVcard(uid, fields));
+        var hash = ContentHash.Of(CanonicalVcard(uid, fields, []));
 
         session.Events.StartStream<Contact>(id, new ContactCreated(id, r.AddressBookId, uid, fields, hash));
         await session.SaveChangesAsync(ct);
@@ -74,7 +74,7 @@ public sealed class ContactService(IDocumentSession session, AccessResolver acce
             MergeDistinct(c.Phones, r.Phones),
             r.Birthday ?? c.Birthday,
             MergeDistinct(c.Tags, r.Tags));
-        var hash = ContentHash.Of(CanonicalVcard(c.ExternalId, merged));
+        var hash = ContentHash.Of(CanonicalVcard(c.ExternalId, merged, c.Relations));
 
         stream.AppendOne(new ContactRevised(id, merged, hash));
         await session.SaveChangesAsync(ct);
@@ -102,6 +102,82 @@ public sealed class ContactService(IDocumentSession session, AccessResolver acce
         return OpResult.Ok();
     }
 
+    // ---- Relations (directed edges on the from-contact's stream; see ContactRelation) ----
+
+    /// <summary>Upserts "<c>r.ToContactId</c> is this contact's <c>r.Kind</c>" (re-adding the same key revises the label).
+    /// Requires write on this contact's book and read on the target's; the DAV import path is deliberately laxer (no target check).</summary>
+    public async Task<OpResult<ContactDto>> AddRelationAsync(Guid principalId, Guid id, AddContactRelationRequest r, CancellationToken ct = default)
+    {
+        var stream = await session.Events.FetchForWriting<Contact>(id, ct);
+        var c = stream.Aggregate;
+        if (c is null || c.DeletedAt is not null) return OpResult<ContactDto>.NotFound();
+        if (!await access.CanWriteAddressBookAsync(principalId, c.AddressBookId, ct)) return OpResult<ContactDto>.Forbidden("No write access to this contact.");
+        if (r.ToContactId == id) return OpResult<ContactDto>.Invalid("A contact cannot relate to itself.");
+
+        var target = await session.LoadAsync<Contact>(r.ToContactId, ct);
+        if (target is null || target.DeletedAt is not null) return OpResult<ContactDto>.Invalid("Related contact not found.");
+        if (!await access.CanReadAddressBookAsync(principalId, target.AddressBookId, ct)) return OpResult<ContactDto>.Forbidden("No access to the related contact.");
+
+        var label = string.IsNullOrWhiteSpace(r.Label) ? null : r.Label.Trim();
+        if (c.Relations.Any(x => x.ToContactId == r.ToContactId && x.Kind == r.Kind && x.Label == label))
+            return OpResult<ContactDto>.Ok(await ToDtoAsync(c, ct));   // identical edge: no event, no ETag churn
+
+        var next = c.Relations.Where(x => x.ToContactId != r.ToContactId || x.Kind != r.Kind)
+            .Append(new ContactRelation { ToContactId = r.ToContactId, Kind = r.Kind, Label = label }).ToList();
+        var hash = ContentHash.Of(CanonicalVcard(c.ExternalId, FieldsOf(c), next));
+        stream.AppendOne(new ContactRelationAdded(id, r.ToContactId, r.Kind, label, hash));
+        await session.SaveChangesAsync(ct);
+        var updated = await session.LoadAsync<Contact>(id, ct);
+        return OpResult<ContactDto>.Ok(await ToDtoAsync(updated!, ct));
+    }
+
+    public async Task<OpResult<ContactDto>> RemoveRelationAsync(Guid principalId, Guid id, Guid toContactId, ContactRelationKind kind, CancellationToken ct = default)
+    {
+        var stream = await session.Events.FetchForWriting<Contact>(id, ct);
+        var c = stream.Aggregate;
+        if (c is null || c.DeletedAt is not null) return OpResult<ContactDto>.NotFound();
+        if (!await access.CanWriteAddressBookAsync(principalId, c.AddressBookId, ct)) return OpResult<ContactDto>.Forbidden("No write access to this contact.");
+        if (!c.Relations.Any(x => x.ToContactId == toContactId && x.Kind == kind)) return OpResult<ContactDto>.NotFound();
+
+        var next = c.Relations.Where(x => x.ToContactId != toContactId || x.Kind != kind).ToList();
+        var hash = ContentHash.Of(CanonicalVcard(c.ExternalId, FieldsOf(c), next));
+        stream.AppendOne(new ContactRelationRemoved(id, toContactId, kind, hash));
+        await session.SaveChangesAsync(ct);
+        var updated = await session.LoadAsync<Contact>(id, ct);
+        return OpResult<ContactDto>.Ok(await ToDtoAsync(updated!, ct));
+    }
+
+    /// <summary>Resolved two-way view: outgoing edges (snapshot order) then incoming ones (by display name), each entry's
+    /// Kind being the other contact's role relative to the viewed one (incoming = derived inverse). Edges whose other side
+    /// is deleted, dangling, or outside the caller's readable books are filtered out.</summary>
+    public async Task<OpResult<List<ContactRelationEntryDto>>> ListRelationsAsync(Guid principalId, Guid id, CancellationToken ct = default)
+    {
+        var c = await session.LoadAsync<Contact>(id, ct);
+        if (c is null || c.DeletedAt is not null) return OpResult<List<ContactRelationEntryDto>>.NotFound();
+        if (!await access.CanReadAddressBookAsync(principalId, c.AddressBookId, ct)) return OpResult<List<ContactRelationEntryDto>>.Forbidden("No access to this contact.");
+
+        var books = await access.AccessibleAddressBookIdsAsync(principalId, ct);
+        var entries = new List<ContactRelationEntryDto>();
+
+        var targets = (await session.LoadManyAsync<Contact>(ct, c.Relations.Select(r => r.ToContactId).Distinct().ToArray()))
+            .Where(t => t.DeletedAt is null && books.Contains(t.AddressBookId)).ToDictionary(t => t.Id);
+        foreach (var r in c.Relations)
+            if (targets.TryGetValue(r.ToContactId, out var t))
+                entries.Add(new ContactRelationEntryDto { ContactId = t.Id, DisplayName = t.DisplayName, Kind = r.Kind, Label = r.Label, Direction = ContactRelationDirection.Outgoing });
+
+        var sources = await session.Query<Contact>()
+            .Where(x => x.DeletedAt == null && x.Relations.Any(r => r.ToContactId == id)).ToListAsync(ct);
+        foreach (var s in sources.Where(s => s.Id != id && books.Contains(s.AddressBookId)).OrderBy(s => s.DisplayName))
+            foreach (var edge in s.Relations.Where(r => r.ToContactId == id))
+                entries.Add(new ContactRelationEntryDto { ContactId = s.Id, DisplayName = s.DisplayName, Kind = edge.Kind.Inverse(), Label = null, Direction = ContactRelationDirection.Incoming });
+
+        return OpResult<List<ContactRelationEntryDto>>.Ok(entries);
+    }
+
+    // Order-sensitive: edge order affects the canonical vCard bytes, so a reorder is a real change.
+    private static bool RelationsEqual(IReadOnlyList<ContactRelation>? a, IReadOnlyList<ContactRelation> b) =>
+        (a ?? []).Select(r => (r.ToContactId, r.Kind, r.Label)).SequenceEqual(b.Select(r => (r.ToContactId, r.Kind, r.Label)));
+
     // ---- CardDAV write path ----
 
     public async Task<OpResult<DavWriteResult>> PutVcfAsync(
@@ -122,9 +198,16 @@ public sealed class ContactService(IDocumentSession session, AccessResolver acce
 
         var p = VCardSerializer.ParseVCard(rawVcard);
         var fields = new ContactFields(null, p.GivenName, null, p.FamilyName, null, null, p.Emails, p.Phones, p.Birthday, null);
+        // RELATED lines are authoritative wholesale-replace (a PUT without them clears relations). Unresolvable target
+        // uuids are stored as-is — the target may sync in later or be unreadable to this caller; resolved reads filter.
+        var relations = (p.Relations ?? [])
+            .Where(r => r.ToContactId != id)
+            .DistinctBy(r => (r.ToContactId, r.Kind))
+            .ToList();
         // PUT parses into structured fields; the ETag is the hash of the canonical vCard regenerated from them (matching CardDAV GET), not the raw blob.
-        var hash = ContentHash.Of(CanonicalVcard(externalId, fields));
+        var hash = ContentHash.Of(CanonicalVcard(externalId, fields, relations));
         stream.AppendOne(new ContactImported(id, addressBookId, externalId, fields, hash));   // also clears soft-delete
+        if (!RelationsEqual(existing?.Relations, relations)) stream.AppendOne(new ContactRelationsReplaced(id, relations));
         await session.SaveChangesAsync(ct);
         return OpResult<DavWriteResult>.Ok(new DavWriteResult(!live, hash));
     }
@@ -146,8 +229,11 @@ public sealed class ContactService(IDocumentSession session, AccessResolver acce
     private async Task<ContactDto> ToDtoAsync(Contact c, CancellationToken ct) =>
         c.ToResponse(await completeness.ScoreContactAsync(c, ct));
 
-    // The canonical vCard for a contact's fields — identical to what CardDAV GET regenerates from the snapshot, so the ETag matches.
-    private static string CanonicalVcard(string uid, ContactFields f) =>
+    // The canonical vCard for a contact's fields + relation edges — identical to what CardDAV GET regenerates from the snapshot, so the ETag matches.
+    private static string CanonicalVcard(string uid, ContactFields f, IReadOnlyList<ContactRelation> relations) =>
         VCardSerializer.Build(uid, VCardSerializer.ComposeFullName(f.NamePrefix, f.GivenName, f.MiddleName, f.FamilyName, f.NameSuffix, f.Nickname),
-            f.GivenName, f.FamilyName, null, f.Emails, f.Phones, f.Birthday);
+            f.GivenName, f.FamilyName, null, f.Emails, f.Phones, f.Birthday, relations);
+
+    private static ContactFields FieldsOf(Contact c) =>
+        new(c.NamePrefix, c.GivenName, c.MiddleName, c.FamilyName, c.NameSuffix, c.Nickname, c.Emails, c.Phones, c.Birthday, c.Tags);
 }

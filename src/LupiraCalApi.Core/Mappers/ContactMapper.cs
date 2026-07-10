@@ -23,6 +23,7 @@ internal static class ContactMapper
         Tags = c.Tags,
         Addresses = c.Addresses,
         Profiles = c.Profiles,
+        Relations = c.Relations,
         Metadata = JsonNode.Parse(string.IsNullOrWhiteSpace(c.Metadata) ? "{}" : c.Metadata),
         Completeness = completeness,
         Etag = c.ContentHash,
