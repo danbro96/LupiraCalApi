@@ -110,7 +110,7 @@ are scoped to the caller's accessible containers.
 | **Items** | `GET /items` (text/time/tag search, recurrence-expanded; carries a derived completeness score) · `POST /items` · `GET`/`PUT`/`DELETE /items/{id}` · `POST /items/{id}/metadata` (merge JSON) · `PUT`/`DELETE /items/{id}/prompt` · `PUT`/`DELETE /items/{id}/action` (event-bound payload, server-side only) |
 | **Participation** | `POST /items/{id}/participants` (invite) · `…/{participationId}/respond` · `…/attend` · `…/leave` · `DELETE …/{participationId}` |
 | **Curation** | `GET /calendars/{id}/proposed` · `POST /items/{itemId}/calendars/{calId}/accept` · `POST /items/{itemId}/calendars/{calId}` · `DELETE /items/{itemId}/calendars/{calId}` |
-| **Contacts** | `GET /contacts` (name search; carries a derived completeness score) · `POST /contacts` · `GET`/`DELETE /contacts/{id}` |
+| **Contacts** | `GET /contacts` (name search; carries a derived completeness score) · `POST /contacts` · `GET`/`PUT`/`DELETE /contacts/{id}` · `GET`/`POST /contacts/{id}/relations` (typed contact↔contact edges, resolved both directions) · `DELETE /contacts/{id}/relations/{toContactId}?kind=` |
 | **Groups** | `GET`/`POST /address-books/{id}/groups` · `PUT /groups/{id}` · `POST`/`DELETE /groups/{id}/members…` · `DELETE /groups/{id}` |
 | **Relations** | `POST`/`GET /items/{id}/relations` (link to an external service) · `GET /relations` (reverse lookup) |
 | **DAV** | `/.well-known/caldav` · `/.well-known/carddav` (discovery) · `/dav/{**path}` (CalDAV/CardDAV, HTTP Basic) |
@@ -122,7 +122,8 @@ The agent surface mirrors REST and is scoped to the caller's access:
 
 `search_items` · `create_item` · `attach_metadata` · `query_contacts` · `list_calendars` ·
 `bootstrap_me` · `grant_calendar_owner` · `revoke_calendar_owner` · `grant_addressbook_owner` ·
-`revoke_addressbook_owner` · `link_item_to_task` · `find_items_linked_to_task`
+`revoke_addressbook_owner` · `link_item_to_task` · `find_items_linked_to_task` · `relate_contacts` ·
+`unrelate_contacts` · `list_contact_relations`
 
 ## Docker & Compose
 

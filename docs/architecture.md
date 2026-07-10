@@ -182,6 +182,12 @@ classDiagram
         string Handle
         string? Url
     }
+    class ContactRelation {
+        <<embedded>>
+        Guid ToContactId
+        ContactRelationKind Kind
+        string? Label
+    }
     class ContactGroup {
         <<event-sourced>>
         Guid Id
@@ -264,6 +270,8 @@ classDiagram
     ContactGroup "*" --> "*" Contact : members
     Contact "1" *-- "*" ContactPostalAddress
     Contact "1" *-- "*" ContactSocialProfile
+    Contact "1" *-- "*" ContactRelation
+    ContactRelation "*" --> "1" Contact : to
 
     Principal "0..1" --> "0..1" Contact : self
 
@@ -306,6 +314,15 @@ Names are structured vCard parts (no stored full name — the `FN` is composed w
 `Service`/`Handle`/`Url` triples. A contact's employer is **membership in an `Organization`-kind
 `ContactGroup`**, not a free-text field; `MemberContactIds` is maintained by add/remove events.
 
+Contact-to-contact relations are **one directed `ContactRelation` edge on the from-contact's stream**, keyed by
+`(ToContactId, Kind)` — `Kind` is the *To* contact's role relative to the owner ("X is Y's dad" → edge on Y with
+`Kind: Parent`, optional free-text `Label: "dad"`). `ContactRelationAdded` upserts on that key (re-adding revises
+the label); the other side's view is **derived**, not mirrored: `ContactRelationKinds.Inverse` maps `Parent`↔`Child`,
+`Emergency`→`Other`, and the rest to themselves. Adding requires **write on the from-contact's book and read on the
+to-contact's** (`GET/POST /contacts/{id}/relations`, `DELETE /contacts/{id}/relations/{toContactId}?kind=`). There is
+**no FK**: a target may be deleted or unreadable, and the resolved listing filters such edges on read while the raw
+edge stays on the snapshot. Relation edges appear in the canonical vCard, so every relation change moves the ETag.
+
 ## Enumerations
 
 | Enum | Members | Maps to |
@@ -321,6 +338,7 @@ Names are structured vCard parts (no stored full name — the `FN` is composed w
 | `ParticipationStatus` | `NeedsAction` · `Accepted` · `Declined` · `Tentative` · `Delegated` | iCalendar `PARTSTAT` |
 | `ContactGroupKind` | `Group` · `Organization` | personal grouping vs. company/institution |
 | `ContactAddressType` | `Home` · `Work` · `Other` | vCard `ADR` TYPE |
+| `ContactRelationKind` | `Parent` · `Child` · `Sibling` · `Spouse` · `Partner` · `Friend` · `Colleague` · `Neighbor` · `Emergency` · `Other` | vCard `RELATED` TYPE — the *To* contact's role relative to the owner |
 | `Access` | `Owner` · `ReadWrite` · `Read` | a principal's permission on a container |
 
 ## Item details
@@ -399,6 +417,12 @@ the item's denormalized `LocationLabel`), and the ETag is the `ContentHash` deri
 across reads. A DAV `PUT` parses the body into structured fields (no blob is retained); recurrence expansion runs
 off the regenerated ICS. Only `Agenda` calendars and an item's `Accepted` memberships are exposed.
 
+Contact relations round-trip as `RELATED;TYPE=<kind>[;X-LUPIRA-LABEL=<label>]:urn:uuid:<contactId>`. On `PUT` the
+RELATED set is an **authoritative wholesale replace** (a card without RELATED lines clears the relations — a client
+that strips unknown properties will wipe them on write-back). Targets are stored unresolved (they may sync in later);
+non-`urn:uuid` values and labels containing param-breaking characters are dropped. The DAV path deliberately skips
+the REST read-guard on the target — a bare uuid leaks nothing, and resolved read surfaces filter.
+
 ## Ownership & identity
 
 Identity is a thin local `Principal` document, JIT-provisioned on first login (`PrincipalDirectory`):
@@ -439,4 +463,5 @@ a given result shape can't represent is a programming error and throws.
 `Relation` is the single cross-context edge: a by-reference link from an item or contact (`FromKind`/`FromId`)
 to something in another service (`ToKind`/`ToRef`, e.g. a task or a portfolio engagement) with a
 `RelationType`. There is **no foreign key** — integrity is by convention, which keeps this service decoupled
-from the services it links to.
+from the services it links to. Contact-to-contact edges are **not** `Relation` documents — they are the embedded,
+event-sourced `ContactRelation` on the contact snapshot (see *Contacts & groups*).
