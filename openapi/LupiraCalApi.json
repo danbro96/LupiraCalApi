@@ -1229,6 +1229,203 @@
         ]
       }
     },
+    "/contacts/{id}/relations": {
+      "get": {
+        "tags": [
+          "Contacts"
+        ],
+        "summary": "Resolved relations, both directions: each entry's kind is the other contact's role relative to this one (incoming = derived inverse).",
+        "operationId": "ListContactRelations",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/ContactRelationEntryDto"
+                  }
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not Found"
+          },
+          "403": {
+            "description": "Forbidden",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized"
+          }
+        },
+        "security": [
+          {
+            "Bearer": [ ]
+          }
+        ]
+      },
+      "post": {
+        "tags": [
+          "Contacts"
+        ],
+        "summary": "Upsert a relation: 'toContactId is this contact's kind' (re-adding the same target+kind revises the label).",
+        "operationId": "AddContactRelation",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AddContactRelationRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ContactDto"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not Found"
+          },
+          "400": {
+            "description": "Bad Request",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized"
+          }
+        },
+        "security": [
+          {
+            "Bearer": [ ]
+          }
+        ]
+      }
+    },
+    "/contacts/{id}/relations/{toContactId}": {
+      "delete": {
+        "tags": [
+          "Contacts"
+        ],
+        "summary": "Remove the relation edge to a contact with the given kind.",
+        "operationId": "RemoveContactRelation",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "toContactId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "kind",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "$ref": "#/components/schemas/ContactRelationKind"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ContactDto"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not Found"
+          },
+          "403": {
+            "description": "Forbidden",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized"
+          }
+        },
+        "security": [
+          {
+            "Bearer": [ ]
+          }
+        ]
+      }
+    },
     "/items/{id}/relations": {
       "post": {
         "tags": [
@@ -2145,6 +2342,28 @@
           "Rescore"
         ]
       },
+      "AddContactRelationRequest": {
+        "required": [
+          "toContactId",
+          "kind"
+        ],
+        "type": "object",
+        "properties": {
+          "toContactId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "kind": {
+            "$ref": "#/components/schemas/ContactRelationKind"
+          },
+          "label": {
+            "type": [
+              "null",
+              "string"
+            ]
+          }
+        }
+      },
       "AvailabilityStatus": {
         "enum": [
           "Office",
@@ -2577,6 +2796,7 @@
           "displayName",
           "addresses",
           "profiles",
+          "relations",
           "etag"
         ],
         "type": "object",
@@ -2657,6 +2877,12 @@
             "type": "array",
             "items": {
               "$ref": "#/components/schemas/ContactSocialProfile"
+            }
+          },
+          "relations": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ContactRelation"
             }
           },
           "metadata": {
@@ -2743,6 +2969,74 @@
             "$ref": "#/components/schemas/ContactAddressType"
           }
         }
+      },
+      "ContactRelation": {
+        "type": "object",
+        "properties": {
+          "toContactId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "kind": {
+            "$ref": "#/components/schemas/ContactRelationKind"
+          },
+          "label": {
+            "type": [
+              "null",
+              "string"
+            ]
+          }
+        }
+      },
+      "ContactRelationDirection": {
+        "enum": [
+          "Outgoing",
+          "Incoming"
+        ]
+      },
+      "ContactRelationEntryDto": {
+        "required": [
+          "contactId",
+          "displayName",
+          "kind",
+          "direction"
+        ],
+        "type": "object",
+        "properties": {
+          "contactId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "displayName": {
+            "type": "string"
+          },
+          "kind": {
+            "$ref": "#/components/schemas/ContactRelationKind"
+          },
+          "label": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "direction": {
+            "$ref": "#/components/schemas/ContactRelationDirection"
+          }
+        }
+      },
+      "ContactRelationKind": {
+        "enum": [
+          "Parent",
+          "Child",
+          "Sibling",
+          "Spouse",
+          "Partner",
+          "Friend",
+          "Colleague",
+          "Neighbor",
+          "Emergency",
+          "Other"
+        ]
       },
       "ContactSocialProfile": {
         "type": "object",

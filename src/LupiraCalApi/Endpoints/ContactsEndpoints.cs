@@ -1,3 +1,4 @@
+using LupiraCalApi.Domain;
 using LupiraCalApi.Dtos.Contacts;
 using LupiraCalApi.Handlers;
 
@@ -44,6 +45,31 @@ public static class ContactsEndpoints
             .WithSummary("Delete a contact (soft delete + tombstone).")
             .Produces(StatusCodes.Status204NoContent)
             .Produces(StatusCodes.Status404NotFound)
+            .Produces(StatusCodes.Status401Unauthorized);
+
+        group.MapGet("/{id:guid}/relations", (Guid id, ContactsHandler h, CancellationToken ct) => h.ListRelationsAsync(id, ct))
+            .WithName("ListContactRelations")
+            .WithSummary("Resolved relations, both directions: each entry's kind is the other contact's role relative to this one (incoming = derived inverse).")
+            .Produces<List<ContactRelationEntryDto>>(StatusCodes.Status200OK)
+            .Produces(StatusCodes.Status404NotFound)
+            .ProducesProblem(StatusCodes.Status403Forbidden)
+            .Produces(StatusCodes.Status401Unauthorized);
+
+        group.MapPost("/{id:guid}/relations", (Guid id, AddContactRelationRequest body, ContactsHandler h, CancellationToken ct) => h.AddRelationAsync(id, body, ct))
+            .WithName("AddContactRelation")
+            .WithSummary("Upsert a relation: 'toContactId is this contact's kind' (re-adding the same target+kind revises the label).")
+            .Produces<ContactDto>(StatusCodes.Status200OK)
+            .Produces(StatusCodes.Status404NotFound)
+            .ProducesProblem(StatusCodes.Status400BadRequest)
+            .ProducesProblem(StatusCodes.Status403Forbidden)
+            .Produces(StatusCodes.Status401Unauthorized);
+
+        group.MapDelete("/{id:guid}/relations/{toContactId:guid}", (Guid id, Guid toContactId, ContactRelationKind kind, ContactsHandler h, CancellationToken ct) => h.RemoveRelationAsync(id, toContactId, kind, ct))
+            .WithName("RemoveContactRelation")
+            .WithSummary("Remove the relation edge to a contact with the given kind.")
+            .Produces<ContactDto>(StatusCodes.Status200OK)
+            .Produces(StatusCodes.Status404NotFound)
+            .ProducesProblem(StatusCodes.Status403Forbidden)
             .Produces(StatusCodes.Status401Unauthorized);
 
         return app;

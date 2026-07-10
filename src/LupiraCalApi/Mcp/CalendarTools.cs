@@ -1,5 +1,6 @@
 using LupiraCalApi.Application;
 using LupiraCalApi.Auth;
+using LupiraCalApi.Domain;
 using LupiraCalApi.Dtos.CalendarItems;
 using LupiraCalApi.Dtos.Calendars;
 using LupiraCalApi.Dtos.Contacts;
@@ -73,6 +74,43 @@ public sealed class CalendarTools
         var u = await user.GetAsync();
         return Require(await contacts.CreateAsync(u.Id, request));
     }
+
+    [McpServerTool, Description("Relate two contacts: kind is toContactId's role relative to contactId — 'toContactId is contactId's <kind>'. Example: 'X is Y's dad' → relate_contacts(contactId: Y, toContactId: X, kind: 'parent', label: 'dad'). Re-adding the same contact+kind updates the label.")]
+    public static async Task<ContactDto> relate_contacts(
+        ContactService contacts, CurrentUser user,
+        [Description("The contact the relation is stored on.")] Guid contactId,
+        [Description("The related contact.")] Guid toContactId,
+        [Description("parent|child|sibling|spouse|partner|friend|colleague|neighbor|emergency|other.")] string kind,
+        [Description("Optional free-text refinement, e.g. 'dad'.")] string? label = null)
+    {
+        var u = await user.GetAsync();
+        return Require(await contacts.AddRelationAsync(u.Id, contactId, new AddContactRelationRequest { ToContactId = toContactId, Kind = ParseRelationKind(kind), Label = label }));
+    }
+
+    [McpServerTool, Description("Remove a contact relation edge by target contact and kind.")]
+    public static async Task<ContactDto> unrelate_contacts(
+        ContactService contacts, CurrentUser user,
+        [Description("The contact the relation is stored on.")] Guid contactId,
+        [Description("The related contact.")] Guid toContactId,
+        [Description("parent|child|sibling|spouse|partner|friend|colleague|neighbor|emergency|other.")] string kind)
+    {
+        var u = await user.GetAsync();
+        return Require(await contacts.RemoveRelationAsync(u.Id, contactId, toContactId, ParseRelationKind(kind)));
+    }
+
+    [McpServerTool, Description("List a contact's resolved relations, both directions: each entry's kind is the other contact's role relative to this one (incoming edges show the derived inverse, e.g. stored parent → incoming child).")]
+    public static async Task<IReadOnlyList<ContactRelationEntryDto>> list_contact_relations(
+        ContactService contacts, CurrentUser user,
+        [Description("The contact whose relations to list.")] Guid contactId)
+    {
+        var u = await user.GetAsync();
+        return Require(await contacts.ListRelationsAsync(u.Id, contactId));
+    }
+
+    // Strict: a silently-defaulted kind would corrupt the edge.
+    private static ContactRelationKind ParseRelationKind(string kind) =>
+        Enum.TryParse<ContactRelationKind>(kind, true, out var k) ? k
+            : throw new McpException($"Unknown kind '{kind}'. Use parent|child|sibling|spouse|partner|friend|colleague|neighbor|emergency|other.");
 
     [McpServerTool, Description("Invite a contact to a calendar item as an attendee. role = chair|req-participant|opt-participant|non-participant (default req-participant).")]
     public static async Task<CalendarItemDto> invite_participant(

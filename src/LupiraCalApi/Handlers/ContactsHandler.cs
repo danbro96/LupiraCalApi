@@ -1,5 +1,6 @@
 using LupiraCalApi.Application;
 using LupiraCalApi.Auth;
+using LupiraCalApi.Domain;
 using LupiraCalApi.Dtos.Contacts;
 using LupiraCalApi.Http;
 using Microsoft.AspNetCore.Http.HttpResults;
@@ -36,5 +37,23 @@ public sealed class ContactsHandler(CurrentUser user, ContactService contacts)
     {
         var u = await user.GetAsync(ct);
         return OpResultMap.NoContentNotFoundProblem(await contacts.DeleteAsync(u.Id, id, ct));
+    }
+
+    public async Task<Results<Ok<List<ContactRelationEntryDto>>, NotFound, ProblemHttpResult, UnauthorizedHttpResult>> ListRelationsAsync(Guid id, CancellationToken ct)
+    {
+        var u = await user.GetAsync(ct);
+        return OpResultMap.OkNotFoundProblem(await contacts.ListRelationsAsync(u.Id, id, ct));
+    }
+
+    public async Task<Results<Ok<ContactDto>, NotFound, ProblemHttpResult, UnauthorizedHttpResult>> AddRelationAsync(Guid id, AddContactRelationRequest body, CancellationToken ct)
+    {
+        var u = await user.GetAsync(ct);
+        return OpResultMap.OkNotFoundProblem(await contacts.AddRelationAsync(u.Id, id, body, ct));
+    }
+
+    public async Task<Results<Ok<ContactDto>, NotFound, ProblemHttpResult, UnauthorizedHttpResult>> RemoveRelationAsync(Guid id, Guid toContactId, ContactRelationKind kind, CancellationToken ct)
+    {
+        var u = await user.GetAsync(ct);
+        return OpResultMap.OkNotFoundProblem(await contacts.RemoveRelationAsync(u.Id, id, toContactId, kind, ct));
     }
 }
