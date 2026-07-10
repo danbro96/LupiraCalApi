@@ -14,7 +14,7 @@ public sealed record CompletenessGap(string Field, double Weight, GapSeverity Se
 public sealed record CompletenessScore(double Score, int RubricVersion, IReadOnlyList<CompletenessGap> Gaps);
 
 /// <summary>
-/// Pure, kind-aware completeness rubric for items and contacts. Scores <em>presence</em>, not quality — crude on purpose,
+/// Pure, kind-aware completeness rubric for items. Scores <em>presence</em>, not quality — crude on purpose,
 /// enough to rank thin-vs-rich. Exempt records score <c>null</c>. Calendar-context exemption (Birthdays/Availability/system
 /// calendars) is decided by the caller and passed in; snapshot-local exemptions (a presence segment, a fired payload)
 /// are handled here.
@@ -79,19 +79,6 @@ public static class CompletenessScorer
         return Build(fields);
     }
 
-    public static CompletenessScore? ScoreContact(Contact c, bool hasOrganisation)
-    {
-        var fields = new List<(string, double, double)>
-        {
-            ("name", 1, Name(c)),
-            ("primaryReach", 3, AnyReach(c) ? 1 : 0),
-            ("secondaryReach", 1, ReachCount(c) >= 2 ? 1 : 0),
-            ("birthday", 1, c.Birthday is not null ? 1 : 0),
-            ("postalAddress", 1, c.Addresses.Count > 0 ? 1 : 0),
-            ("organisation", 1, hasOrganisation ? 1 : 0),
-        };
-        return Build(fields);
-    }
 
     private static CompletenessScore Build(List<(string Field, double Weight, double Presence)> fields)
     {
@@ -137,10 +124,4 @@ public static class CompletenessScorer
     private static double Has(Guid? id) => id is not null ? 1 : 0;
     private static double Text(string? s) => string.IsNullOrWhiteSpace(s) ? 0 : 1;
 
-    private static double Name(Contact c) =>
-        !string.IsNullOrWhiteSpace(c.GivenName) || !string.IsNullOrWhiteSpace(c.FamilyName) || !string.IsNullOrWhiteSpace(c.Nickname) ? 1 : 0;
-
-    private static bool AnyReach(Contact c) => ReachCount(c) >= 1;
-    private static int ReachCount(Contact c) =>
-        (c.Emails?.Length ?? 0) + (c.Phones?.Length ?? 0) + c.Profiles.Count;
 }

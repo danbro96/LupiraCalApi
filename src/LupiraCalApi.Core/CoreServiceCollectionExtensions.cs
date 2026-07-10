@@ -44,13 +44,15 @@ public static class CoreServiceCollectionExtensions
         // Default: no external gazetteer → free-text locations resolve to no id (label = raw text). The host overrides
         // this with an HTTP GeoApiClient when LupiraGeoApi is configured (Geo:BaseUrl).
         services.TryAddSingleton<IGeoResolver, NullGeoResolver>();
+        // Same pattern for contacts: LupiraContactApi owns them; unconfigured -> fail-open null resolver.
+        services.TryAddSingleton<IContactResolver, NullContactResolver>();
         services.AddScoped<CalendarService>();
         services.AddScoped<CalendarItemService>();
-        services.AddScoped<ContactService>();
-        services.AddScoped<ContactGroupService>();
         services.AddScoped<CurationService>();
         services.AddScoped<ParticipationService>();
         services.AddScoped<RelationService>();
+        services.AddSingleton<TimeRangeFilter>();
+        services.AddScoped<DavChangeFeed>();
         return services;
     }
 }

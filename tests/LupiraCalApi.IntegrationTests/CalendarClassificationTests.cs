@@ -34,19 +34,6 @@ public sealed class CalendarClassificationTests(CalApiTestFactory factory) : Int
     }
 
     [Fact]
-    public async Task Address_book_has_no_class_or_kind()
-    {
-        var api = Factory.ApiClient(Email);
-        var bookId = await CreateAddressBookAsync(api);
-
-        var containers = await api.GetFromJsonAsync<List<ContainerDto>>("/calendars");
-        var book = Assert.Single(containers!, c => c.Id == bookId);
-        Assert.Equal("addressbook", book.Type);
-        Assert.Null(book.Class);
-        Assert.Null(book.Kind);
-    }
-
-    [Fact]
     public async Task Bootstrap_seeds_the_standard_agenda_and_system_set()
     {
         var api = Factory.ApiClient(Email);
@@ -59,36 +46,32 @@ public sealed class CalendarClassificationTests(CalApiTestFactory factory) : Int
         foreach (var kind in new[] { CalendarKind.Inbox, CalendarKind.LlmPrompts, CalendarKind.UserCheckIn, CalendarKind.DevOps })
             Assert.Contains(calendars, c => c.Kind == kind && c.Class == CalendarClass.System);
         Assert.DoesNotContain(calendars, c => c.Kind == CalendarKind.FoodPlan);
-        Assert.Contains(seeded!, c => c.Type == "addressbook" && c.Slug == "personal");
     }
 
     [Fact]
     public async Task System_calendars_are_not_dav_projected()
     {
         var api = Factory.ApiClient(Email);
-        var uid = await GetMyIdAsync(api);
         var seeded = await (await api.PostAsync("/me/bootstrap", null)).Content.ReadFromJsonAsync<List<ContainerDto>>();
         var personal = seeded!.Single(c => c.Kind == CalendarKind.Personal);
         var inbox = seeded!.Single(c => c.Kind == CalendarKind.Inbox);
 
-        var dav = Factory.DavClient(Email);
-        var doc = await ReadXml(await SendDav(dav, "PROPFIND", $"/dav/u/{uid}/cal/", depth: "1"));
-        var hrefs = doc.Descendants(D + "href").Select(h => h.Value).ToList();
+        var resp = await api.GetAsync($"{DavBackendBase(Email)}/collections");
+        resp.EnsureSuccessStatusCode();
+        var dto = await resp.Content.ReadFromJsonAsync<LupiraCalApi.Dav.DavCollectionsDto>();
 
-        Assert.Contains(hrefs, h => h.Contains($"/cal/{personal.Id}/"));      // agenda → projected
-        Assert.DoesNotContain(hrefs, h => h.Contains($"/cal/{inbox.Id}/"));   // system → hidden
+        Assert.Contains(dto!.Collections, c => c.Id == personal.Id);      // agenda → projected
+        Assert.DoesNotContain(dto.Collections, c => c.Id == inbox.Id);    // system → hidden
     }
 
     [Fact]
-    public async Task Direct_propfind_of_a_system_calendar_is_empty()
+    public async Task Directly_addressed_system_calendar_is_an_opaque_404_on_the_dav_seam()
     {
         var api = Factory.ApiClient(Email);
-        var uid = await GetMyIdAsync(api);
         var seeded = await (await api.PostAsync("/me/bootstrap", null)).Content.ReadFromJsonAsync<List<ContainerDto>>();
         var inbox = seeded!.Single(c => c.Kind == CalendarKind.Inbox);
 
-        var dav = Factory.DavClient(Email);
-        var doc = await ReadXml(await SendDav(dav, "PROPFIND", $"/dav/u/{uid}/cal/{inbox.Id}/", depth: "0"));
-        Assert.Empty(doc.Descendants(D + "response"));
+        var resp = await api.PostAsJsonAsync($"{DavBackendBase(Email)}/collections/{inbox.Id}/query", new LupiraCalApi.Dav.DavQueryRequest());
+        Assert.Equal(System.Net.HttpStatusCode.NotFound, resp.StatusCode);
     }
 }

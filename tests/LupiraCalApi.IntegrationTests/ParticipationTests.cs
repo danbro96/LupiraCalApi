@@ -16,14 +16,14 @@ public sealed class ParticipationTests(CalApiTestFactory factory) : IntegrationT
     {
         var api = Factory.ApiClient(Email);
         var calId = await CreateCalendarAsync(api);
-        var abId = await CreateAddressBookAsync(api);
-        var contact = await CreateContactAsync(api, abId);
+        // Contacts live in LupiraContactApi; with the Null resolver an invite stores the bare Guid unvalidated.
+        var contactId = Guid.NewGuid();
 
         var start = new DateTimeOffset(2026, 7, 1, 9, 0, 0, TimeSpan.Zero);
         var create = await api.PostAsJsonAsync("/items", new CreateCalendarItemRequest { CalendarId = calId, Title = "Mtg", IsAllDay = false, StartsAt = start, EndsAt = start.AddHours(1), StartTimezone = "UTC" });
         var itemId = (await create.Content.ReadFromJsonAsync<CalendarItemDto>())!.Id;
 
-        (await api.PostAsync($"/items/{itemId}/participants?contactId={contact.Id}&role=req-participant", null)).EnsureSuccessStatusCode();
+        (await api.PostAsync($"/items/{itemId}/participants?contactId={contactId}&role=req-participant", null)).EnsureSuccessStatusCode();
 
         Guid participationId;
         await using (var s = Factory.Store.LightweightSession())
@@ -34,7 +34,7 @@ public sealed class ParticipationTests(CalApiTestFactory factory) : IntegrationT
 
         await using var session = Factory.Store.LightweightSession();
         var att = (await session.LoadAsync<CalendarItem>(itemId))!.Attendees.Single();
-        Assert.Equal(contact.Id, att.ContactId);
+        Assert.Equal(contactId, att.ContactId);
         Assert.Equal(ParticipationStatus.Accepted, att.Status);
         Assert.NotNull(att.InvitedAt);
         Assert.NotNull(att.RespondedAt);

@@ -97,28 +97,4 @@ public class CompletenessScorerTests
         Assert.True(score.Score > 0.9, $"expected near-complete trip, got {score.Score}");
         Assert.DoesNotContain(score.Gaps, g => g.Field == "carrier");
     }
-
-    [Fact]
-    public void Contact_primary_reach_dominates_the_score()
-    {
-        var bare = new Contact { GivenName = "Jane" };
-        var withEmail = new Contact { GivenName = "Jane", Emails = ["jane@x.test"] };
-
-        var bareScore = CompletenessScorer.ScoreContact(bare, hasOrganisation: false)!;
-        var reachScore = CompletenessScorer.ScoreContact(withEmail, hasOrganisation: false)!;
-
-        Assert.True(reachScore.Score > bareScore.Score);
-        Assert.Contains(bareScore.Gaps, g => g.Field == "primaryReach" && g.Weight == 3);
-    }
-
-    [Fact]
-    public void Contact_organisation_membership_lifts_the_score()
-    {
-        var c = new Contact { GivenName = "Jane", Emails = ["jane@x.test"] };
-        var without = CompletenessScorer.ScoreContact(c, hasOrganisation: false)!;
-        var with = CompletenessScorer.ScoreContact(c, hasOrganisation: true)!;
-
-        Assert.True(with.Score > without.Score);
-        Assert.DoesNotContain(with.Gaps, g => g.Field == "organisation");
-    }
 }

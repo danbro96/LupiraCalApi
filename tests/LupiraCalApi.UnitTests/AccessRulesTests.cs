@@ -65,14 +65,4 @@ public class OwnerGrantIdTests
         Assert.NotEqual(CalendarOwner.MakeId(cal, p1), CalendarOwner.MakeId(cal, p2));
         Assert.NotEqual(CalendarOwner.MakeId(Guid.NewGuid(), p1), CalendarOwner.MakeId(Guid.NewGuid(), p1));
     }
-
-    [Fact]
-    public void AddressBook_grant_id_is_stable_and_distinct()
-    {
-        var book = Guid.NewGuid();
-        var p1 = Guid.NewGuid();
-        var p2 = Guid.NewGuid();
-        Assert.Equal(AddressBookOwner.MakeId(book, p1), AddressBookOwner.MakeId(book, p1));
-        Assert.NotEqual(AddressBookOwner.MakeId(book, p1), AddressBookOwner.MakeId(book, p2));
-    }
 }

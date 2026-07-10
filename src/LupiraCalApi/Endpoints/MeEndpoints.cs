@@ -20,7 +20,7 @@ public static class MeEndpoints
             .RequireAuthorization("ApiPolicy")
             .WithTags("Me")
             .WithName("BootstrapMe")
-            .WithSummary("Idempotently ensure the caller has a personal calendar + address book; returns both.")
+            .WithSummary("Idempotently ensure the caller has the standard calendar set; returns it.")
             .Produces<List<ContainerDto>>(StatusCodes.Status200OK)
             .Produces(StatusCodes.Status401Unauthorized);
         return app;

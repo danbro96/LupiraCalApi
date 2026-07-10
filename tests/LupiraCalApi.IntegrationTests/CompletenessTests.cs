@@ -1,5 +1,4 @@
 using LupiraCalApi.Dtos.CalendarItems;
-using LupiraCalApi.Dtos.Contacts;
 using System.Net.Http.Json;
 using Xunit;
 
@@ -64,38 +63,5 @@ public sealed class CompletenessTests(CalApiTestFactory factory) : IntegrationTe
         var item = await CreateItemAsync(api, inbox.Id, "Captured");
         var got = await api.GetFromJsonAsync<CalendarItemDto>($"/items/{item.Id}");
         Assert.Null(got!.Completeness);   // system calendar → not applicable
-    }
-
-    [Fact]
-    public async Task Contact_completeness_is_exposed_and_reflects_reach()
-    {
-        var api = Factory.ApiClient(Email);
-        var abId = await CreateAddressBookAsync(api);
-        var withEmail = await CreateContactAsync(api, abId, "Jane", "Doe", email: "jane@x.test");
-        var bare = await CreateContactAsync(api, abId, "John", "Roe");
-
-        var withGot = await api.GetFromJsonAsync<ContactDto>($"/contacts/{withEmail.Id}");
-        var bareGot = await api.GetFromJsonAsync<ContactDto>($"/contacts/{bare.Id}");
-
-        Assert.NotNull(withGot!.Completeness);
-        Assert.True(withGot.Completeness!.Score > bareGot!.Completeness!.Score);
-        Assert.Contains(bareGot.Completeness!.Gaps, g => g.Field == "primaryReach" && g.Weight == 3);
-    }
-
-    [Fact]
-    public async Task Contact_organisation_membership_closes_the_organisation_gap()
-    {
-        var api = Factory.ApiClient(Email);
-        var abId = await CreateAddressBookAsync(api);
-        var contact = await CreateContactAsync(api, abId, "Jane", "Doe", email: "jane@x.test");
-
-        var before = await api.GetFromJsonAsync<ContactDto>($"/contacts/{contact.Id}");
-        Assert.Contains(before!.Completeness!.Gaps, g => g.Field == "organisation");
-
-        var group = (await (await api.PostAsync($"/address-books/{abId}/groups?kind=organization&name=Acme", null)).Content.ReadFromJsonAsync<ContactGroupDto>())!;
-        (await api.PostAsync($"/groups/{group.Id}/members?contactId={contact.Id}", null)).EnsureSuccessStatusCode();
-
-        var after = await api.GetFromJsonAsync<ContactDto>($"/contacts/{contact.Id}");
-        Assert.DoesNotContain(after!.Completeness!.Gaps, g => g.Field == "organisation");
     }
 }

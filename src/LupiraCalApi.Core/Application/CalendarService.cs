@@ -5,39 +5,26 @@ using Marten;
 
 namespace LupiraCalApi.Application;
 
-/// <summary>Lists and creates the containers (calendars + address books) a principal can access, and shares them by
-/// granting/revoking co-owners. Creation grants the caller <c>owner</c>; sharing is owner-only and targets a member by email.</summary>
+/// <summary>Lists and creates the calendars a principal can access, and shares them by granting/revoking co-owners.
+/// Creation grants the caller <c>owner</c>; sharing is owner-only and targets a member by email. Address books are
+/// owned by LupiraContactApi.</summary>
 public sealed class CalendarService(IDocumentSession session, PrincipalDirectory principals, AccessResolver access)
 {
     public async Task<OpResult<List<ContainerDto>>> ListContainersAsync(Guid principalId, CancellationToken ct = default)
     {
         var calOwners = await session.Query<CalendarOwner>().Where(o => o.PrincipalId == principalId).ToListAsync(ct);
-        var bookOwners = await session.Query<AddressBookOwner>().Where(o => o.PrincipalId == principalId).ToListAsync(ct);
-
         var calIds = calOwners.Select(o => o.CalendarId).ToList();
-        var bookIds = bookOwners.Select(o => o.AddressBookId).ToList();
         var cals = await session.Query<Calendar>().Where(c => calIds.Contains(c.Id)).ToListAsync(ct);
-        var books = await session.Query<AddressBook>().Where(b => bookIds.Contains(b.Id)).ToListAsync(ct);
-
         var calAccess = calOwners.ToDictionary(o => o.CalendarId, o => o.Access);
-        var bookAccess = bookOwners.ToDictionary(o => o.AddressBookId, o => o.Access);
 
-        var result = new List<ContainerDto>();
-        result.AddRange(cals.Select(c => new ContainerDto { Id = c.Id, Type = "calendar", Slug = c.Slug, DisplayName = c.DisplayName, Color = c.Color, DefaultTimezone = c.DefaultTimezone, Class = c.Class, Kind = c.Kind, Access = calAccess[c.Id] }));
-        result.AddRange(books.Select(b => new ContainerDto { Id = b.Id, Type = "addressbook", Slug = b.Slug, DisplayName = b.DisplayName, Access = bookAccess[b.Id] }));
-        return OpResult<List<ContainerDto>>.Ok(result);
+        return OpResult<List<ContainerDto>>.Ok(
+            [.. cals.Select(c => new ContainerDto { Id = c.Id, Type = "calendar", Slug = c.Slug, DisplayName = c.DisplayName, Color = c.Color, DefaultTimezone = c.DefaultTimezone, Class = c.Class, Kind = c.Kind, Access = calAccess[c.Id] })]);
     }
 
     public async Task<OpResult<ContainerDto>> CreateAsync(Guid principalId, CreateCalendarRequest r, CancellationToken ct = default)
     {
         if (string.Equals(r.Type, "addressbook", StringComparison.OrdinalIgnoreCase))
-        {
-            var b = new AddressBook { Id = Guid.NewGuid(), Slug = r.Slug, DisplayName = r.DisplayName };
-            session.Store(b);
-            session.Store(new AddressBookOwner { Id = AddressBookOwner.MakeId(b.Id, principalId), AddressBookId = b.Id, PrincipalId = principalId, Access = Access.Owner });
-            await session.SaveChangesAsync(ct);
-            return OpResult<ContainerDto>.Ok(new ContainerDto { Id = b.Id, Type = "addressbook", Slug = b.Slug, DisplayName = b.DisplayName, Access = Access.Owner });
-        }
+            return OpResult<ContainerDto>.Invalid("Address books are managed by LupiraContactApi.");
 
         var cls = r.Class ?? CalendarClass.Agenda;
         var kind = r.Kind ?? CalendarKind.Generic;
@@ -61,19 +48,16 @@ public sealed class CalendarService(IDocumentSession session, PrincipalDirectory
         ("devops", "DevOps", CalendarClass.System, CalendarKind.DevOps),
     ];
 
-    /// <summary>Ensures the caller has the standard calendar set (agenda + system) and a <c>personal</c> address book;
-    /// idempotent — calendars are matched on <see cref="CalendarKind"/>, so a second call creates nothing.</summary>
+    /// <summary>Ensures the caller has the standard calendar set (agenda + system); idempotent — calendars are
+    /// matched on <see cref="CalendarKind"/>, so a second call creates nothing.</summary>
     public async Task<OpResult<List<ContainerDto>>> BootstrapPersonalAsync(Guid principalId, CancellationToken ct = default)
     {
         var existing = (await ListContainersAsync(principalId, ct)).Value!;
 
         var result = new List<ContainerDto>();
         foreach (var (slug, name, cls, kind) in StandardCalendars)
-            result.Add(existing.FirstOrDefault(c => c.Type == "calendar" && c.Kind == kind)
+            result.Add(existing.FirstOrDefault(c => c.Kind == kind)
                 ?? (await CreateAsync(principalId, new CreateCalendarRequest { Slug = slug, DisplayName = name, Type = "calendar", Class = cls, Kind = kind, DefaultTimezone = "UTC" }, ct)).Value!);
-
-        result.Add(existing.FirstOrDefault(c => c.Type == "addressbook" && c.Slug == "personal")
-            ?? (await CreateAsync(principalId, new CreateCalendarRequest { Slug = "personal", DisplayName = "Personal", Type = "addressbook" }, ct)).Value!);
 
         return OpResult<List<ContainerDto>>.Ok(result);
     }
@@ -102,39 +86,6 @@ public sealed class CalendarService(IDocumentSession session, PrincipalDirectory
         if (target is null) return OpResult.NotFound();
 
         var grants = await session.Query<CalendarOwner>().Where(o => o.CalendarId == calendarId).ToListAsync(ct);
-        var targetGrant = grants.FirstOrDefault(o => o.PrincipalId == target.Id);
-        if (targetGrant is null) return OpResult.NotFound();
-        if (OwnerGrants.WouldOrphan(targetGrant.Access, [.. grants.Where(o => o.PrincipalId != target.Id).Select(o => o.Access)]))
-            return OpResult.Conflict("Cannot remove the last owner.");
-
-        session.Delete(targetGrant);
-        await session.SaveChangesAsync(ct);
-        return OpResult.Ok();
-    }
-
-    public async Task<OpResult<OwnerGrantDto>> GrantAddressBookOwnerAsync(Guid callerId, Guid addressBookId, GrantOwnerRequest r, CancellationToken ct = default)
-    {
-        if (await session.LoadAsync<AddressBook>(addressBookId, ct) is null) return OpResult<OwnerGrantDto>.NotFound();
-        if (!await access.IsAddressBookOwnerAsync(callerId, addressBookId, ct)) return OpResult<OwnerGrantDto>.Forbidden("Only an owner may grant access.");
-        var email = (r.Email ?? "").Trim();
-        if (email.Length == 0) return OpResult<OwnerGrantDto>.Invalid("Email is required.");
-        var (ok, level) = AccessParsing.Parse(r.Access);
-        if (!ok) return OpResult<OwnerGrantDto>.Invalid("Access must be owner, read-write, or read.");
-
-        var target = await principals.ResolveOrProvisionAsync(null, email, null, ct);
-        session.Store(new AddressBookOwner { Id = AddressBookOwner.MakeId(addressBookId, target.Id), AddressBookId = addressBookId, PrincipalId = target.Id, Access = level });
-        await session.SaveChangesAsync(ct);
-        return OpResult<OwnerGrantDto>.Ok(new OwnerGrantDto { ContainerId = addressBookId, Type = "addressbook", PrincipalId = target.Id, Email = target.Email, Access = level });
-    }
-
-    public async Task<OpResult> RevokeAddressBookOwnerAsync(Guid callerId, Guid addressBookId, string email, CancellationToken ct = default)
-    {
-        if (await session.LoadAsync<AddressBook>(addressBookId, ct) is null) return OpResult.NotFound();
-        if (!await access.IsAddressBookOwnerAsync(callerId, addressBookId, ct)) return OpResult.Forbidden("Only an owner may revoke access.");
-        var target = await principals.FindByEmailAsync(email, ct);
-        if (target is null) return OpResult.NotFound();
-
-        var grants = await session.Query<AddressBookOwner>().Where(o => o.AddressBookId == addressBookId).ToListAsync(ct);
         var targetGrant = grants.FirstOrDefault(o => o.PrincipalId == target.Id);
         if (targetGrant is null) return OpResult.NotFound();
         if (OwnerGrants.WouldOrphan(targetGrant.Access, [.. grants.Where(o => o.PrincipalId != target.Id).Select(o => o.Access)]))

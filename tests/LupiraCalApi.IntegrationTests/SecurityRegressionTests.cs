@@ -71,78 +71,22 @@ public sealed class SecurityRegressionTests(CalApiTestFactory factory) : Integra
     {
         const string uid = "evt-shared@x";
         var a = Factory.ApiClient("a@x.test");
-        var aId = await GetMyIdAsync(a);
         var calA = await CreateCalendarAsync(a, "a-cal");
-        var aDav = Factory.DavClient("a@x.test");
-        var aUrl = $"/dav/u/{aId}/cal/{calA}/{uid}.ics";
         var aIcs = MinimalIcs(uid, "A meeting", Start);
-        Assert.Equal(HttpStatusCode.Created, (await SendDav(aDav, "PUT", aUrl, body: aIcs, contentType: "text/calendar")).StatusCode);
+        Assert.Equal(HttpStatusCode.Created, (await PutIcsBackendAsync(a, "a@x.test", calA, uid, aIcs)).StatusCode);
 
         var b = Factory.ApiClient("b@x.test");
-        var bId = await GetMyIdAsync(b);
         var calB = await CreateCalendarAsync(b, "b-cal");
-        var bDav = Factory.DavClient("b@x.test");
-        var bUrl = $"/dav/u/{bId}/cal/{calB}/{uid}.ics";
         var bIcs = MinimalIcs(uid, "B hijack", Start.AddDays(1));
 
         // B PUTs the same UID into B's own calendar — must not touch A's item.
-        Assert.Equal(HttpStatusCode.Forbidden, (await SendDav(bDav, "PUT", bUrl, body: bIcs, contentType: "text/calendar")).StatusCode);
+        Assert.Equal(HttpStatusCode.Forbidden, (await PutIcsBackendAsync(b, "b@x.test", calB, uid, bIcs)).StatusCode);
 
         // A's item is unchanged — still A's, not B's hijack attempt.
-        var get = await aDav.GetAsync(aUrl);
+        var get = await GetIcsBackendAsync(a, "a@x.test", calA, uid);
         Assert.Equal(HttpStatusCode.OK, get.StatusCode);
         var got = await get.Content.ReadAsStringAsync();
         Assert.Contains("SUMMARY:A meeting", got);
         Assert.DoesNotContain("B hijack", got);
-    }
-
-    [Fact]
-    public async Task Dav_put_vcard_cannot_hijack_another_users_contact_by_uid()
-    {
-        const string uid = "card-shared@x";
-        var a = Factory.ApiClient("a@x.test");
-        var aId = await GetMyIdAsync(a);
-        var abA = await CreateAddressBookAsync(a, "a-book");
-        var aDav = Factory.DavClient("a@x.test");
-        var aUrl = $"/dav/u/{aId}/card/{abA}/{uid}.vcf";
-        var aVcf = MinimalVcf(uid, "Alice Contact", "alice.contact@x.test");
-        Assert.Equal(HttpStatusCode.Created, (await SendDav(aDav, "PUT", aUrl, body: aVcf, contentType: "text/vcard")).StatusCode);
-
-        var b = Factory.ApiClient("b@x.test");
-        var bId = await GetMyIdAsync(b);
-        var abB = await CreateAddressBookAsync(b, "b-book");
-        var bDav = Factory.DavClient("b@x.test");
-        var bUrl = $"/dav/u/{bId}/card/{abB}/{uid}.vcf";
-        var bVcf = MinimalVcf(uid, "B Hijack", "b@x.test");
-
-        Assert.Equal(HttpStatusCode.Forbidden, (await SendDav(bDav, "PUT", bUrl, body: bVcf, contentType: "text/vcard")).StatusCode);
-
-        // A's contact is untouched and still in A's book.
-        var body = await (await aDav.GetAsync(aUrl)).Content.ReadAsStringAsync();
-        Assert.Contains("Alice Contact", body);
-        Assert.DoesNotContain("B Hijack", body);
-    }
-
-    [Fact]
-    public async Task Dav_delete_vcard_cannot_delete_another_users_contact_by_uid()
-    {
-        const string uid = "card-del@x";
-        var a = Factory.ApiClient("a@x.test");
-        var aId = await GetMyIdAsync(a);
-        var abA = await CreateAddressBookAsync(a, "a-book");
-        var aDav = Factory.DavClient("a@x.test");
-        var aUrl = $"/dav/u/{aId}/card/{abA}/{uid}.vcf";
-        Assert.Equal(HttpStatusCode.Created, (await SendDav(aDav, "PUT", aUrl, body: MinimalVcf(uid, "Alice Contact"), contentType: "text/vcard")).StatusCode);
-
-        var b = Factory.ApiClient("b@x.test");
-        var bId = await GetMyIdAsync(b);
-        var abB = await CreateAddressBookAsync(b, "b-book");
-        var bDav = Factory.DavClient("b@x.test");
-        var bUrl = $"/dav/u/{bId}/card/{abB}/{uid}.vcf";
-
-        Assert.Equal(HttpStatusCode.NotFound, (await SendDav(bDav, "DELETE", bUrl)).StatusCode);
-
-        // A's contact is still present.
-        Assert.Equal(HttpStatusCode.OK, (await aDav.GetAsync(aUrl)).StatusCode);
     }
 }

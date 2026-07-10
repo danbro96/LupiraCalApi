@@ -1,4 +1,3 @@
-using Microsoft.AspNetCore.Mvc.Testing;
 using System.Net;
 using System.Text.Json;
 using Xunit;
@@ -47,16 +46,4 @@ public sealed class McpAuthDiscoveryTests(CalApiTestFactory factory) : Integrati
             c => c.Contains("resource_metadata"));
     }
 
-    [Fact]
-    public async Task Dav_well_known_redirects_still_work()
-    {
-        // The oauth-protected-resource routes must not shadow the existing DAV discovery well-knowns.
-        var anon = Factory.CreateClient(new WebApplicationFactoryClientOptions { AllowAutoRedirect = false });
-        foreach (var path in new[] { "/.well-known/caldav", "/.well-known/carddav" })
-        {
-            var resp = await anon.GetAsync(path);
-            Assert.Equal(HttpStatusCode.MovedPermanently, resp.StatusCode);
-            Assert.Equal("/dav/", resp.Headers.Location?.ToString());
-        }
-    }
 }

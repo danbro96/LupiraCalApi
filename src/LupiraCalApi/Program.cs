@@ -34,11 +34,10 @@ builder.Services.AddScoped<CurrentUser>();
 builder.Services.AddScoped<MeHandler>();
 builder.Services.AddScoped<CalendarsHandler>();
 builder.Services.AddScoped<CalendarItemsHandler>();
-builder.Services.AddScoped<ContactsHandler>();
 builder.Services.AddScoped<RelationsHandler>();
 builder.Services.AddScoped<CurationHandler>();
 builder.Services.AddScoped<ParticipationHandler>();
-builder.Services.AddScoped<ContactGroupsHandler>();
+builder.Services.AddScoped<DavBackendHandler>();
 
 // --- Gazetteer: LupiraGeoApi owns place resolution/geocoding (Geo:BaseUrl). When configured, free-text locations
 // resolve to a geo place id + label; otherwise Core's NullGeoResolver stores just the raw-text label. ---
@@ -48,8 +47,17 @@ if (geoOptions.IsConfigured)
     builder.Services.AddHttpClient<IGeoResolver, GeoApiClient>(c =>
         c.BaseAddress = new Uri(geoOptions.BaseUrl.EndsWith('/') ? geoOptions.BaseUrl : geoOptions.BaseUrl + "/"));
 
-// --- Auth: OIDC JWT for the REST surface (the agent obtains a member-scoped token via Authentik token-exchange);
-//           HTTP Basic -> LDAP outpost for /dav. One identity authority (Authentik). ---
+// --- Contacts: LupiraContactApi owns contacts (Contacts:BaseUrl). When configured, attendee/detail contact ids
+// validate against it; otherwise Core's NullContactResolver keeps refs unvalidated (fail-open). ---
+builder.Services.Configure<ContactApiOptions>(builder.Configuration.GetSection(ContactApiOptions.SectionName));
+var contactOptions = builder.Configuration.GetSection(ContactApiOptions.SectionName).Get<ContactApiOptions>() ?? new ContactApiOptions();
+if (contactOptions.IsConfigured)
+    builder.Services.AddHttpClient<IContactResolver, ContactApiClient>(c =>
+        c.BaseAddress = new Uri(contactOptions.BaseUrl.EndsWith('/') ? contactOptions.BaseUrl : contactOptions.BaseUrl + "/"));
+
+// --- Auth: OIDC JWT for the REST/MCP surface (the agent obtains a member-scoped token via Authentik
+//           token-exchange); the /dav-backend seam additionally requires the DAV gateway's client identity (azp).
+//           One identity authority (Authentik). ---
 var authBuilder = builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
     .AddJwtBearer(options =>
     {
@@ -67,8 +75,7 @@ var authBuilder = builder.Services.AddAuthentication(JwtBearerDefaults.Authentic
                 return Task.CompletedTask;
             },
         };
-    })
-    .AddScheme<AuthenticationSchemeOptions, DavBasicAuthHandler>(DavConstants.Scheme, _ => { });
+    });
 
 // Development-only: allow X-Dev-User header auth so the API can be exercised without Authentik.
 if (builder.Environment.IsDevelopment())
@@ -78,9 +85,15 @@ string[] apiSchemes = builder.Environment.IsDevelopment()
     ? [JwtBearerDefaults.AuthenticationScheme, DevAuthHandler.SchemeName]
     : [JwtBearerDefaults.AuthenticationScheme];
 
+var davGatewayClientId = builder.Configuration["DavGateway:ClientId"];
 builder.Services.AddAuthorizationBuilder()
     .AddPolicy("ApiPolicy", p => p.AddAuthenticationSchemes(apiSchemes).RequireAuthenticatedUser())
-    .AddPolicy("DavPolicy", p => p.AddAuthenticationSchemes(DavConstants.Scheme).RequireAuthenticatedUser());
+    // The DAV gateway's service identity: a valid token for this API (aud) minted by the gateway's
+    // client (azp). Dev-header auth passes in Development so tests can drive the seam directly.
+    .AddPolicy("DavBackendPolicy", p => p.AddAuthenticationSchemes(apiSchemes).RequireAuthenticatedUser()
+        .RequireAssertion(ctx =>
+            ctx.User.Identity?.AuthenticationType == DevAuthHandler.SchemeName
+            || (davGatewayClientId is not null && ctx.User.HasClaim("azp", davGatewayClientId))));
 
 // --- Observability: OpenTelemetry -> OpenObserve. Env-gated; the OTLP exporter reads OTEL_EXPORTER_OTLP_*
 //     automatically (http/protobuf + Basic auth header set in compose). ---
@@ -128,7 +141,7 @@ builder.Services.AddOpenApi("v1", options =>
             Title = "Lupira Cal API",
             Version = "v1",
             Description =
-                "Calendar, contacts, and CalDAV backend for Lupira. " +
+                "Calendar backend for Lupira (contacts live in LupiraContactApi; the DAV protocol surface in LupiraDavApi). " +
                 "Authenticate with a Bearer token issued by the OIDC provider (Authentik).",
         };
         document.Components ??= new();
@@ -175,8 +188,7 @@ if (args.Contains("--apply-schema"))
     return;
 }
 
-// Behind the Cloudflare Tunnel the public host differs from the container, so honor forwarded headers —
-// CalDAV discovery must emit absolute https://cal-api.lupira.com/... hrefs. Restrict KnownProxies in prod.
+// Behind the Cloudflare Tunnel the public host differs from the container, so honor forwarded headers.
 var forwarded = new ForwardedHeadersOptions
 {
     ForwardedHeaders = ForwardedHeaders.XForwardedFor | ForwardedHeaders.XForwardedProto | ForwardedHeaders.XForwardedHost,
@@ -184,6 +196,9 @@ var forwarded = new ForwardedHeadersOptions
 forwarded.KnownIPNetworks.Clear();
 forwarded.KnownProxies.Clear();
 app.UseForwardedHeaders(forwarded);
+
+// LAN-only surfaces (/mcp, /dav-backend): 404 anything arriving through the tunnel.
+app.UseLanOnlySurfaces();
 
 app.UseAuthentication();
 app.UseAuthorization();
@@ -208,23 +223,16 @@ app.MapMe();
 app.MapCalendars();
 app.MapOwners();
 app.MapCalendarItems();
-app.MapContacts();
 app.MapRelations();
 app.MapCuration();
 app.MapParticipation();
-app.MapContactGroups();
 
-// DAV service discovery (anonymous): clients probe these before auth, then follow to /dav/.
-app.MapMethods("/.well-known/caldav", ["GET", "PROPFIND", "OPTIONS"], () => Results.Redirect("/dav/", permanent: true));
-app.MapMethods("/.well-known/carddav", ["GET", "PROPFIND", "OPTIONS"], () => Results.Redirect("/dav/", permanent: true));
+// The internal DAV-backend seam (LAN-only) the LupiraDavApi gateway consumes.
+app.MapDavBackend();
 
 // Agent MCP transport (LAN/WireGuard-only; excluded from the Cloudflare Tunnel at the edge).
 app.MapMcpResourceMetadata(app.Configuration["Auth:Authority"]);
 app.MapMcp("/mcp").RequireAuthorization("ApiPolicy");
-
-// CalDAV/CardDAV catch-all (Basic auth). All HTTP verbs — including PROPFIND/REPORT/MKCALENDAR — reach
-// DavRouter, which dispatches on the method. The cast picks the RequestDelegate Map overload.
-app.Map("/dav/{**path}", (RequestDelegate)DavRouter.Handle).RequireAuthorization("DavPolicy");
 
 app.Run();
 

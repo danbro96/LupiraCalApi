@@ -1,16 +1,14 @@
 # LupiraCalApi
 
-A single self-hosted **calendar and contacts** service that is the source of truth in Postgres and exposes
-two complementary surfaces over the same data:
+A self-hosted **calendar** service that is the source of truth in Postgres:
 
 - **REST at root** — a clean REST API plus a **Model Context Protocol (MCP)** server at `/mcp`, for
   programmatic and agent use (text/time search, rich metadata, sharing). Authenticated with OIDC JWTs.
-- **`/dav/*`** — **CalDAV/CardDAV**, so phones and desktops (iOS/macOS, Android via DAVx5, Thunderbird, eM
-  Client) sync natively. Authenticated with HTTP Basic, verified by an LDAP bind.
+- **`/dav-backend`** (LAN-only, service-authed) — the [DAV backend seam](docs/dav-backend-contract.md)
+  the **LupiraDavApi** gateway consumes to serve CalDAV to phones and desktops. Contacts live in
+  **LupiraContactApi**; items reference them by bare Guid, validated via its resolve seam when configured.
 
-Unlike off-the-shelf CalDAV servers, the REST/MCP surface offers structured search and arbitrary JSON
-metadata that the DAV protocol can't express — while still syncing to any standard client over the one
-database. Calendars and address books are **multi-owner**, so they can be shared.
+Calendars are **multi-owner**, so they can be shared.
 
 A second host in this repo, **`lupira-cal-worker`** (`src/LupiraCalApi.Worker`, image
 `danbro96/lupira-cal-worker`), dispatches due `cal.scheduled_fire` rows to assistant-api `POST /fires` with
@@ -24,10 +22,10 @@ Interactive API docs: **`/scalar/v1`** (Scalar UI) over the OpenAPI document at 
 |---|---|
 | Runtime | .NET 10 (`net10.0`), ASP.NET Core Minimal APIs |
 | Store | **Marten 9.10.0** — event sourcing + document store (+ async daemon) on PostgreSQL |
-| iCalendar / vCard | **Ical.Net 5.2.2**, **FolkerKinzel.VCards 8.1.3** (payloads + recurrence; the DAV protocol layer is hand-rolled) |
+| iCalendar | **Ical.Net 5.2.2** (canonical ICS + recurrence) |
 | MCP | **ModelContextProtocol.AspNetCore 1.4.0** |
 | API docs | **Scalar.AspNetCore 2.16.5** + `Microsoft.AspNetCore.OpenApi 10.0.9` |
-| Auth | `Microsoft.AspNetCore.Authentication.JwtBearer 10.0.9` (OIDC); `System.DirectoryServices.Protocols 10.0.9` (LDAP for DAV) |
+| Auth | `Microsoft.AspNetCore.Authentication.JwtBearer 10.0.9` (OIDC) |
 | Telemetry | OpenTelemetry 1.16.0 (OTLP exporter; traces, metrics, logs) |
 | Tests | xUnit 2.9.3 + **Testcontainers.PostgreSql** (ephemeral Postgres) |
 
@@ -75,17 +73,15 @@ vars). Nothing host-specific is baked in.
 | `ConnectionStrings__Postgres` | PostgreSQL connection (Marten store) — **required** | `Host=localhost;Port=5432;Database=lupira_cal;Username=lupira_cal_user;Password=…` |
 | `Auth__Authority` | OIDC issuer/authority for `/api` JWT validation | `https://idp.example.com/application/o/lupira-cal/` |
 | `Auth__Audience` | Expected JWT `aud` | `lupira-cal` |
-| `Ldap__Uri` | LDAP server for `/dav` Basic-auth bind | `ldap://ldap.example.com:3389` |
-| `Ldap__BaseDn` | Search base DN | `dc=example,dc=com` |
-| `Ldap__ReaderDn` | Service-account DN used to search for the user | `cn=reader,ou=users,dc=example,dc=com` |
-| `Ldap__ReaderSecret` | Service-account password | _(secret)_ |
-| `Ldap__Filter` | User search filter (`{0}` = login email) | `(&(objectClass=user)(mail={0}))` |
+| `DavGateway__ClientId` | The DAV gateway's client id (`azp`) accepted on `/dav-backend` | `lupira-dav-svc` |
+| `Contacts__BaseUrl` | LupiraContactApi base URL (unset ⇒ contact refs unvalidated) | `http://lupira-contact-api:8080/` |
+| `Contacts__TokenUrl` / `__ClientId` / `__ClientSecret` / `__Scope` | Client-credentials for the contact hop (aud `lupira-contact`) | — |
 | `OTEL_EXPORTER_OTLP_ENDPOINT` | OTLP collector URL. **Unset ⇒ telemetry export is a silent no-op** | `http://otel-collector:4318` |
 | `OTEL_EXPORTER_OTLP_PROTOCOL` | OTLP protocol | `http/protobuf` |
 | `OTEL_EXPORTER_OTLP_HEADERS` | OTLP auth header(s) | `Authorization=Basic …` |
 
-OIDC (`/api`) and LDAP-Basic (`/dav`) logins for the same person **converge on one principal** (matched by
-OIDC `sub`, then email), so a user signs in to both surfaces with the same account.
+OIDC logins and the `/dav-backend` acting-user email **converge on one principal** (matched by OIDC `sub`,
+then email), so REST/MCP and DAV-gateway traffic act as the same account.
 
 ## Schema
 
@@ -104,31 +100,28 @@ are scoped to the caller's accessible containers.
 
 | Area | Routes |
 |---|---|
-| **Me** | `GET /me` · `POST /me/bootstrap` (idempotently seed the standard calendar set — agenda + agent-managed system calendars — plus a personal address book) |
-| **Calendars** | `GET /calendars` (each with `type` + a calendar's `class`/`kind`) · `POST /calendars` (create a calendar or address book) |
-| **Sharing** | `POST`/`DELETE /calendars/{id}/owners` · `POST`/`DELETE /address-books/{id}/owners` |
+| **Me** | `GET /me` · `POST /me/bootstrap` (idempotently seed the standard calendar set — agenda + agent-managed system calendars) |
+| **Calendars** | `GET /calendars` (each with a `class`/`kind`) · `POST /calendars` |
+| **Sharing** | `POST`/`DELETE /calendars/{id}/owners` |
 | **Items** | `GET /items` (text/time/tag search, recurrence-expanded; carries a derived completeness score) · `POST /items` · `GET`/`PUT`/`DELETE /items/{id}` · `POST /items/{id}/metadata` (merge JSON) · `PUT`/`DELETE /items/{id}/prompt` · `PUT`/`DELETE /items/{id}/action` (event-bound payload, server-side only) |
 | **Participation** | `POST /items/{id}/participants` (invite) · `…/{participationId}/respond` · `…/attend` · `…/leave` · `DELETE …/{participationId}` |
 | **Curation** | `GET /calendars/{id}/proposed` · `POST /items/{itemId}/calendars/{calId}/accept` · `POST /items/{itemId}/calendars/{calId}` · `DELETE /items/{itemId}/calendars/{calId}` |
-| **Contacts** | `GET /contacts` (name search; carries a derived completeness score) · `POST /contacts` · `GET`/`PUT`/`DELETE /contacts/{id}` · `GET`/`POST /contacts/{id}/relations` (typed contact↔contact edges, resolved both directions) · `DELETE /contacts/{id}/relations/{toContactId}?kind=` |
-| **Groups** | `GET`/`POST /address-books/{id}/groups` · `PUT /groups/{id}` · `POST`/`DELETE /groups/{id}/members…` · `DELETE /groups/{id}` |
 | **Relations** | `POST`/`GET /items/{id}/relations` (link to an external service) · `GET /relations` (reverse lookup) |
-| **DAV** | `/.well-known/caldav` · `/.well-known/carddav` (discovery) · `/dav/{**path}` (CalDAV/CardDAV, HTTP Basic) |
+| **DAV backend** | `/dav-backend/u/{email}/…` (LAN-only, gateway-authed; collections · query · resources · changes — see [the contract](docs/dav-backend-contract.md)) |
 | **Health** | `GET /livez` (liveness) · `GET /readyz` (readiness — Postgres reachable) |
 
 ### MCP tools (`/mcp`)
 
 The agent surface mirrors REST and is scoped to the caller's access:
 
-`search_items` · `create_item` · `attach_metadata` · `query_contacts` · `list_calendars` ·
-`bootstrap_me` · `grant_calendar_owner` · `revoke_calendar_owner` · `grant_addressbook_owner` ·
-`revoke_addressbook_owner` · `link_item_to_task` · `find_items_linked_to_task` · `relate_contacts` ·
-`unrelate_contacts` · `list_contact_relations`
+`search_items` · `create_item` · `update_item` · `attach_metadata` · `invite_participant` ·
+`respond_participant` · `list_calendars` · `bootstrap_me` · `create_calendar` · `grant_calendar_owner` ·
+`revoke_calendar_owner` · `link_item_to_task` · `find_items_linked_to_task`
 
 ## Docker & Compose
 
-The repository root `Dockerfile` is a multi-stage build (SDK → ASP.NET runtime) that listens on `8080` and
-installs `libldap2` (for the DAV LDAP bind). A reference Compose service is in
+The repository root `Dockerfile` is a multi-stage build (SDK → ASP.NET runtime) that listens on `8080`.
+A reference Compose service is in
 [`deploy/compose.yaml`](deploy/compose.yaml) and a Postgres role/grant script in
 [`deploy/db/grants.sql`](deploy/db/grants.sql).
 
@@ -162,7 +155,7 @@ src/
   LupiraCalApi/             thin web host
     Endpoints/ Handlers/    REST routes → handlers → Core services
     Http/                   OpResult → HTTP (TypedResults, RFC 7807)
-    Dav/                    CalDAV/CardDAV router
+    Dav/                    the /dav-backend seam (contract DTOs, handler, endpoints)
     Mcp/                    MCP agent tools
     Auth/ Health/ Program.cs
 tests/

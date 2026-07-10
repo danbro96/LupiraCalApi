@@ -7,11 +7,21 @@ using Marten;
 namespace LupiraCalApi.Application;
 
 /// <summary>First-class participation: invited / responded / attended / left, appended to the item's stream. The
-/// embedded <see cref="ItemAttendee"/> read model composes the timestamps. Every attendee is a <see cref="Contact"/>.</summary>
-public sealed class ParticipationService(IDocumentSession session, AccessResolver access, CompletenessResolver completeness)
+/// embedded <see cref="ItemAttendee"/> read model composes the timestamps. Every attendee is a LupiraContactApi
+/// contact, referenced by bare Guid and validated via <see cref="IContactResolver"/> when configured.</summary>
+public sealed class ParticipationService(IDocumentSession session, AccessResolver access, CompletenessResolver completeness, IContactResolver contacts)
 {
-    public Task<OpResult<CalendarItemDto>> InviteAsync(Guid principalId, Guid itemId, Guid contactId, string? role, CancellationToken ct = default) =>
-        AppendAsync(principalId, itemId, _ => new AttendeeInvited(itemId, Guid.NewGuid(), contactId, ParseRole(role), DateTimeOffset.UtcNow), ct);
+    public async Task<OpResult<CalendarItemDto>> InviteAsync(Guid principalId, Guid itemId, Guid contactId, string? role, CancellationToken ct = default)
+    {
+        // Fail-open: a null result means resolution is unavailable (unconfigured/transport) — proceed as before.
+        // A non-null result missing the id is a definitive "no such contact".
+        if (contacts.IsConfigured
+            && await contacts.ResolveAsync([contactId], ct) is { } resolved
+            && resolved.All(c => c.ContactId != contactId))
+            return OpResult<CalendarItemDto>.Invalid("Unknown contact.");
+
+        return await AppendAsync(principalId, itemId, _ => new AttendeeInvited(itemId, Guid.NewGuid(), contactId, ParseRole(role), DateTimeOffset.UtcNow), ct);
+    }
 
     public Task<OpResult<CalendarItemDto>> RespondAsync(Guid principalId, Guid itemId, Guid participationId, string? status, CancellationToken ct = default) =>
         AppendAsync(principalId, itemId, _ => new InvitationResponded(itemId, participationId, ParseStat(status), DateTimeOffset.UtcNow), ct);

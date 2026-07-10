@@ -79,34 +79,16 @@ public sealed class OwnersTests(CalApiTestFactory factory) : IntegrationTest(fac
     }
 
     [Fact]
-    public async Task Address_book_grant_lets_a_member_read_a_contact_then_revoke_removes_it()
-    {
-        var alice = Factory.ApiClient("alice@x.test");
-        var bookId = await CreateAddressBookAsync(alice, "fam", "Family");
-        var contact = await CreateContactAsync(alice, bookId);
-
-        var grant = await alice.PostAsJsonAsync($"/address-books/{bookId}/owners", new GrantOwnerRequest { Email = "bob@x.test", Access = "read" });
-        grant.EnsureSuccessStatusCode();
-
-        var bob = Factory.ApiClient("bob@x.test");
-        Assert.Equal(HttpStatusCode.OK, (await bob.GetAsync($"/contacts/{contact.Id}")).StatusCode);
-
-        var revoke = await alice.DeleteAsync($"/address-books/{bookId}/owners?email={Uri.EscapeDataString("bob@x.test")}");
-        Assert.Equal(HttpStatusCode.NoContent, revoke.StatusCode);
-        Assert.Equal(HttpStatusCode.Forbidden, (await bob.GetAsync($"/contacts/{contact.Id}")).StatusCode);
-    }
-
-    [Fact]
-    public async Task Granted_calendar_appears_in_the_grantees_dav_home()
+    public async Task Granted_calendar_appears_in_the_grantees_dav_collections()
     {
         var alice = Factory.ApiClient("alice@x.test");
         var calId = await CreateCalendarAsync(alice, "fam", "Family");
         await alice.PostAsJsonAsync($"/calendars/{calId}/owners", new GrantOwnerRequest { Email = "bob@x.test", Access = "owner" });
 
         var bob = Factory.ApiClient("bob@x.test");
-        var bobId = await GetMyIdAsync(bob);
-        var bobDav = Factory.DavClient("bob@x.test");
-        var doc = await ReadXml(await SendDav(bobDav, "PROPFIND", $"/dav/u/{bobId}/cal/", depth: "1"));
-        Assert.Contains(doc.Descendants(D + "href"), h => h.Value.Contains(calId.ToString()));
+        var resp = await bob.GetAsync($"{DavBackendBase("bob@x.test")}/collections");
+        resp.EnsureSuccessStatusCode();
+        var dto = await resp.Content.ReadFromJsonAsync<LupiraCalApi.Dav.DavCollectionsDto>();
+        Assert.Contains(dto!.Collections, c => c.Id == calId);
     }
 }

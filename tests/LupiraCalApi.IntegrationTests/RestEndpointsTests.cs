@@ -59,13 +59,12 @@ public sealed class RestEndpointsTests(CalApiTestFactory factory) : IntegrationT
 
         var first = await (await api.PostAsync("/me/bootstrap", null)).Content.ReadFromJsonAsync<List<ContainerDto>>();
         Assert.Contains(first!, c => c is { Type: "calendar", Slug: "personal" });
-        Assert.Contains(first!, c => c is { Type: "addressbook", Slug: "personal" });
 
         var second = await (await api.PostAsync("/me/bootstrap", null)).Content.ReadFromJsonAsync<List<ContainerDto>>();
         Assert.Equal(first!.Select(c => c.Id).OrderBy(x => x), second!.Select(c => c.Id).OrderBy(x => x));
 
         var all = await api.GetFromJsonAsync<List<ContainerDto>>("/calendars");
-        Assert.Equal(9, all!.Count);   // 8 standard calendars + the personal address book — no duplicates
+        Assert.Equal(8, all!.Count);   // the 8 standard calendars — no duplicates
     }
 
     [Fact]

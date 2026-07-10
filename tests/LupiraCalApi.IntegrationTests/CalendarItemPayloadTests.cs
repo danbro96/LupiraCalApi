@@ -113,14 +113,12 @@ public sealed class CalendarItemPayloadTests(CalApiTestFactory factory) : Integr
     public async Task Payload_is_never_projected_to_dav()
     {
         var api = Factory.ApiClient(Email);
-        var uid = await GetMyIdAsync(api);
         var calId = await CreateCalendarAsync(api);
         var item = await CreateItemAsync(api, calId);
         const string secret = "DAV-MUST-NOT-LEAK-THIS-INSTRUCTION";
         (await api.PutAsJsonAsync($"/items/{item.Id}/prompt", Prompt(secret))).EnsureSuccessStatusCode();
 
-        var dav = Factory.DavClient(Email);
-        var ics = await (await dav.GetAsync($"/dav/u/{uid}/cal/{calId}/{item.ExternalId}.ics")).Content.ReadAsStringAsync();
+        var ics = await (await GetIcsBackendAsync(api, Email, calId, item.ExternalId)).Content.ReadAsStringAsync();
         Assert.DoesNotContain(secret, ics);
     }
 }

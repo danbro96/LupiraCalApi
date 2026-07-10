@@ -19,14 +19,13 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <!-- Expose internal pure helpers (DavProtocol, DavBasicAuthHandler credential/LDAP parsing) for unit testing. -->
     <InternalsVisibleTo Include="LupiraCalApi.IntegrationTests" />
   </ItemGroup>
 
   <ItemGroup>
     <!-- The bounded context (Domain + Application + Data). The host is a thin transport/composition
-         layer over it; the project boundary keeps ASP.NET out of the core. EF Core / Npgsql / Ical.Net /
-         FolkerKinzel flow in transitively from Core. -->
+         layer over it; the project boundary keeps ASP.NET out of the core. Npgsql / Ical.Net flow in
+         transitively from Core. -->
     <ProjectReference Include="..\LupiraCalApi.Core\LupiraCalApi.Core.csproj" />
   </ItemGroup>
 
@@ -38,13 +37,8 @@
     </PackageReference>
     <PackageReference Include="Microsoft.OpenApi" Version="2.7.5" />
     <PackageReference Include="Microsoft.AspNetCore.Authentication.JwtBearer" Version="10.0.9" />
-    <PackageReference Include="Microsoft.EntityFrameworkCore.Design" Version="10.0.9">
-      <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
-      <PrivateAssets>all</PrivateAssets>
-    </PackageReference>
     <PackageReference Include="ModelContextProtocol.AspNetCore" Version="1.4.0" />
     <PackageReference Include="Scalar.AspNetCore" Version="2.16.5" />
-    <PackageReference Include="System.DirectoryServices.Protocols" Version="10.0.9" />
     <PackageReference Include="OpenTelemetry.Exporter.OpenTelemetryProtocol" Version="1.16.0" />
     <PackageReference Include="OpenTelemetry.Extensions.Hosting" Version="1.16.0" />
     <PackageReference Include="OpenTelemetry.Instrumentation.AspNetCore" Version="1.15.2" />

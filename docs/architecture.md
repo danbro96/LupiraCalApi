@@ -12,46 +12,48 @@ Two projects enforce the layering at compile time:
   events, value objects, enums + Marten registration), `Application/` (services + the transport-neutral
   `OpResult`), `Auth/` (`AccessResolver`), `Dtos/`, `Mappers/`, `Serialization/`.
 - **`LupiraCalApi`** — a thin web host over Core: `Endpoints/` (route maps) → `Handlers/` (resolve the
-  caller, call a service, map the result), `Http/` (`OpResult` → HTTP), `Dav/` (CalDAV/CardDAV router),
-  `Mcp/` (agent tools), `Auth/`, `Health/`, and `Program.cs` (composition root).
+  caller, call a service, map the result), `Http/` (`OpResult` → HTTP), `Dav/` (the LAN-only
+  `/dav-backend` seam the LupiraDavApi gateway consumes), `Mcp/` (agent tools), `Auth/`, `Health/`,
+  and `Program.cs` (composition root).
 
 ## Persistence: hybrid event sourcing on one Marten store
 
 A single Marten store in one Postgres schema (`MartenRegistrations.UseLupiraCal`). Three kinds of state:
 
-- **Event-sourced aggregates** — `CalendarItem`, `Contact`, `ContactGroup`. Each is an event stream with
-  an **inline snapshot** projection (read-your-write). Their full history (scheduled, revised, cancelled,
-  attendee invited/responded, added-to/removed-from calendar, prompt/action set/cleared, …) lives in the
-  event log; the snapshot is the current read model. Embedded read models (`Attendees`, `Calendars`,
-  `Addresses`, `Profiles`, `Details`, the event-bound `Prompt`/`Action`) ride *on* the snapshot — there
-  are no separate projection tables for them.
-- **Plain documents** — `Principal`, `Calendar`, `AddressBook`, `CalendarOwner`, `AddressBookOwner`,
-  `Relation`. Reference/identity/sharing data whose history isn't event-worthy. Indexed by the
-  fields services query on (`Principal.AuthentikSub`/`Email`, the owner docs' `PrincipalId`/container id,
-  `Relation.FromId`).
+- **Event-sourced aggregates** — `CalendarItem`. An event stream with an **inline snapshot** projection
+  (read-your-write). Its full history (scheduled, revised, cancelled, attendee invited/responded,
+  added-to/removed-from calendar, prompt/action set/cleared, …) lives in the event log; the snapshot is
+  the current read model. Embedded read models (`Attendees`, `Calendars`, `Details`, the event-bound
+  `Prompt`/`Action`) ride *on* the snapshot — there are no separate projection tables for them.
+- **Plain documents** — `Principal`, `Calendar`, `CalendarOwner`, `Relation`. Reference/identity/sharing
+  data whose history isn't event-worthy. Indexed by the fields services query on
+  (`Principal.AuthentikSub`/`Email`, `CalendarOwner.PrincipalId`/`CalendarId`, `Relation.FromId`).
 - **Operational relational state** — `cal.scheduled_fire`, a plain Npgsql table (not a Marten document)
   written by the scheduling materializer. It is transient, rebuildable from the items, so it sits
   deliberately outside event sourcing (see *Scheduling / firing*).
 
-Enums serialize as strings. Aggregates use deterministic stream ids derived from the iCalendar/vCard UID,
+Enums serialize as strings. Aggregates use deterministic stream ids derived from the iCalendar UID,
 so a DAV `DELETE` followed by a `PUT` of the same UID resurrects the same stream. **Structured domain fields
-are canonical**: DAV responses regenerate iCal/vCard on demand from them, and `ContentHash` (the DAV ETag) is
-derived deterministically from that canonical form — no source blob is stored. Schema is applied deliberately
+are canonical**: the `/dav-backend` seam regenerates ICS on demand from them, and `ContentHash` (the DAV ETag)
+is derived deterministically from that canonical form — no source blob is stored. Schema is applied deliberately
 via a one-shot `--apply-schema` run (`ApplyAllConfiguredChangesToDatabaseAsync`, which also creates
 `cal.scheduled_fire`), not on boot — there are no EF migrations. One background process runs: the Marten
 **async daemon**, hosting the scheduling materializer.
 
 ## Bounded context
 
-**In scope** — calendaring (items, recurrence expansion, kinds), contacts (vCards, groups/organizations),
-first-class participation, item↔calendar curation, geo place references (LupiraGeoApi), multi-owner sharing
-of containers, opaque cross-API relations, calendar classification (agenda vs. agent-managed system
-calendars), event-bound payloads (an LLM prompt or a deterministic action that fires at a time), a derived
-completeness signal over items and contacts, and the firing **materializer** that computes *what is due*.
+**In scope** — calendaring (items, recurrence expansion, kinds), first-class participation, item↔calendar
+curation, geo place references (LupiraGeoApi), multi-owner sharing of calendars, opaque cross-API relations,
+calendar classification (agenda vs. agent-managed system calendars), event-bound payloads (an LLM prompt or
+a deterministic action that fires at a time), a derived completeness signal over items, and the firing
+**materializer** that computes *what is due*.
 
-**Out of scope for the API host** — the identity provider (external OIDC for `/api`, an LDAP directory for
-`/dav` Basic auth); tasks/portfolio/activity (owned by other services, referenced only through `Relation`);
-interpreting the fired payload (assistant-api's job); and invitation delivery (iTIP/iMIP). **Fire
+**Out of scope for the API host** — the identity provider (external OIDC); contacts and address books
+(LupiraContactApi — attendees/details reference contacts by bare Guid, validated via `IContactResolver`
+when configured); the DAV protocol itself (the LupiraDavApi gateway — this service only implements the
+`/dav-backend` contract, see [dav-backend-contract.md](dav-backend-contract.md)); tasks/portfolio/activity
+(owned by other services, referenced only through `Relation`); interpreting the fired payload
+(assistant-api's job); and invitation delivery (iTIP/iMIP). **Fire
 delivery/dispatch** lives in this repo as the separate `lupira-cal-worker` host (`src/LupiraCalApi.Worker`,
 image `danbro96/lupira-cal-worker`): it claims due rows and pushes them to assistant-api.
 
@@ -67,7 +69,6 @@ classDiagram
         string AuthentikSub
         string Email
         string? DisplayName
-        Guid? ContactId
     }
     class Calendar {
         <<document>>
@@ -79,23 +80,10 @@ classDiagram
         CalendarClass Class
         CalendarKind Kind
     }
-    class AddressBook {
-        <<document>>
-        Guid Id
-        string Slug
-        string? DisplayName
-    }
     class CalendarOwner {
         <<document>>
         string Id
         Guid CalendarId
-        Guid PrincipalId
-        Access Access
-    }
-    class AddressBookOwner {
-        <<document>>
-        string Id
-        Guid AddressBookId
         Guid PrincipalId
         Access Access
     }
@@ -154,50 +142,6 @@ classDiagram
         TravelLeg? Travel
         PresenceDetail? Presence
     }
-    class Contact {
-        <<event-sourced>>
-        Guid Id
-        Guid AddressBookId
-        string ExternalId
-        string? GivenName
-        string? FamilyName
-        string? Nickname
-        string[]? Emails
-        string[]? Phones
-        DateOnly? Birthday
-        string[]? Tags
-        string ContentHash
-        string Metadata
-        DateTimeOffset? DeletedAt
-    }
-    class ContactPostalAddress {
-        <<embedded>>
-        Guid? PlaceId
-        string? FormattedAddress
-        ContactAddressType Type
-    }
-    class ContactSocialProfile {
-        <<embedded>>
-        string Service
-        string Handle
-        string? Url
-    }
-    class ContactRelation {
-        <<embedded>>
-        Guid ToContactId
-        ContactRelationKind Kind
-        string? Label
-    }
-    class ContactGroup {
-        <<event-sourced>>
-        Guid Id
-        Guid AddressBookId
-        ContactGroupKind Kind
-        string Name
-        string? ExternalId
-        List~Guid~ MemberContactIds
-        DateTimeOffset? DeletedAt
-    }
     class ItemPrompt {
         <<embedded>>
         PromptIntent Intent
@@ -250,13 +194,10 @@ classDiagram
 
     Calendar "1" o-- "*" CalendarOwner
     Principal "1" o-- "*" CalendarOwner
-    AddressBook "1" o-- "*" AddressBookOwner
-    Principal "1" o-- "*" AddressBookOwner
 
     CalendarItem "1" *-- "*" CalendarMembership
     CalendarMembership "*" --> "1" Calendar
     CalendarItem "1" *-- "*" ItemAttendee
-    ItemAttendee "*" --> "1" Contact
     CalendarItem "1" *-- "0..1" ItemDetails
     CalendarItem "1" *-- "0..1" ItemPrompt : XOR payload
     CalendarItem "1" *-- "0..1" ItemAction : XOR payload
@@ -265,24 +206,15 @@ classDiagram
     ItemDetails "1" *-- "0..1" PresenceDetail
     CalendarItem "*" --> "0..1" CalendarItem : parent of
 
-    AddressBook "1" --> "*" Contact : contains
-    AddressBook "1" --> "*" ContactGroup : contains
-    ContactGroup "*" --> "*" Contact : members
-    Contact "1" *-- "*" ContactPostalAddress
-    Contact "1" *-- "*" ContactSocialProfile
-    Contact "1" *-- "*" ContactRelation
-    ContactRelation "*" --> "1" Contact : to
-
-    Principal "0..1" --> "0..1" Contact : self
-
     CalendarItem "*" ..> "*" Relation : cross-API
-    Contact "*" ..> "*" Relation : cross-API
 ```
 
 Solid arrows are references within this API; `*--` is composition (the embedded value object is part of the
-aggregate snapshot); dotted `..>` is a by-reference link to another service via `Relation`. A `Contact`
-belongs to exactly one `AddressBook`; a `CalendarItem` belongs to **zero-or-many** `Calendar`s through its
-embedded `CalendarMembership` list, and only an `Accepted` membership is exposed over DAV.
+aggregate snapshot); dotted `..>` is a by-reference link to another service via `Relation`.
+`ItemAttendee.ContactId`, `BookingDetail.ProviderContactId`, and `TravelLeg.DriverContactId` are bare Guids
+referencing LupiraContactApi contacts (validated via `IContactResolver` when configured). A `CalendarItem`
+belongs to **zero-or-many** `Calendar`s through its embedded `CalendarMembership` list, and only an
+`Accepted` membership is exposed on the DAV seam.
 
 ### Item↔calendar curation
 
@@ -293,35 +225,20 @@ membership is "unfiled".
 
 ### Participation
 
-Each attendee is an embedded `ItemAttendee` keyed by `ParticipationId` and referencing a `Contact`. The
-timestamps (`InvitedAt`/`RespondedAt`/`AttendedAt`/`LeftAt`) are the recorded times of the participation
-events folded into the snapshot; `Status` is the latest RSVP. "No-show" is derived, not stored. "Me" is the
-`Contact` referenced by `Principal.ContactId`.
+Each attendee is an embedded `ItemAttendee` keyed by `ParticipationId` and referencing a LupiraContactApi
+contact by bare Guid. The timestamps (`InvitedAt`/`RespondedAt`/`AttendedAt`/`LeftAt`) are the recorded
+times of the participation events folded into the snapshot; `Status` is the latest RSVP. "No-show" is
+derived, not stored. When the contact hop is configured (`Contacts:BaseUrl`), an invite validates the id
+via `IContactResolver` (fail-open: an unreachable resolver never blocks the write).
 
 ### Places
 
-Places live in **LupiraGeoApi**, not here. A calendar item (`PlaceId` + denormalized `LocationLabel`), a travel
-leg (`ToPlaceId`/`FromPlaceId` + `ToLabel`/`FromLabel`), and a contact's postal address (`PlaceId` +
-`FormattedAddress`) reference a geo place by id (no FK, no local catalog). Free-text locations are resolved once at
-write time via `IGeoResolver` (the host's `GeoApiClient` → geo, or a no-op when geo is unconfigured, in which case the
-label is the raw text). The denormalized label means ICS generation and the read DTOs never call geo. `GET
-/items/by-place/{placeId}` is the reverse index (items at a geo place).
-
-### Contacts & groups
-
-Names are structured vCard parts (no stored full name — the `FN` is composed when the vCard is generated).
-`Emails`/`Phones` are arrays; postal addresses hold an optional geo place id + `FormattedAddress`; social profiles are open
-`Service`/`Handle`/`Url` triples. A contact's employer is **membership in an `Organization`-kind
-`ContactGroup`**, not a free-text field; `MemberContactIds` is maintained by add/remove events.
-
-Contact-to-contact relations are **one directed `ContactRelation` edge on the from-contact's stream**, keyed by
-`(ToContactId, Kind)` — `Kind` is the *To* contact's role relative to the owner ("X is Y's dad" → edge on Y with
-`Kind: Parent`, optional free-text `Label: "dad"`). `ContactRelationAdded` upserts on that key (re-adding revises
-the label); the other side's view is **derived**, not mirrored: `ContactRelationKinds.Inverse` maps `Parent`↔`Child`,
-`Emergency`→`Other`, and the rest to themselves. Adding requires **write on the from-contact's book and read on the
-to-contact's** (`GET/POST /contacts/{id}/relations`, `DELETE /contacts/{id}/relations/{toContactId}?kind=`). There is
-**no FK**: a target may be deleted or unreadable, and the resolved listing filters such edges on read while the raw
-edge stays on the snapshot. Relation edges appear in the canonical vCard, so every relation change moves the ETag.
+Places live in **LupiraGeoApi**, not here. A calendar item (`PlaceId` + denormalized `LocationLabel`) and a
+travel leg (`ToPlaceId`/`FromPlaceId` + `ToLabel`/`FromLabel`) reference a geo place by id (no FK, no local
+catalog). Free-text locations are resolved once at write time via `IGeoResolver` (the host's `GeoApiClient`
+→ geo, or a no-op when geo is unconfigured, in which case the label is the raw text). The denormalized
+label means ICS generation and the read DTOs never call geo. `GET /items/by-place/{placeId}` is the
+reverse index (items at a geo place).
 
 ## Enumerations
 
@@ -336,17 +253,15 @@ edge stays on the snapshot. Relation edges appear in the canonical vCard, so eve
 | `CalendarEntryStatus` | `Proposed` · `Accepted` · `Removed` | curation state of an item in a calendar |
 | `ParticipationRole` | `Chair` · `RequiredParticipant` · `OptionalParticipant` · `NonParticipant` | iCalendar `ROLE` |
 | `ParticipationStatus` | `NeedsAction` · `Accepted` · `Declined` · `Tentative` · `Delegated` | iCalendar `PARTSTAT` |
-| `ContactGroupKind` | `Group` · `Organization` | personal grouping vs. company/institution |
-| `ContactAddressType` | `Home` · `Work` · `Other` | vCard `ADR` TYPE |
-| `ContactRelationKind` | `Parent` · `Child` · `Sibling` · `Spouse` · `Partner` · `Friend` · `Colleague` · `Neighbor` · `Emergency` · `Other` | vCard `RELATED` TYPE — the *To* contact's role relative to the owner |
 | `Access` | `Owner` · `ReadWrite` · `Read` | a principal's permission on a container |
 
 ## Item details
 
 `ItemDetails` is a composable carrier of optional value objects — a `Booking`, a `TravelLeg`, and/or a `Presence`
 segment — independent of `CalendarItem.Category`. Any combination may be set (a booked flight carries both `Booking`
-and `Travel`). Location reuses the item's `PlaceId` + `LocationLabel`; provider/driver references reuse a `Contact` id. Bills and
-deliveries are not modeled here — they live in LupiraTasks and are surfaced on the agenda via a `Relation`.
+and `Travel`). Location reuses the item's `PlaceId` + `LocationLabel`; provider/driver references are bare
+LupiraContactApi contact ids. Bills and deliveries are not modeled here — they live in LupiraTasks and are
+surfaced on the agenda via a `Relation`.
 
 | Detail | Applies to | Key fields |
 |---|---|---|
@@ -360,8 +275,8 @@ Each `Calendar` carries a `CalendarClass` and a `CalendarKind`. **Agenda** calen
 (Personal, Group, Birthdays, Availability, FoodPlan); **System** calendars are agent-managed scaffolding
 (Inbox, LlmPrompts, UserCheckIn, DevOps) that the assistant owns via ordinary `Owner` grants. `POST /me/bootstrap`
 seeds the standard set per principal, idempotently (matched on `CalendarKind`). **Only `Agenda` calendars are
-projected over DAV** — System calendars are REST/DB-only, which is how DAV stays non-bearing. The container
-discriminator on the REST DTOs is `type` (`calendar`|`addressbook`); `class`/`kind` classify calendars only.
+projected on the DAV seam** — System calendars are REST/DB-only, which is how DAV stays non-bearing. The REST
+DTOs keep the `type` discriminator (now always `calendar`) for wire compatibility with generated clients.
 
 ## Event-bound payloads
 
@@ -385,9 +300,9 @@ when it is due; it does not interpret or deliver it. Set/clear via `PUT`/`DELETE
 ## Completeness
 
 A derived `Completeness` (a `0..1` score, the unmet fields ranked heaviest-first, and a `rubricVersion`) is exposed
-on `GET /items` and `GET /contacts` to drive the assistant's elicitation/enrichment ranking. It is computed by
+on `GET /items` to drive the assistant's elicitation/enrichment ranking. It is computed by
 `CompletenessResolver`/`CompletenessScorer` at read time — **not stored on the snapshot** — because exemption
-depends on the item's *calendar* kinds and a contact's organisation lives on a separate `ContactGroup`. The rubric
+depends on the item's *calendar* kinds. The rubric
 is category-aware (a `Trip` needs from/to + carrier; a `Meeting` needs location/attendees) and scores *presence*, not
 quality (`1` present · `0.5` weak · `0` absent). Exempt records score `null` (not applicable): system-calendar /
 Birthdays / Availability-calendar items, any item with a `Presence` segment, and any item carrying a fired payload.
@@ -409,30 +324,28 @@ the three can never disagree. The **dispatcher** is the separate `lupira-cal-wor
 (accept-then-own: 202 → `done`; transient failure → `pending` with 30 s→30 m backoff, max 5 attempts →
 `failed`; a gone/cleared payload → `expired`). The API host owns *what is due*; the worker owns delivery.
 
-## DAV projection
+## DAV seam
 
-CalDAV/CardDAV is a **secondary, non-bearing** view over the canonical structured fields. GET/REPORT/multiget
-regenerate iCal/vCard deterministically on demand (`ICalSerializer.From`/`VCardSerializer.From`; the location is
-the item's denormalized `LocationLabel`), and the ETag is the `ContentHash` derived from that same canonical form, so it is stable
-across reads. A DAV `PUT` parses the body into structured fields (no blob is retained); recurrence expansion runs
-off the regenerated ICS. Only `Agenda` calendars and an item's `Accepted` memberships are exposed.
-
-Contact relations round-trip as `RELATED;TYPE=<kind>[;X-LUPIRA-LABEL=<label>]:urn:uuid:<contactId>`. On `PUT` the
-RELATED set is an **authoritative wholesale replace** (a card without RELATED lines clears the relations — a client
-that strips unknown properties will wipe them on write-back). Targets are stored unresolved (they may sync in later);
-non-`urn:uuid` values and labels containing param-breaking characters are dropped. The DAV path deliberately skips
-the REST read-guard on the target — a bare uuid leaks nothing, and resolved read surfaces filter.
+The DAV **protocol** (CalDAV XML, WebDAV methods, Basic auth) lives in the LupiraDavApi gateway; this service
+implements the internal [`/dav-backend` contract](dav-backend-contract.md) — a **secondary, non-bearing** view
+over the canonical structured fields. Reads regenerate ICS deterministically on demand (`ICalSerializer.From`;
+the location is the item's denormalized `LocationLabel`), and the ETag is the `ContentHash` derived from that
+same canonical form, so it is stable across reads. A `PUT` parses the raw blob into structured fields (no blob
+is retained); calendar-query time-range filtering (incl. recurrence expansion via `TimeRangeFilter`) runs here,
+server-side. The sync token is Marten's global event sequence; deletions and membership removals surface as
+tombstones in the changes feed. Only `Agenda` calendars and an item's `Accepted` memberships are exposed; the
+seam is LAN-only, service-authed (the gateway's `azp`), and acts on behalf of the `{email}` path principal.
 
 ## Ownership & identity
 
 Identity is a thin local `Principal` document, JIT-provisioned on first login (`PrincipalDirectory`):
 
 - **`AuthentikSub`** (the OIDC `sub`, or `email|<email>` when no `sub`) is the durable anchor; **`Email`** is a
-  mutable lookup attribute. Resolution is **by `sub` first, then email**, so the OIDC (`/api`) and
-  Basic-over-LDAP (`/dav`) logins of the same person converge on one principal; email/display name are
+  mutable lookup attribute. Resolution is **by `sub` first, then email**, so an OIDC login and the
+  `/dav-backend` acting-user email of the same person converge on one principal; email/display name are
   refreshed each login.
-- **No single owner.** Access to a `Calendar`/`AddressBook` is a set of `CalendarOwner`/`AddressBookOwner`
-  membership documents, each with an `Access` level. A "family" container is simply several `Owner` grants.
+- **No single owner.** Access to a `Calendar` is a set of `CalendarOwner` membership documents, each with an
+  `Access` level. A "family" calendar is simply several `Owner` grants.
 - `AccessResolver` answers the authorization questions: a principal may **read** a container it holds any
   grant on, **write** one it holds `Owner` or `ReadWrite` on, and **manage co-owner grants** only on a
   container it holds `Owner` on. An item is readable/writable iff the principal can read/write some calendar
@@ -446,7 +359,7 @@ Identity is a thin local `Principal` document, JIT-provisioned on first login (`
 Services never throw for expected outcomes; they return a transport-neutral `OpResult`/`OpResult<T>` carrying
 an `OpStatus`. Each surface adapts it to its own wire shape.
 
-| `OpStatus` | REST (`OpResultMap` → `TypedResults`) | DAV | MCP (`CalendarTools`) |
+| `OpStatus` | REST (`OpResultMap` → `TypedResults`) | DAV seam | MCP (`CalendarTools`) |
 |---|---|---|---|
 | `Ok` | `200 OK` (+ value) / `204 No Content` | `2xx` | tool result value |
 | `NotFound` | `404 Not Found` | `404` | `McpException "Not found."` |
@@ -460,8 +373,7 @@ a given result shape can't represent is a programming error and throws.
 
 ## Cross-API relations
 
-`Relation` is the single cross-context edge: a by-reference link from an item or contact (`FromKind`/`FromId`)
+`Relation` is the single cross-context edge: a by-reference link from an item (`FromKind`/`FromId`)
 to something in another service (`ToKind`/`ToRef`, e.g. a task or a portfolio engagement) with a
 `RelationType`. There is **no foreign key** — integrity is by convention, which keeps this service decoupled
-from the services it links to. Contact-to-contact edges are **not** `Relation` documents — they are the embedded,
-event-sourced `ContactRelation` on the contact snapshot (see *Contacts & groups*).
+from the services it links to.

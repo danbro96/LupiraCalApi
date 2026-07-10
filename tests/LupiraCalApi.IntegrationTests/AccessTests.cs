@@ -22,29 +22,27 @@ public sealed class AccessTests(CalApiTestFactory factory) : IntegrationTest(fac
     }
 
     [Fact]
-    public async Task Other_users_dav_calendar_home_omits_foreign_calendars()
+    public async Task Other_users_dav_collections_omit_foreign_calendars()
     {
         var a = Factory.ApiClient("a@x.test");
         var calId = await CreateCalendarAsync(a);
 
-        var bApi = Factory.ApiClient("b@x.test");
-        var bId = await GetMyIdAsync(bApi);
-        var bDav = Factory.DavClient("b@x.test");
-
-        var doc = await ReadXml(await SendDav(bDav, "PROPFIND", $"/dav/u/{bId}/cal/", depth: "1"));
-        Assert.DoesNotContain(doc.Descendants(D + "href"), h => h.Value.Contains(calId.ToString()));
+        var b = Factory.ApiClient("b@x.test");
+        var resp = await b.GetAsync($"{DavBackendBase("b@x.test")}/collections");
+        resp.EnsureSuccessStatusCode();
+        var dto = await resp.Content.ReadFromJsonAsync<LupiraCalApi.Dav.DavCollectionsDto>();
+        Assert.DoesNotContain(dto!.Collections, c => c.Id == calId);
     }
 
     [Fact]
-    public async Task Cannot_address_another_principals_dav_tree()
+    public async Task Foreign_calendars_are_an_opaque_404_on_the_dav_seam()
     {
         var a = Factory.ApiClient("a@x.test");
-        var aId = await GetMyIdAsync(a);
         var calId = await CreateCalendarAsync(a);
 
-        var bDav = Factory.DavClient("b@x.test");
-        var resp = await SendDav(bDav, "PROPFIND", $"/dav/u/{aId}/cal/{calId}/", depth: "1");
-        Assert.Equal(HttpStatusCode.Forbidden, resp.StatusCode);
+        var b = Factory.ApiClient("b@x.test");
+        var resp = await b.PostAsJsonAsync($"{DavBackendBase("b@x.test")}/collections/{calId}/query", new LupiraCalApi.Dav.DavQueryRequest());
+        Assert.Equal(HttpStatusCode.NotFound, resp.StatusCode);
     }
 
     [Fact]
@@ -52,18 +50,6 @@ public sealed class AccessTests(CalApiTestFactory factory) : IntegrationTest(fac
     {
         var anon = Factory.CreateClient();   // no auth header
         Assert.Equal(HttpStatusCode.Unauthorized, (await anon.GetAsync("/me")).StatusCode);
-        Assert.Equal(HttpStatusCode.Unauthorized, (await SendDav(anon, "PROPFIND", "/dav/", depth: "0")).StatusCode);
-    }
-
-    [Fact]
-    public async Task Other_user_cannot_read_a_private_contact()
-    {
-        var a = Factory.ApiClient("a@x.test");
-        var abId = await CreateAddressBookAsync(a);
-        var contact = await CreateContactAsync(a, abId);
-
-        var b = Factory.ApiClient("b@x.test");
-        var resp = await b.GetAsync($"/contacts/{contact.Id}");
-        Assert.Equal(HttpStatusCode.Forbidden, resp.StatusCode);
+        Assert.Equal(HttpStatusCode.Unauthorized, (await anon.GetAsync($"{DavBackendBase("a@x.test")}/collections")).StatusCode);
     }
 }

@@ -3,7 +3,6 @@ using LupiraCalApi.Auth;
 using LupiraCalApi.Domain;
 using LupiraCalApi.Dtos.CalendarItems;
 using LupiraCalApi.Dtos.Calendars;
-using LupiraCalApi.Dtos.Contacts;
 using LupiraCalApi.Dtos.Relations;
 using ModelContextProtocol;
 using ModelContextProtocol.Server;
@@ -59,65 +58,11 @@ public sealed class CalendarTools
         return Require(await items.AttachMetadataAsync(u.Id, itemId, node));
     }
 
-    [McpServerTool, Description("Find contacts the caller can access, optionally by name.")]
-    public static async Task<IReadOnlyList<ContactDto>> query_contacts(
-        ContactService contacts, CurrentUser user,
-        [Description("Free-text query over the contact's name.")] string? query = null)
-    {
-        var u = await user.GetAsync();
-        return Require(await contacts.QueryAsync(u.Id, query, null));
-    }
-
-    [McpServerTool, Description("Create a contact in an address book (AddressBookId required). Name is structured parts; employer is set separately as an organization group.")]
-    public static async Task<ContactDto> create_contact(ContactService contacts, CurrentUser user, CreateContactRequest request)
-    {
-        var u = await user.GetAsync();
-        return Require(await contacts.CreateAsync(u.Id, request));
-    }
-
-    [McpServerTool, Description("Relate two contacts: kind is toContactId's role relative to contactId — 'toContactId is contactId's <kind>'. Example: 'X is Y's dad' → relate_contacts(contactId: Y, toContactId: X, kind: 'parent', label: 'dad'). Re-adding the same contact+kind updates the label.")]
-    public static async Task<ContactDto> relate_contacts(
-        ContactService contacts, CurrentUser user,
-        [Description("The contact the relation is stored on.")] Guid contactId,
-        [Description("The related contact.")] Guid toContactId,
-        [Description("parent|child|sibling|spouse|partner|friend|colleague|neighbor|emergency|other.")] string kind,
-        [Description("Optional free-text refinement, e.g. 'dad'.")] string? label = null)
-    {
-        var u = await user.GetAsync();
-        return Require(await contacts.AddRelationAsync(u.Id, contactId, new AddContactRelationRequest { ToContactId = toContactId, Kind = ParseRelationKind(kind), Label = label }));
-    }
-
-    [McpServerTool, Description("Remove a contact relation edge by target contact and kind.")]
-    public static async Task<ContactDto> unrelate_contacts(
-        ContactService contacts, CurrentUser user,
-        [Description("The contact the relation is stored on.")] Guid contactId,
-        [Description("The related contact.")] Guid toContactId,
-        [Description("parent|child|sibling|spouse|partner|friend|colleague|neighbor|emergency|other.")] string kind)
-    {
-        var u = await user.GetAsync();
-        return Require(await contacts.RemoveRelationAsync(u.Id, contactId, toContactId, ParseRelationKind(kind)));
-    }
-
-    [McpServerTool, Description("List a contact's resolved relations, both directions: each entry's kind is the other contact's role relative to this one (incoming edges show the derived inverse, e.g. stored parent → incoming child). Set includeInferred=true to also return kin derived from the parent/child graph (siblings, grandparents/-children, aunts/uncles, cousins, nieces/nephews), each tagged provenance=Inferred.")]
-    public static async Task<IReadOnlyList<ContactRelationEntryDto>> list_contact_relations(
-        ContactService contacts, CurrentUser user,
-        [Description("The contact whose relations to list.")] Guid contactId,
-        [Description("Also return kin derived from the parent/child graph, tagged provenance=Inferred.")] bool includeInferred = false)
-    {
-        var u = await user.GetAsync();
-        return Require(await contacts.ListRelationsAsync(u.Id, contactId, includeInferred));
-    }
-
-    // Strict: a silently-defaulted kind would corrupt the edge.
-    private static ContactRelationKind ParseRelationKind(string kind) =>
-        Enum.TryParse<ContactRelationKind>(kind, true, out var k) ? k
-            : throw new McpException($"Unknown kind '{kind}'. Use parent|child|sibling|spouse|partner|friend|colleague|neighbor|emergency|other.");
-
     [McpServerTool, Description("Invite a contact to a calendar item as an attendee. role = chair|req-participant|opt-participant|non-participant (default req-participant).")]
     public static async Task<CalendarItemDto> invite_participant(
         ParticipationService participation, CurrentUser user,
         [Description("Calendar item id.")] Guid itemId,
-        [Description("The contact id to invite.")] Guid contactId,
+        [Description("The LupiraContactApi contact id to invite.")] Guid contactId,
         [Description("chair|req-participant|opt-participant|non-participant.")] string? role = null)
     {
         var u = await user.GetAsync();
@@ -135,21 +80,21 @@ public sealed class CalendarTools
         return Require(await participation.RespondAsync(u.Id, itemId, participationId, status));
     }
 
-    [McpServerTool, Description("List the calendars and address books the caller can access.")]
+    [McpServerTool, Description("List the calendars the caller can access.")]
     public static async Task<IReadOnlyList<ContainerDto>> list_calendars(CalendarService calendars, CurrentUser user)
     {
         var u = await user.GetAsync();
         return Require(await calendars.ListContainersAsync(u.Id));
     }
 
-    [McpServerTool, Description("Ensure the caller has a personal calendar + address book (idempotent); returns both.")]
+    [McpServerTool, Description("Ensure the caller has the standard calendar set (idempotent); returns it.")]
     public static async Task<IReadOnlyList<ContainerDto>> bootstrap_me(CalendarService calendars, CurrentUser user)
     {
         var u = await user.GetAsync();
         return Require(await calendars.BootstrapPersonalAsync(u.Id));
     }
 
-    [McpServerTool, Description("Create a calendar or address book (Type = 'calendar' | 'addressbook'). Slug required.")]
+    [McpServerTool, Description("Create a calendar. Slug required.")]
     public static async Task<ContainerDto> create_calendar(CalendarService calendars, CurrentUser user, CreateCalendarRequest request)
     {
         var u = await user.GetAsync();
@@ -176,28 +121,6 @@ public sealed class CalendarTools
         var u = await user.GetAsync();
         Require(await calendars.RevokeCalendarOwnerAsync(u.Id, calendarId, email));
         return $"Revoked {email}'s access to calendar {calendarId}.";
-    }
-
-    [McpServerTool, Description("Grant a member access to an address book, by email. access = owner|read-write|read (default owner).")]
-    public static async Task<OwnerGrantDto> grant_addressbook_owner(
-        CalendarService calendars, CurrentUser user,
-        [Description("Address book id.")] Guid addressBookId,
-        [Description("The member's login email.")] string email,
-        [Description("owner|read-write|read.")] string access = "owner")
-    {
-        var u = await user.GetAsync();
-        return Require(await calendars.GrantAddressBookOwnerAsync(u.Id, addressBookId, new GrantOwnerRequest { Email = email, Access = access }));
-    }
-
-    [McpServerTool, Description("Revoke a member's access to an address book, by email. Fails if it would remove the last owner.")]
-    public static async Task<string> revoke_addressbook_owner(
-        CalendarService calendars, CurrentUser user,
-        [Description("Address book id.")] Guid addressBookId,
-        [Description("The member's login email.")] string email)
-    {
-        var u = await user.GetAsync();
-        Require(await calendars.RevokeAddressBookOwnerAsync(u.Id, addressBookId, email));
-        return $"Revoked {email}'s access to address book {addressBookId}.";
     }
 
     [McpServerTool, Description("Link a calendar item to an external item (e.g. a LupiraTasks item) by reference id.")]

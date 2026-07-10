@@ -13,8 +13,8 @@ namespace LupiraCalApi.IntegrationTests;
 
 /// <summary>
 /// Hosts the real app against an ephemeral Postgres (Testcontainers). Runs in <c>Development</c> so the dev auth
-/// handlers are wired: <c>X-Dev-User</c> for <c>/api</c> and any-password HTTP Basic for <c>/dav</c>. Marten data is
-/// reset per test via <see cref="ResetAsync"/> so DAV listings and the global event sequence (sync-token) are deterministic.
+/// handler is wired (<c>X-Dev-User</c>, which also satisfies the /dav-backend policy). Marten data is reset per
+/// test via <see cref="ResetAsync"/> so listings and the global event sequence (sync token) are deterministic.
 /// </summary>
 public sealed class CalApiTestFactory : WebApplicationFactory<Program>
 {
@@ -72,13 +72,6 @@ public sealed class CalApiTestFactory : WebApplicationFactory<Program>
     /// <summary>A client with no auth header — for asserting unauthenticated requests are rejected.</summary>
     public HttpClient AnonymousClient() => CreateClient();
 
-    public HttpClient DavClient(string email)
-    {
-        var client = CreateClient();
-        var creds = Convert.ToBase64String(Encoding.UTF8.GetBytes($"{email}:x"));
-        client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Basic", creds);
-        return client;
-    }
 
     protected override void Dispose(bool disposing)
     {

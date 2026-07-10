@@ -136,10 +136,9 @@ public sealed class StoreLevelTests(CalApiTestFactory factory) : IntegrationTest
         var alice = await ProvisionAsync("sub-alice", "alice@x.test");
 
         var first = await InScope(sp => sp.GetRequiredService<CalendarService>().BootstrapPersonalAsync(alice));
-        Assert.Equal(9, first.Value!.Count);   // 8 standard calendars + the personal address book
+        Assert.Equal(8, first.Value!.Count);   // the 8 standard calendars
         Assert.Contains(first.Value!, c => c is { Type: "calendar", Kind: CalendarKind.Personal, Slug: "personal" });
         Assert.Contains(first.Value!, c => c is { Type: "calendar", Class: CalendarClass.System, Kind: CalendarKind.Inbox });
-        Assert.Contains(first.Value!, c => c is { Type: "addressbook", Slug: "personal" });
 
         var second = await InScope(sp => sp.GetRequiredService<CalendarService>().BootstrapPersonalAsync(alice));
         Assert.Equal(
@@ -147,25 +146,7 @@ public sealed class StoreLevelTests(CalApiTestFactory factory) : IntegrationTest
             second.Value!.Select(c => c.Id).OrderBy(x => x));   // same ids, nothing new created
 
         var all = await InScope(sp => sp.GetRequiredService<CalendarService>().ListContainersAsync(alice));
-        Assert.Equal(9, all.Value!.Count);
+        Assert.Equal(8, all.Value!.Count);
     }
 
-    [Fact]
-    public async Task Address_book_grant_and_revoke_are_symmetric()
-    {
-        var alice = await ProvisionAsync("sub-alice", "alice@x.test");
-        var bookId = (await InScope(sp => sp.GetRequiredService<CalendarService>()
-            .CreateAsync(alice, new CreateCalendarRequest { Slug = "fam", DisplayName = "Family", Type = "addressbook" }))).Value!.Id;
-
-        var grant = await InScope(sp => sp.GetRequiredService<CalendarService>()
-            .GrantAddressBookOwnerAsync(alice, bookId, new GrantOwnerRequest { Email = "bob@x.test", Access = "read" }));
-        Assert.Equal(OpStatus.Ok, grant.Status);
-        var bob = grant.Value!.PrincipalId;
-        Assert.True(await InScope(sp => sp.GetRequiredService<AccessResolver>().CanReadAddressBookAsync(bob, bookId)));
-
-        var revoke = await InScope(sp => sp.GetRequiredService<CalendarService>()
-            .RevokeAddressBookOwnerAsync(alice, bookId, "bob@x.test"));
-        Assert.Equal(OpStatus.Ok, revoke.Status);
-        Assert.False(await InScope(sp => sp.GetRequiredService<AccessResolver>().CanReadAddressBookAsync(bob, bookId)));
-    }
 }

@@ -1,6 +1,7 @@
 # Reference Compose stack for LupiraCalApi.
 # Two .NET 10 services over one Postgres, no filesystem state:
-#   lupira-cal-api    — REST at root + MCP (/mcp) and CalDAV/CardDAV (/dav); materializes cal.scheduled_fire.
+#   lupira-cal-api    — REST at root + MCP (/mcp) and the LAN-only /dav-backend seam (consumed by the
+#                       LupiraDavApi gateway); materializes cal.scheduled_fire.
 #   lupira-cal-worker — the fire dispatcher: claims due rows and pushes them to assistant-api POST /fires.
 #
 # Every host, port, and identity-provider URL below is an OVERRIDABLE SAMPLE wired to a ${VAR:-default}
@@ -10,7 +11,7 @@ services:
     image: danbro96/lupira-cal-api:${IMAGE_TAG:-latest}
     container_name: lupira-cal-api
     environment:
-      # Postgres — the Marten event store + documents (one schema). Both the REST surface and /dav read/write this one DB.
+      # Postgres — the Marten event store + documents (one schema).
       ConnectionStrings__Postgres: "Host=postgres;Port=5432;Database=lupira_cal;Username=lupira_cal_user;Password=${LUPIRA_CAL_DB_PASSWORD:?required}"
 
       # REST auth — OIDC (JWT). The service only validates tokens (issuer + audience); no client secret
@@ -18,12 +19,17 @@ services:
       Auth__Authority: ${AUTH_AUTHORITY:-https://auth.lupira.com/application/o/lupira-cal/}
       Auth__Audience: ${AUTH_AUDIENCE:-lupira-cal}
 
-      # /dav auth — HTTP Basic resolved by an LDAP search+bind. Point Ldap__* at your directory.
-      Ldap__Uri: ${LDAP_URI:-ldap://authentik-ldap:3389}
-      Ldap__BaseDn: dc=ldap,dc=goauthentik,dc=io
-      Ldap__ReaderDn: cn=ldapservice,ou=users,dc=ldap,dc=goauthentik,dc=io
-      Ldap__ReaderSecret: ${LUPIRA_CAL_LDAP_SECRET:?required}
-      Ldap__Filter: "(&(objectClass=user)(mail={0}))"   # login by email
+      # /dav-backend auth — a valid token for this API additionally minted by the DAV gateway's
+      # client-credentials identity (azp). LAN-only surface; not routed through the tunnel.
+      DavGateway__ClientId: ${DAV_GATEWAY_CLIENT_ID:-lupira-dav-svc}
+
+      # Contacts — LupiraContactApi owns contacts (client-credentials, aud lupira-contact). Attendee/detail
+      # contact ids validate against it; clear CONTACT_BASE_URL to disable (refs stored unvalidated).
+      Contacts__BaseUrl: ${CONTACT_BASE_URL:-http://lupira-contact-api:8080/}   # in-network hop
+      Contacts__TokenUrl: ${CONTACT_TOKEN_URL:-https://auth.lupira.com/application/o/token/}
+      Contacts__ClientId: ${CONTACT_CLIENT_ID:-lupira-contact-svc}
+      Contacts__ClientSecret: ${CONTACT_CLIENT_SECRET:-}
+      Contacts__Scope: ${CONTACT_SCOPE:-lupira-contact-aud}
 
       # Gazetteer — cal delegates free-text location resolution to LupiraGeoApi (client-credentials, aud lupira-geo)
       # storing the geo place id + a denormalized label on the item. Set GEO_CLIENT_SECRET to authenticate; clear GEO_BASE_URL to disable.
@@ -52,7 +58,7 @@ services:
     restart: unless-stopped
     networks:
       - default
-      - medelynas_data         # Postgres + authentik-ldap:3389
+      - medelynas_data         # Postgres over LAN
       - medelynas_telemetry    # OTel collector
 
   lupira-cal-worker:
