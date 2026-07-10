@@ -15,3 +15,12 @@ public record ContactAddressesReplaced(Guid ContactId, IReadOnlyList<ContactPost
 
 /// <summary>Replaces the contact's social/IM handles (vCard <c>IMPP</c>/<c>X-SOCIALPROFILE</c>).</summary>
 public record ContactProfilesReplaced(Guid ContactId, IReadOnlyList<ContactSocialProfile> Profiles);
+
+/// <summary>Upserts one directed relation edge keyed by (ToContactId, Kind). Relations appear in the canonical vCard, so the event carries the new hash.</summary>
+public record ContactRelationAdded(Guid ContactId, Guid ToContactId, ContactRelationKind Kind, string? Label, string ContentHash);
+
+public record ContactRelationRemoved(Guid ContactId, Guid ToContactId, ContactRelationKind Kind, string ContentHash);
+
+/// <summary>Wholesale replace from a CardDAV PUT (mirrors <see cref="ContactAddressesReplaced"/>). No hash: only ever
+/// appended alongside a <see cref="ContactImported"/> whose hash already covers the final fields + relations.</summary>
+public record ContactRelationsReplaced(Guid ContactId, IReadOnlyList<ContactRelation> Relations);

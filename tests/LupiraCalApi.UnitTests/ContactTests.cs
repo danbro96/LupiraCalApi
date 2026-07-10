@@ -98,4 +98,86 @@ public class ContactTests
         Assert.Equal("github", only.Service);
         Assert.Equal("https://github.com/b", only.Url);
     }
+
+    [Fact]
+    public void RelationAdded_appends_the_edge_and_updates_the_hash()
+    {
+        var id = Guid.NewGuid();
+        var dad = Guid.NewGuid();
+        var c = new Contact();
+        c.Apply(new ContactCreated(id, Guid.NewGuid(), "u@x", Name(null, "A", null, "B", null, null), "h1"));
+
+        c.Apply(new ContactRelationAdded(id, dad, ContactRelationKind.Parent, "dad", "h2"));
+
+        var edge = Assert.Single(c.Relations);
+        Assert.Equal(dad, edge.ToContactId);
+        Assert.Equal(ContactRelationKind.Parent, edge.Kind);
+        Assert.Equal("dad", edge.Label);
+        Assert.Equal("h2", c.ContentHash);
+    }
+
+    [Fact]
+    public void RelationAdded_upserts_on_target_and_kind_but_keeps_other_kinds()
+    {
+        var id = Guid.NewGuid();
+        var other = Guid.NewGuid();
+        var c = new Contact();
+        c.Apply(new ContactCreated(id, Guid.NewGuid(), "u@x", Name(null, "A", null, "B", null, null), "h1"));
+
+        c.Apply(new ContactRelationAdded(id, other, ContactRelationKind.Parent, "dad", "h2"));
+        c.Apply(new ContactRelationAdded(id, other, ContactRelationKind.Friend, null, "h3"));
+        c.Apply(new ContactRelationAdded(id, other, ContactRelationKind.Parent, "father", "h4"));
+
+        Assert.Equal(2, c.Relations.Count);
+        Assert.Equal("father", c.Relations.Single(r => r.Kind == ContactRelationKind.Parent).Label);
+        Assert.Null(c.Relations.Single(r => r.Kind == ContactRelationKind.Friend).Label);
+        Assert.Equal("h4", c.ContentHash);
+    }
+
+    [Fact]
+    public void RelationRemoved_deletes_only_the_matching_kind()
+    {
+        var id = Guid.NewGuid();
+        var other = Guid.NewGuid();
+        var c = new Contact();
+        c.Apply(new ContactCreated(id, Guid.NewGuid(), "u@x", Name(null, "A", null, "B", null, null), "h1"));
+        c.Apply(new ContactRelationAdded(id, other, ContactRelationKind.Friend, null, "h2"));
+        c.Apply(new ContactRelationAdded(id, other, ContactRelationKind.Colleague, null, "h3"));
+
+        c.Apply(new ContactRelationRemoved(id, other, ContactRelationKind.Friend, "h4"));
+
+        var edge = Assert.Single(c.Relations);
+        Assert.Equal(ContactRelationKind.Colleague, edge.Kind);
+        Assert.Equal("h4", c.ContentHash);
+    }
+
+    [Fact]
+    public void RelationsReplaced_is_wholesale_not_additive()
+    {
+        var id = Guid.NewGuid();
+        var c = new Contact();
+        c.Apply(new ContactCreated(id, Guid.NewGuid(), "u@x", Name(null, "A", null, "B", null, null), "h1"));
+        c.Apply(new ContactRelationAdded(id, Guid.NewGuid(), ContactRelationKind.Parent, "dad", "h2"));
+
+        var sis = Guid.NewGuid();
+        c.Apply(new ContactRelationsReplaced(id, [new ContactRelation { ToContactId = sis, Kind = ContactRelationKind.Sibling }]));
+
+        var edge = Assert.Single(c.Relations);
+        Assert.Equal(sis, edge.ToContactId);
+        Assert.Equal(ContactRelationKind.Sibling, edge.Kind);
+    }
+
+    [Theory]
+    [InlineData(ContactRelationKind.Parent, ContactRelationKind.Child)]
+    [InlineData(ContactRelationKind.Child, ContactRelationKind.Parent)]
+    [InlineData(ContactRelationKind.Emergency, ContactRelationKind.Other)]   // no true inverse
+    [InlineData(ContactRelationKind.Sibling, ContactRelationKind.Sibling)]
+    [InlineData(ContactRelationKind.Spouse, ContactRelationKind.Spouse)]
+    [InlineData(ContactRelationKind.Partner, ContactRelationKind.Partner)]
+    [InlineData(ContactRelationKind.Friend, ContactRelationKind.Friend)]
+    [InlineData(ContactRelationKind.Colleague, ContactRelationKind.Colleague)]
+    [InlineData(ContactRelationKind.Neighbor, ContactRelationKind.Neighbor)]
+    [InlineData(ContactRelationKind.Other, ContactRelationKind.Other)]
+    public void Relation_kind_inverse_matrix(ContactRelationKind kind, ContactRelationKind expected) =>
+        Assert.Equal(expected, kind.Inverse());
 }

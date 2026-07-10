@@ -1,3 +1,4 @@
+using LupiraCalApi.Domain;
 using LupiraCalApi.Serialization;
 using Xunit;
 
@@ -80,5 +81,83 @@ public class VCardSerializerTests
         // The line starting with a space is an RFC 6350 fold; it must not derail parsing.
         var p = VCardSerializer.ParseVCard("BEGIN:VCARD\r\nVERSION:3.0\r\nFN:John Doe\r\n  folded-noise\r\nEND:VCARD\r\n");
         Assert.Equal("John Doe", p.FullName);
+    }
+
+    [Fact]
+    public void Build_emits_related_with_type_label_and_urn_uuid()
+    {
+        var dad = Guid.NewGuid();
+        var vcf = VCardSerializer.Build("uid@x", "x", null, null, null, null, null, null,
+            [new ContactRelation { ToContactId = dad, Kind = ContactRelationKind.Parent, Label = "dad" }]);
+
+        Assert.Contains($"RELATED;TYPE=parent;X-LUPIRA-LABEL=dad:urn:uuid:{dad:D}\r\n", vcf);
+    }
+
+    [Fact]
+    public void Related_round_trips_kind_target_and_label()
+    {
+        var dad = Guid.NewGuid();
+        var friend = Guid.NewGuid();
+        var vcf = VCardSerializer.Build("uid@x", "x", null, null, null, null, null, null,
+        [
+            new ContactRelation { ToContactId = dad, Kind = ContactRelationKind.Parent, Label = "dad" },
+            new ContactRelation { ToContactId = friend, Kind = ContactRelationKind.Friend },
+        ]);
+
+        var p = VCardSerializer.ParseVCard(vcf);
+
+        Assert.Equal(2, p.Relations!.Length);
+        Assert.Equal((dad, ContactRelationKind.Parent, "dad"), (p.Relations[0].ToContactId, p.Relations[0].Kind, p.Relations[0].Label));
+        Assert.Equal((friend, ContactRelationKind.Friend, null), (p.Relations[1].ToContactId, p.Relations[1].Kind, p.Relations[1].Label));
+    }
+
+    [Theory]
+    [InlineData("RELATED;TYPE=parent:https://example.com/x")]      // URL target — not ours
+    [InlineData("RELATED;TYPE=parent:urn:uuid:not-a-guid")]
+    [InlineData("RELATED;TYPE=parent:free text")]
+    public void Related_with_non_urn_uuid_value_is_skipped(string line)
+    {
+        var p = VCardSerializer.ParseVCard($"BEGIN:VCARD\r\nVERSION:3.0\r\nFN:x\r\n{line}\r\nEND:VCARD\r\n");
+        Assert.Null(p.Relations);
+    }
+
+    [Theory]
+    [InlineData("co-worker", ContactRelationKind.Colleague)]
+    [InlineData("sweetheart", ContactRelationKind.Partner)]
+    [InlineData("kin", ContactRelationKind.Other)]
+    [InlineData("muse", ContactRelationKind.Other)]
+    [InlineData("CHILD", ContactRelationKind.Child)]   // case-insensitive enum name
+    public void Related_type_synonyms_and_unknowns_map(string type, ContactRelationKind expected)
+    {
+        var p = VCardSerializer.ParseVCard($"BEGIN:VCARD\r\nVERSION:3.0\r\nFN:x\r\nRELATED;TYPE={type}:urn:uuid:{Guid.NewGuid():D}\r\nEND:VCARD\r\n");
+        Assert.Equal(expected, Assert.Single(p.Relations!).Kind);
+    }
+
+    [Fact]
+    public void Related_without_type_defaults_to_other()
+    {
+        var p = VCardSerializer.ParseVCard($"BEGIN:VCARD\r\nVERSION:3.0\r\nFN:x\r\nRELATED:urn:uuid:{Guid.NewGuid():D}\r\nEND:VCARD\r\n");
+        Assert.Equal(ContactRelationKind.Other, Assert.Single(p.Relations!).Kind);
+    }
+
+    [Fact]
+    public void Unsafe_label_is_dropped_from_the_param_but_the_line_still_emits()
+    {
+        var target = Guid.NewGuid();
+        var vcf = VCardSerializer.Build("uid@x", "x", null, null, null, null, null, null,
+            [new ContactRelation { ToContactId = target, Kind = ContactRelationKind.Friend, Label = "a;b:c" }]);
+
+        Assert.Contains($"RELATED;TYPE=friend:urn:uuid:{target:D}\r\n", vcf);
+        Assert.DoesNotContain("X-LUPIRA-LABEL", vcf);
+    }
+
+    [Fact]
+    public void Build_without_relations_is_byte_identical_to_the_pre_relations_form()
+    {
+        // Guards existing stored ETags: contacts without relations must keep hashing to the same canonical bytes.
+        var before = VCardSerializer.Build("uid@x", "Jane Smith", "Jane", "Smith", null, ["jane@x.com"], null, new DateOnly(1990, 2, 15));
+        var after = VCardSerializer.Build("uid@x", "Jane Smith", "Jane", "Smith", null, ["jane@x.com"], null, new DateOnly(1990, 2, 15), []);
+        Assert.Equal(before, after);
+        Assert.DoesNotContain("RELATED", before);
     }
 }

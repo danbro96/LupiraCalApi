@@ -42,6 +42,7 @@ public sealed class Contact
 
     public List<ContactPostalAddress> Addresses { get; set; } = new();
     public List<ContactSocialProfile> Profiles { get; set; } = new();
+    public List<ContactRelation> Relations { get; set; } = new();
     public DateTimeOffset? DeletedAt { get; set; }
 
     /// <summary>Composed display name (no stored full name). Falls back to the nickname, then the external id.</summary>
@@ -94,6 +95,22 @@ public sealed class Contact
 
     public void Apply(ContactProfilesReplaced e) =>
         Profiles = e.Profiles.Select(p => new ContactSocialProfile { Service = p.Service, Handle = p.Handle, Url = p.Url }).ToList();
+
+    public void Apply(ContactRelationAdded e)
+    {
+        Relations.RemoveAll(r => r.ToContactId == e.ToContactId && r.Kind == e.Kind);   // upsert on the natural key
+        Relations.Add(new ContactRelation { ToContactId = e.ToContactId, Kind = e.Kind, Label = e.Label });
+        ContentHash = e.ContentHash;
+    }
+
+    public void Apply(ContactRelationRemoved e)
+    {
+        Relations.RemoveAll(r => r.ToContactId == e.ToContactId && r.Kind == e.Kind);
+        ContentHash = e.ContentHash;
+    }
+
+    public void Apply(ContactRelationsReplaced e) =>
+        Relations = e.Relations.Select(r => new ContactRelation { ToContactId = r.ToContactId, Kind = r.Kind, Label = r.Label }).ToList();
 
     private void SetFields(ContactFields f)
     {

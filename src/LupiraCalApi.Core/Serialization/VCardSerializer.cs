@@ -8,10 +8,11 @@ namespace LupiraCalApi.Serialization;
 /// the vCard from them and the ETag derives from that form. Full FolkerKinzel.VCards round-trip is a later step.</summary>
 public static class VCardSerializer
 {
-    /// <summary>Regenerate the canonical vCard for a contact from its structured fields (organisation lives on a ContactGroup, so it's omitted).</summary>
+    /// <summary>Regenerate the canonical vCard for a contact from its structured fields (organisation lives on a ContactGroup, so it's omitted).
+    /// Emits all stored relation edges — the stored ContentHash covers them, so no filtering here.</summary>
     public static string From(Contact c) =>
         Build(c.ExternalId, ComposeFullName(c.NamePrefix, c.GivenName, c.MiddleName, c.FamilyName, c.NameSuffix, c.Nickname),
-            c.GivenName, c.FamilyName, null, c.Emails, c.Phones, c.Birthday);
+            c.GivenName, c.FamilyName, null, c.Emails, c.Phones, c.Birthday, c.Relations);
 
     /// <summary>The vCard <c>FN</c>: the name parts joined, else the nickname, else empty. Shared by the create path and <see cref="From"/> so bytes (and the ETag) match.</summary>
     public static string ComposeFullName(string? prefix, string? given, string? middle, string? family, string? suffix, string? nickname)
@@ -22,7 +23,8 @@ public static class VCardSerializer
 
     public static string Build(
         string uid, string fullName, string? given, string? family, string? organization,
-        IEnumerable<string>? emails, IEnumerable<string>? phones, DateOnly? birthday)
+        IEnumerable<string>? emails, IEnumerable<string>? phones, DateOnly? birthday,
+        IReadOnlyList<ContactRelation>? relations = null)
     {
         var sb = new StringBuilder();
         sb.Append("BEGIN:VCARD\r\n");
@@ -34,9 +36,18 @@ public static class VCardSerializer
         foreach (var email in emails ?? []) sb.Append("EMAIL:").Append(Escape(email)).Append("\r\n");
         foreach (var phone in phones ?? []) sb.Append("TEL:").Append(Escape(phone)).Append("\r\n");
         if (birthday is { } b) sb.Append("BDAY:").Append(b.ToString("yyyyMMdd", CultureInfo.InvariantCulture)).Append("\r\n");
+        foreach (var r in relations ?? [])
+        {
+            sb.Append("RELATED;TYPE=").Append(r.Kind.ToString().ToLowerInvariant());
+            // Params are never quoted in this writer, so a label with param-breaking chars is dropped (survives in the snapshot, lost on DAV round-trip only).
+            if (r.Label is { Length: > 0 } label && IsSafeParamValue(label)) sb.Append(";X-LUPIRA-LABEL=").Append(label);
+            sb.Append(":urn:uuid:").Append(r.ToContactId.ToString("D")).Append("\r\n");
+        }
         sb.Append("END:VCARD\r\n");
         return sb.ToString();
     }
+
+    static bool IsSafeParamValue(string s) => s.All(ch => ch is not (';' or ':' or ',' or '"') && !char.IsControl(ch));
 
     public static ParsedContact ParseVCard(string raw)
     {
@@ -44,6 +55,7 @@ public static class VCardSerializer
         DateOnly? bday = null;
         var emails = new List<string>();
         var phones = new List<string>();
+        var relations = new List<ContactRelation>();
 
         foreach (var line in raw.Split('\n'))
         {
@@ -68,11 +80,45 @@ public static class VCardSerializer
                     if (DateOnly.TryParse(val, CultureInfo.InvariantCulture, out var d1)) bday = d1;
                     else if (DateOnly.TryParseExact(val, "yyyyMMdd", CultureInfo.InvariantCulture, DateTimeStyles.None, out var d2)) bday = d2;
                     break;
+                case "RELATED":
+                    if (ParseRelated(l[..colon], val) is { } rel) relations.Add(rel);
+                    break;
             }
         }
         if (string.IsNullOrWhiteSpace(fn)) fn = string.Join(' ', new[] { given, family }.Where(s => !string.IsNullOrWhiteSpace(s)));
         return new ParsedContact(fn ?? "", given, family, org,
-            emails.Count > 0 ? [.. emails] : null, phones.Count > 0 ? [.. phones] : null, bday);
+            emails.Count > 0 ? [.. emails] : null, phones.Count > 0 ? [.. phones] : null, bday,
+            relations.Count > 0 ? [.. relations] : null);
+    }
+
+    // Only urn:uuid targets are ours; RELATED lines pointing at URLs/free text from other clients are dropped.
+    static ContactRelation? ParseRelated(string nameAndParams, string val)
+    {
+        const string urnPrefix = "urn:uuid:";
+        if (!val.StartsWith(urnPrefix, StringComparison.OrdinalIgnoreCase) || !Guid.TryParse(val[urnPrefix.Length..], out var target))
+            return null;
+
+        string? type = null, label = null;
+        foreach (var param in nameAndParams.Split(';').Skip(1))
+        {
+            var eq = param.IndexOf('=');
+            if (eq < 0) continue;
+            var key = param[..eq];
+            if (key.Equals("TYPE", StringComparison.OrdinalIgnoreCase)) type = param[(eq + 1)..];
+            else if (key.Equals("X-LUPIRA-LABEL", StringComparison.OrdinalIgnoreCase)) label = param[(eq + 1)..];
+        }
+        return new ContactRelation { ToContactId = target, Kind = ParseRelationKind(type), Label = string.IsNullOrEmpty(label) ? null : label };
+    }
+
+    static ContactRelationKind ParseRelationKind(string? type)
+    {
+        if (Enum.TryParse<ContactRelationKind>(type, true, out var kind)) return kind;
+        return type?.ToLowerInvariant() switch
+        {
+            "co-worker" => ContactRelationKind.Colleague,
+            "sweetheart" => ContactRelationKind.Partner,
+            _ => ContactRelationKind.Other,   // incl. missing TYPE and RFC values without a member (kin, muse, ...)
+        };
     }
 
     static string Escape(string s) => s.Replace("\\", "\\\\").Replace(";", "\\;").Replace(",", "\\,").Replace("\n", "\\n");
