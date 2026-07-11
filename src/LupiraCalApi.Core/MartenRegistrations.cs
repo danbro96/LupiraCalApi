@@ -28,25 +28,25 @@ public static class MartenRegistrations
         // Stable, explicit event names decoupled from CLR type names, so the classes can be renamed/moved freely.
         // Never change a mapping once events of it exist in a live store (it would orphan them); evolve payloads via
         // upcasters instead — see docs/event-sourcing.md.
-        opts.Events.MapEventType<ItemScheduled>("item-scheduled");
-        opts.Events.MapEventType<ItemImported>("item-imported");
-        opts.Events.MapEventType<ItemRevised>("item-revised");
-        opts.Events.MapEventType<ItemCancelled>("item-cancelled");
-        opts.Events.MapEventType<ItemDeleted>("item-deleted");
-        opts.Events.MapEventType<ItemRestored>("item-restored");
-        opts.Events.MapEventType<ItemMetadataAttached>("item-metadata-attached");
-        opts.Events.MapEventType<ItemPromptSet>("item-prompt-set");
-        opts.Events.MapEventType<ItemPromptCleared>("item-prompt-cleared");
-        opts.Events.MapEventType<ItemActionSet>("item-action-set");
-        opts.Events.MapEventType<ItemActionCleared>("item-action-cleared");
-        opts.Events.MapEventType<AttendeeInvited>("attendee-invited");
-        opts.Events.MapEventType<InvitationResponded>("invitation-responded");
-        opts.Events.MapEventType<AttendanceConfirmed>("attendance-confirmed");
-        opts.Events.MapEventType<ParticipantLeft>("participant-left");
-        opts.Events.MapEventType<AttendeeRemoved>("attendee-removed");
-        opts.Events.MapEventType<AddedToCalendar>("added-to-calendar");
-        opts.Events.MapEventType<CalendarEntryStatusChanged>("calendar-entry-status-changed");
-        opts.Events.MapEventType<RemovedFromCalendar>("removed-from-calendar");
+        opts.Events.MapEventType<ItemScheduled>("item_scheduled");
+        opts.Events.MapEventType<ItemImported>("item_imported");
+        opts.Events.MapEventType<ItemRevised>("item_revised");
+        opts.Events.MapEventType<ItemCancelled>("item_cancelled");
+        opts.Events.MapEventType<ItemDeleted>("item_deleted");
+        opts.Events.MapEventType<ItemRestored>("item_restored");
+        opts.Events.MapEventType<ItemMetadataAttached>("item_metadata_attached");
+        opts.Events.MapEventType<ItemPromptSet>("item_prompt_set");
+        opts.Events.MapEventType<ItemPromptCleared>("item_prompt_cleared");
+        opts.Events.MapEventType<ItemActionSet>("item_action_set");
+        opts.Events.MapEventType<ItemActionCleared>("item_action_cleared");
+        opts.Events.MapEventType<AttendeeInvited>("attendee_invited");
+        opts.Events.MapEventType<InvitationResponded>("invitation_responded");
+        opts.Events.MapEventType<AttendanceConfirmed>("attendance_confirmed");
+        opts.Events.MapEventType<ParticipantLeft>("participant_left");
+        opts.Events.MapEventType<AttendeeRemoved>("attendee_removed");
+        opts.Events.MapEventType<AddedToCalendar>("added_to_calendar");
+        opts.Events.MapEventType<CalendarEntryStatusChanged>("calendar_entry_status_changed");
+        opts.Events.MapEventType<RemovedFromCalendar>("removed_from_calendar");
 
         // Event-sourced aggregates (resource read models) — inline for read-your-write.
         opts.Projections.Snapshot<CalendarItem>(SnapshotLifecycle.Inline);
