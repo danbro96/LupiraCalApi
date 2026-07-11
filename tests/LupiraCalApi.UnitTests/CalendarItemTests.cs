@@ -12,10 +12,10 @@ public class CalendarItemTests
         new DateTimeOffset(2026, 7, 1, 9, 0, 0, TimeSpan.Zero), new DateTimeOffset(2026, 7, 1, 10, 0, 0, TimeSpan.Zero),
         "UTC", null, null, null, null, null, null, ItemCategory.General, null, null, null, ["work"]);
 
-    static CalendarItem Scheduled(Guid id, string hash = "h")
+    static CalendarItem Scheduled(Guid id)
     {
         var i = new CalendarItem();
-        i.Apply(new ItemScheduled(id, "u@x", Fields(), null, hash));
+        i.Apply(new ItemScheduled(id, "u@x", Fields(), null));
         return i;
     }
 
@@ -24,11 +24,11 @@ public class CalendarItemTests
     {
         var id = Guid.NewGuid();
         var cal = Guid.NewGuid();
-        var i = Scheduled(id, "hash1");
+        var i = Scheduled(id);
         i.Apply(new AddedToCalendar(id, cal, CalendarEntryStatus.Accepted, DateTimeOffset.UtcNow));
 
         Assert.True(i.IsAcceptedIn(cal));
-        Assert.Equal("hash1", i.ContentHash);
+        Assert.NotEmpty(i.ContentHash);   // derived from the canonical ICS in the snapshot, not carried on the event
         Assert.Equal(ItemStatus.Confirmed, i.Status);
         Assert.Equal(ItemCategory.General, i.Category);
     }
@@ -63,37 +63,38 @@ public class CalendarItemTests
     public void IcsPut_resurrects_a_soft_deleted_item()
     {
         var id = Guid.NewGuid();
-        var i = Scheduled(id, "h1");
-        i.Apply(new ItemDeleted(id));
+        var i = Scheduled(id);
+        var scheduledHash = i.ContentHash;
+        i.Apply(new ItemDeleted(id, DateTimeOffset.UtcNow));
         Assert.NotNull(i.DeletedAt);
 
-        i.Apply(new ItemImported(id, "u@x", Fields(), "h2"));
+        i.Apply(new ItemImported(id, "u@x", Fields()));
         Assert.Null(i.DeletedAt);
-        Assert.Equal("h2", i.ContentHash);
+        Assert.Equal(scheduledHash, i.ContentHash);   // same canonical fields → same derived ETag
     }
 
     [Fact]
     public void Revised_updates_fields_and_content_hash()
     {
         var id = Guid.NewGuid();
-        var i = Scheduled(id, "h1");
-        var revised = Fields() with { Title = "Dinner" };
-        i.Apply(new ItemRevised(id, revised, null, "h2"));
+        var i = Scheduled(id);
+        var before = i.ContentHash;
+        i.Apply(new ItemRevised(id, Fields() with { Title = "Dinner" }, null));
 
         Assert.Equal("Dinner", i.Title);
-        Assert.Equal("h2", i.ContentHash);
+        Assert.NotEqual(before, i.ContentHash);   // the title is in the canonical ICS, so the ETag moves
     }
 
     [Fact]
     public void Revised_reclassifies_the_category_and_sets_details()
     {
         var id = Guid.NewGuid();
-        var i = Scheduled(id, "h1");   // General, no details
+        var i = Scheduled(id);   // General, no details
         Assert.Equal(ItemCategory.General, i.Category);
 
         var trip = Fields() with { Category = ItemCategory.Trip };
         var details = new ItemDetails(Travel: new TravelLeg(TransportMode.Flight, Guid.NewGuid(), null, null, null, "SAS", "SK123", null, null, "14C", null));
-        i.Apply(new ItemRevised(id, trip, details, "h2"));
+        i.Apply(new ItemRevised(id, trip, details));
 
         Assert.Equal(ItemCategory.Trip, i.Category);
         Assert.Equal("SK123", i.Details!.Travel!.ServiceNumber);
@@ -103,10 +104,10 @@ public class CalendarItemTests
     public void Revised_with_null_details_keeps_the_existing_details()
     {
         var id = Guid.NewGuid();
-        var i = Scheduled(id, "h1");
-        i.Apply(new ItemRevised(id, Fields() with { Category = ItemCategory.Trip }, new ItemDetails(Travel: new TravelLeg(TransportMode.Flight, Guid.NewGuid(), null, null, null, null, "SK123", null, null, null, null)), "h2"));
+        var i = Scheduled(id);
+        i.Apply(new ItemRevised(id, Fields() with { Category = ItemCategory.Trip }, new ItemDetails(Travel: new TravelLeg(TransportMode.Flight, Guid.NewGuid(), null, null, null, null, "SK123", null, null, null, null))));
 
-        i.Apply(new ItemRevised(id, Fields() with { Title = "Renamed" }, null, "h3"));
+        i.Apply(new ItemRevised(id, Fields() with { Title = "Renamed" }, null));
 
         Assert.Equal("Renamed", i.Title);
         Assert.Equal("SK123", i.Details!.Travel!.ServiceNumber);   // details survive a field-only revision
@@ -116,35 +117,49 @@ public class CalendarItemTests
     public void Cancelled_sets_status_without_deleting()
     {
         var id = Guid.NewGuid();
-        var i = Scheduled(id, "h1");
-        i.Apply(new ItemCancelled(id, "h2"));
+        var i = Scheduled(id);
+        var before = i.ContentHash;
+        i.Apply(new ItemCancelled(id));
 
         Assert.Equal(ItemStatus.Cancelled, i.Status);
         Assert.Null(i.DeletedAt);
-        Assert.Equal("h2", i.ContentHash);
+        Assert.NotEqual(before, i.ContentHash);   // STATUS:CANCELLED is in the canonical ICS
     }
 
     [Fact]
-    public void Restored_clears_the_tombstone_and_refreshes_the_blob()
+    public void Restored_clears_the_tombstone()
     {
         var id = Guid.NewGuid();
-        var i = Scheduled(id, "h1");
-        i.Apply(new ItemDeleted(id));
-        i.Apply(new ItemRestored(id, "h3"));
+        var i = Scheduled(id);
+        var before = i.ContentHash;
+        i.Apply(new ItemDeleted(id, DateTimeOffset.UtcNow));
+        i.Apply(new ItemRestored(id));
 
         Assert.Null(i.DeletedAt);
-        Assert.Equal("h3", i.ContentHash);
+        Assert.Equal(before, i.ContentHash);   // restore touches no canonical field
+    }
+
+    [Fact]
+    public void Deleted_records_the_event_time_deterministically()
+    {
+        var id = Guid.NewGuid();
+        var at = new DateTimeOffset(2026, 7, 5, 12, 0, 0, TimeSpan.Zero);
+        var i = Scheduled(id);
+        i.Apply(new ItemDeleted(id, at));
+
+        Assert.Equal(at, i.DeletedAt);   // from the event, not the wall clock — replay is pure
     }
 
     [Fact]
     public void Metadata_attached_does_not_touch_the_content_hash()
     {
         var id = Guid.NewGuid();
-        var i = Scheduled(id, "h1");
+        var i = Scheduled(id);
+        var before = i.ContentHash;
         i.Apply(new ItemMetadataAttached(id, """{"source":"import"}"""));
 
         Assert.Equal("""{"source":"import"}""", i.Metadata);
-        Assert.Equal("h1", i.ContentHash);   // metadata is server-side, not part of the ETag
+        Assert.Equal(before, i.ContentHash);   // metadata is server-side, not part of the ETag
     }
 
     static ItemPrompt SamplePrompt() => new(

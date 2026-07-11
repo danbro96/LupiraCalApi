@@ -4,9 +4,11 @@ using LupiraCalApi.Application;
 using LupiraCalApi.Auth;
 using LupiraCalApi.Domain;
 using LupiraCalApi.Scheduling;
+using JasperFx;
 using Marten;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection.Extensions;
+using Microsoft.Extensions.Hosting;
 
 namespace Microsoft.Extensions.DependencyInjection;
 
@@ -29,6 +31,9 @@ public static class CoreServiceCollectionExtensions
             var opts = new StoreOptions();
             opts.Connection(connectionString);
             opts.UseLupiraCal();
+            // Prod owns its DDL via `--apply-schema` (UseLupiraCal sets AutoCreate.None); dev/tests self-provision.
+            if (sp.GetRequiredService<IHostEnvironment>().IsDevelopment())
+                opts.AutoCreateSchemaObjects = AutoCreate.CreateOrUpdate;
             return opts;
         }).UseLightweightSessions()
           // Solo for the single-instance personal deployment; tests disable the hosted daemon and drive the projection on demand.

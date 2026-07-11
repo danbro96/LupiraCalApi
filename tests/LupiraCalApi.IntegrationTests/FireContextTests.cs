@@ -118,7 +118,7 @@ public sealed class FireContextTests(CalApiTestFactory factory) : IntegrationTes
             new PromptFire(PromptFireKind.OnStart, null, null), true);
 
         await using var s = Factory.Store.LightweightSession();
-        var events = new List<object> { new ItemScheduled(itemId, $"{itemId:N}@test", fields, null, "hash") };
+        var events = new List<object> { new ItemScheduled(itemId, $"{itemId:N}@test", fields, null) };
         if (calendarId is { } calId) events.Add(new AddedToCalendar(itemId, calId, status, DateTimeOffset.UtcNow));
         events.Add(new ItemPromptSet(itemId, prompt));
         s.Events.StartStream<CalendarItem>(itemId, events.ToArray());

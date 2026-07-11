@@ -1,24 +1,26 @@
 namespace LupiraCalApi.Domain;
 
-// ---- lifecycle (structured fields are canonical; ICS is regenerated on demand. ContentHash = ETag, derived from the canonical form) ----
+// ---- lifecycle (structured fields are the ONLY canonical state; the ContentHash/ETag is NOT stored on events —
+//      it is a pure derivation of the canonical ICS, recomputed in the snapshot so a formatter fix heals on rebuild) ----
 
-/// <summary>Created via REST/MCP from structured fields (the service derived the hash from the canonical ICS).</summary>
-public record ItemScheduled(Guid ItemId, string ExternalId, CalendarItemFields Fields, ItemDetails? Details, string ContentHash);
+/// <summary>Created via REST/MCP from structured fields.</summary>
+public record ItemScheduled(Guid ItemId, string ExternalId, CalendarItemFields Fields, ItemDetails? Details);
 
-/// <summary>Created or replaced from a DAV PUT — parsed into structured fields (no blob retained); hash derived from the canonical form.</summary>
-public record ItemImported(Guid ItemId, string ExternalId, CalendarItemFields Parsed, string ContentHash);
+/// <summary>Created or replaced from a DAV PUT — parsed into structured fields (no blob retained).</summary>
+public record ItemImported(Guid ItemId, string ExternalId, CalendarItemFields Parsed);
 
-/// <summary>Structured update of any subset of fields/details (hash re-derived from the canonical form).</summary>
-public record ItemRevised(Guid ItemId, CalendarItemFields Fields, ItemDetails? Details, string ContentHash);
+/// <summary>Structured update of any subset of fields/details.</summary>
+public record ItemRevised(Guid ItemId, CalendarItemFields Fields, ItemDetails? Details);
 
 /// <summary>STATUS → cancelled (distinct from deletion; the item still exists).</summary>
-public record ItemCancelled(Guid ItemId, string ContentHash);
+public record ItemCancelled(Guid ItemId);
 
-/// <summary>Soft delete (tombstone). The stream is never archived so sync stays diffable.</summary>
-public record ItemDeleted(Guid ItemId);
+/// <summary>Soft delete (tombstone). The stream is never archived so sync stays diffable. <c>At</c> is the recorded
+/// deletion time — carried on the event (not read from the clock in Apply) so replay is deterministic.</summary>
+public record ItemDeleted(Guid ItemId, DateTimeOffset At);
 
 /// <summary>Resurrects a soft-deleted item (e.g. DELETE-then-PUT of the same uid).</summary>
-public record ItemRestored(Guid ItemId, string ContentHash);
+public record ItemRestored(Guid ItemId);
 
 /// <summary>Server-side free-form annotations (JSON). Does not change the ICS or its hash.</summary>
 public record ItemMetadataAttached(Guid ItemId, string MetadataJson);

@@ -39,10 +39,8 @@ public sealed class CalendarItemService(IDocumentSession session, AccessResolver
         var fields = new CalendarItemFields(r.Title, r.Description, status, r.IsAllDay, r.StartsAt, r.EndsAt,
             r.StartTimezone, null, r.StartDate, r.EndDate, r.RecurrenceRule, null, null, category, placeId, locationLabel, null, r.Tags);
         var details = await ItemDetailsMapper.BuildAsync(r.Details, r.Availability, geo, ct);
-        // Hash the canonical ICS built from the denormalized location label (not the raw input) so it matches DAV GET.
-        var hash = ContentHash.Of(ICalSerializer.ToICalendar(uid, r.Title, r.Description, locationLabel, status, r.IsAllDay, r.StartsAt, r.EndsAt, r.StartDate, r.EndDate, r.RecurrenceRule));
 
-        var events = new List<object> { new ItemScheduled(id, uid, fields, details, hash) };
+        var events = new List<object> { new ItemScheduled(id, uid, fields, details) };
         if (r.CalendarId is { } calId)
             events.Add(new AddedToCalendar(id, calId, CalendarEntryStatus.Accepted, DateTimeOffset.UtcNow));
 
@@ -162,9 +160,8 @@ public sealed class CalendarItemService(IDocumentSession session, AccessResolver
         var details = incoming is null
             ? (categoryChanged ? new ItemDetails() : null)
             : (categoryChanged ? incoming : ItemDetailsMapper.Merge(item.Details, incoming));
-        var hash = ContentHash.Of(ICalSerializer.ToICalendar(item.ExternalId, title, description, locationLabel, status, item.IsAllDay, startsAt, endsAt, item.StartDate, item.EndDate, rrule, item.RecurrenceExceptions, item.RecurrenceOverrides));
 
-        stream.AppendOne(new ItemRevised(id, fields, details, hash));
+        stream.AppendOne(new ItemRevised(id, fields, details));
         await session.SaveChangesAsync(ct);
         var updated = await session.LoadAsync<CalendarItem>(id, ct);
         return OpResult<CalendarItemDto>.Ok(await ToDtoAsync(updated!, ct));
@@ -176,7 +173,7 @@ public sealed class CalendarItemService(IDocumentSession session, AccessResolver
         var item = stream.Aggregate;
         if (item is null || item.DeletedAt is not null) return OpResult.NotFound();
         if (!await CanWriteItemAsync(principalId, item, ct)) return OpResult.Forbidden("No write access to this item.");
-        stream.AppendOne(new ItemDeleted(id));
+        stream.AppendOne(new ItemDeleted(id, DateTimeOffset.UtcNow));
         await session.SaveChangesAsync(ct);
         return OpResult.Ok();
     }
@@ -283,15 +280,15 @@ public sealed class CalendarItemService(IDocumentSession session, AccessResolver
         var fields = new CalendarItemFields(p.Title, p.Description, null, p.IsAllDay, p.StartsAt, p.EndsAt,
             p.StartTimezone, p.EndTimezone, p.StartDate, p.EndDate, p.RecurrenceRule,
             p.RecurrenceExceptions, p.RecurrenceOverrides, null, placeId, locationLabel, null, null);
-        // PUT parses into structured fields; the ETag is the hash of the canonical ICS regenerated from them (matching DAV GET), not the raw blob.
-        var hash = ContentHash.Of(ICalSerializer.ToICalendar(externalId, fields.Title, fields.Description, locationLabel, fields.Status, fields.IsAllDay, fields.StartsAt, fields.EndsAt, fields.StartDate, fields.EndDate, fields.RecurrenceRule, fields.RecurrenceExceptions, fields.RecurrenceOverrides));
 
-        stream.AppendOne(new ItemImported(id, externalId, fields, hash));   // also clears any soft-delete (resurrect)
+        stream.AppendOne(new ItemImported(id, externalId, fields));   // also clears any soft-delete (resurrect)
         if (existing is null || !existing.IsAcceptedIn(calendarId))
             stream.AppendOne(new AddedToCalendar(id, calendarId, CalendarEntryStatus.Accepted, DateTimeOffset.UtcNow));
 
         await session.SaveChangesAsync(ct);
-        return OpResult<DavWriteResult>.Ok(new DavWriteResult(!liveInCal, hash));
+        // The ETag is derived in the snapshot from the canonical ICS; read it back rather than recomputing it here.
+        var saved = await session.LoadAsync<CalendarItem>(id, ct);
+        return OpResult<DavWriteResult>.Ok(new DavWriteResult(!liveInCal, saved!.ContentHash));
     }
 
     public async Task<OpResult> DeleteByUidAsync(Guid principalId, Guid calendarId, string externalId, string? ifMatch, CancellationToken ct = default)

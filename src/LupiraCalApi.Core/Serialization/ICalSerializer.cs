@@ -77,6 +77,10 @@ public static class ICalSerializer
         ToICalendar(i.ExternalId, i.Title, i.Description, locationLabel, i.Status, i.IsAllDay, i.StartsAt, i.EndsAt,
             i.StartDate, i.EndDate, i.RecurrenceRule, i.RecurrenceExceptions, i.RecurrenceOverrides);
 
+    /// <summary>The item's ETag: the hash of its canonical ICS. The one place canonical form and its hash are defined
+    /// together, so the DAV bytes served and the stored ETag can never drift.</summary>
+    public static string HashOf(CalendarItem i, string? locationLabel) => ContentHash.Of(From(i, locationLabel));
+
     public static ParsedEvent ParseICalendar(string raw)
     {
         IcalCalendar? calendar;

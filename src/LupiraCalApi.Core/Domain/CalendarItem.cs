@@ -1,3 +1,5 @@
+using LupiraCalApi.Serialization;
+
 namespace LupiraCalApi.Domain;
 
 /// <summary>One attendee's participation in an item — composed from the participation events (the timestamps are
@@ -76,8 +78,8 @@ public sealed class CalendarItem
         ExternalId = e.ExternalId;
         SetFields(e.Fields);
         Details = e.Details;
-        ContentHash = e.ContentHash;
         DeletedAt = null;
+        RecomputeHash();
     }
 
     public void Apply(ItemImported e)
@@ -85,30 +87,30 @@ public sealed class CalendarItem
         Id = e.ItemId;
         ExternalId = e.ExternalId;
         SetFields(e.Parsed);
-        ContentHash = e.ContentHash;
         DeletedAt = null;
+        RecomputeHash();
     }
 
     public void Apply(ItemRevised e)
     {
         SetFields(e.Fields);
         if (e.Details is not null) Details = e.Details;
-        ContentHash = e.ContentHash;
+        RecomputeHash();
     }
 
-    public void Apply(ItemCancelled e)
+    public void Apply(ItemCancelled _)
     {
         Status = ItemStatus.Cancelled;
-        ContentHash = e.ContentHash;
+        RecomputeHash();
     }
 
-    public void Apply(ItemDeleted _) => DeletedAt = DateTimeOffset.UtcNow;
+    public void Apply(ItemDeleted e) => DeletedAt = e.At;
 
-    public void Apply(ItemRestored e)
-    {
-        DeletedAt = null;
-        ContentHash = e.ContentHash;
-    }
+    public void Apply(ItemRestored _) => DeletedAt = null;
+
+    /// <summary>The ETag is a pure function of the canonical ICS — recomputed here (in the snapshot projection) whenever
+    /// a canonical field changes, never stored on the event, so a serializer fix heals every item on rebuild.</summary>
+    private void RecomputeHash() => ContentHash = ICalSerializer.HashOf(this, LocationLabel);
 
     public void Apply(ItemMetadataAttached e) => Metadata = e.MetadataJson;
 
