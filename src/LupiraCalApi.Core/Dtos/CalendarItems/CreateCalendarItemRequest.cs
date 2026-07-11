@@ -1,3 +1,5 @@
+using System.Text.Json.Nodes;
+
 namespace LupiraCalApi.Dtos.CalendarItems;
 
 /// <summary>Create an item via REST/MCP. <c>CalendarId</c> optional — when set, the item is accepted into that calendar;
@@ -19,6 +21,15 @@ public sealed class CreateCalendarItemRequest
     public string? RecurrenceRule { get; set; }
     public string? Category { get; set; }
     public string[]? Tags { get; set; }
+
+    /// <summary>Confidence of the start/end date for a historical or backfilled item — the date is still a concrete day;
+    /// this records that it is only known to the month/year/roughly. Omit for exact dates.</summary>
+    public Domain.DatePrecision? StartPrecision { get; set; }
+    public Domain.DatePrecision? EndPrecision { get; set; }
+
+    /// <summary>Optional server-side annotations (e.g. import provenance) merged onto the item at creation — same store
+    /// as <c>POST /items/{id}/metadata</c>, saving a second call. Never in ICS.</summary>
+    public JsonObject? Metadata { get; set; }
 
     /// <summary>Sets the item's presence segment status (whole-day or timed via Starts/Ends) — availability lives on the availability calendar.</summary>
     public Domain.AvailabilityStatus? Availability { get; set; }

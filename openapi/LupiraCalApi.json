@@ -1598,6 +1598,26 @@
             ],
             "format": "date"
           },
+          "startPrecision": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/DatePrecision"
+              }
+            ]
+          },
+          "endPrecision": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/DatePrecision"
+              }
+            ]
+          },
           "recurrenceRule": {
             "type": [
               "null",
@@ -2012,6 +2032,36 @@
               "type": "string"
             }
           },
+          "startPrecision": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/DatePrecision"
+              }
+            ]
+          },
+          "endPrecision": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/DatePrecision"
+              }
+            ]
+          },
+          "metadata": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/JsonObject"
+              }
+            ]
+          },
           "availability": {
             "oneOf": [
               {
@@ -2115,6 +2165,16 @@
             ]
           }
         }
+      },
+      "DatePrecision": {
+        "enum": [
+          "Exact",
+          "Day",
+          "Month",
+          "Year",
+          "Approximate",
+          null
+        ]
       },
       "FallbackMode": {
         "enum": [
@@ -2375,6 +2435,9 @@
         ]
       },
       "JsonNode": { },
+      "JsonObject": {
+        "type": "object"
+      },
       "MeDto": {
         "required": [
           "principalId",
@@ -2961,6 +3024,26 @@
             "type": [
               "null",
               "string"
+            ]
+          },
+          "startPrecision": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/DatePrecision"
+              }
+            ]
+          },
+          "endPrecision": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/DatePrecision"
+              }
             ]
           },
           "category": {

@@ -43,6 +43,9 @@ public sealed class CalendarItem
     public string? EndTimezone { get; set; }
     public DateOnly? StartDate { get; set; }
     public DateOnly? EndDate { get; set; }
+    /// <summary>Confidence of <see cref="StartDate"/>/<see cref="StartsAt"/> (and end). REST/MCP annotation; not in ICS/ETag.</summary>
+    public DatePrecision? StartPrecision { get; set; }
+    public DatePrecision? EndPrecision { get; set; }
     public string? RecurrenceRule { get; set; }
     public string? RecurrenceExceptions { get; set; }
     public string? RecurrenceOverrides { get; set; }
@@ -170,6 +173,8 @@ public sealed class CalendarItem
         EndTimezone = f.EndTimezone;
         StartDate = f.StartDate;
         EndDate = f.EndDate;
+        StartPrecision = f.StartPrecision;
+        EndPrecision = f.EndPrecision;
         RecurrenceRule = f.RecurrenceRule;
         RecurrenceExceptions = f.RecurrenceExceptions;
         RecurrenceOverrides = f.RecurrenceOverrides;

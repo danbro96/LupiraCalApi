@@ -27,6 +27,13 @@ public sealed class CalendarItemDto
     public DateTimeOffset? EndsAt { get; set; }
     public DateOnly? StartDate { get; set; }
     public DateOnly? EndDate { get; set; }
+
+    [JsonConverter(typeof(JsonStringEnumConverter<DatePrecision>))]
+    public DatePrecision? StartPrecision { get; set; }
+
+    [JsonConverter(typeof(JsonStringEnumConverter<DatePrecision>))]
+    public DatePrecision? EndPrecision { get; set; }
+
     public string? RecurrenceRule { get; set; }
 
     public ItemCategory? Category { get; set; }

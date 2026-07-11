@@ -20,6 +20,8 @@ internal static class CalendarItemMapper
         EndsAt = i.EndsAt,
         StartDate = i.StartDate,
         EndDate = i.EndDate,
+        StartPrecision = i.StartPrecision,
+        EndPrecision = i.EndPrecision,
         RecurrenceRule = i.RecurrenceRule,
         Category = i.Category,
         Details = i.Details,

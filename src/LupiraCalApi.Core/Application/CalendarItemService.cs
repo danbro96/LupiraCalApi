@@ -37,10 +37,13 @@ public sealed class CalendarItemService(IDocumentSession session, AccessResolver
         var uid = $"{Guid.NewGuid():N}@cal.lupira.com";
         var id = DeterministicGuid.From(uid);
         var fields = new CalendarItemFields(r.Title, r.Description, status, r.IsAllDay, r.StartsAt, r.EndsAt,
-            r.StartTimezone, null, r.StartDate, r.EndDate, r.RecurrenceRule, null, null, category, placeId, locationLabel, null, r.Tags);
+            r.StartTimezone, null, r.StartDate, r.EndDate, r.RecurrenceRule, null, null, category, placeId, locationLabel, null, r.Tags,
+            r.StartPrecision, r.EndPrecision);
         var details = await ItemDetailsMapper.BuildAsync(r.Details, r.Availability, geo, ct);
 
         var events = new List<object> { new ItemScheduled(id, uid, fields, details) };
+        if (r.Metadata is { } meta)
+            events.Add(new ItemMetadataAttached(id, meta.ToJsonString()));
         if (r.CalendarId is { } calId)
             events.Add(new AddedToCalendar(id, calId, CalendarEntryStatus.Accepted, DateTimeOffset.UtcNow));
 
@@ -153,7 +156,8 @@ public sealed class CalendarItemService(IDocumentSession session, AccessResolver
 
         var fields = new CalendarItemFields(title, description, status, item.IsAllDay, startsAt, endsAt,
             item.StartTimezone, item.EndTimezone, item.StartDate, item.EndDate, rrule,
-            item.RecurrenceExceptions, item.RecurrenceOverrides, category, placeId, locationLabel, item.ParentItemId, tags);
+            item.RecurrenceExceptions, item.RecurrenceOverrides, category, placeId, locationLabel, item.ParentItemId, tags,
+            r.StartPrecision ?? item.StartPrecision, r.EndPrecision ?? item.EndPrecision);
 
         var incoming = await ItemDetailsMapper.BuildAsync(r.Details, r.Availability, geo, ct);
         // null incoming keeps existing details (Apply only overwrites when non-null); reclassifying with none clears the previous details.

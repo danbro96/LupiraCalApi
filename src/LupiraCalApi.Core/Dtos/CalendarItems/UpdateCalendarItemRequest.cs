@@ -10,6 +10,10 @@ public sealed class UpdateCalendarItemRequest
     public DateTimeOffset? EndsAt { get; set; }
     public string? RecurrenceRule { get; set; }
 
+    /// <summary>Revise the start/end date confidence (see <see cref="CreateCalendarItemRequest.StartPrecision"/>). Omitted ⇒ kept.</summary>
+    public Domain.DatePrecision? StartPrecision { get; set; }
+    public Domain.DatePrecision? EndPrecision { get; set; }
+
     /// <summary>Reclassify the item (enum name). Changing the category drops the previous details.</summary>
     public string? Category { get; set; }
     public string[]? Tags { get; set; }

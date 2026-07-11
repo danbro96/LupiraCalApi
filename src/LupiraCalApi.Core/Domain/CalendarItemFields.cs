@@ -26,4 +26,8 @@ public sealed record CalendarItemFields(
     Guid? PlaceId,
     string? LocationLabel,
     Guid? ParentItemId,
-    string[]? Tags);
+    string[]? Tags,
+    // Trailing + defaulted so pre-existing serialized events (which lack these keys) and the DAV/other call sites
+    // that don't set precision stay source- and wire-compatible; null ⇒ the date is exact/unqualified.
+    DatePrecision? StartPrecision = null,
+    DatePrecision? EndPrecision = null);

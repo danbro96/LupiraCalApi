@@ -18,6 +18,12 @@ public enum CalendarKind { Personal, Group, Birthdays, Availability, Inbox, LlmP
 [JsonConverter(typeof(JsonStringEnumConverter<ItemCategory>))]
 public enum ItemCategory { General, Meeting, Appointment, Meal, Occasion, Outing, Trip, Stay, Activity, Focus, Chore }
 
+/// <summary>How exact a start/end date is. A REST/MCP annotation only — not emitted in ICS and not part of the ETag,
+/// so a DAV round-trip leaves it null (DAV is precision-agnostic). Used for historical/backfilled items whose date is
+/// known only to the month, year, or roughly: the date is still stored as a concrete day, this records the confidence.</summary>
+[JsonConverter(typeof(JsonStringEnumConverter<DatePrecision>))]
+public enum DatePrecision { Exact, Day, Month, Year, Approximate }
+
 /// <summary>Mode of a <see cref="TravelLeg"/>. Rail split: <c>Train</c> = mainline/commuter, <c>Metro</c> = rapid transit,
 /// <c>Tram</c> = light/narrow-gauge rail; <c>Coach</c> = long-distance bus vs local <c>Bus</c>.</summary>
 [JsonConverter(typeof(JsonStringEnumConverter<TransportMode>))]
