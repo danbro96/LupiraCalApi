@@ -72,7 +72,7 @@
         "tags": [
           "Calendars"
         ],
-        "summary": "List the calendars and address books the caller can access.",
+        "summary": "List the calendars the caller can access.",
         "operationId": "ListContainers",
         "responses": {
           "200": {
@@ -102,7 +102,7 @@
         "tags": [
           "Calendars"
         ],
-        "summary": "Create a calendar or address book (kind = 'calendar' | 'addressbook').",
+        "summary": "Create a calendar. (Address books are managed by LupiraContactApi.)",
         "operationId": "CreateCalendar",
         "requestBody": {
           "content": {
@@ -2377,12 +2377,12 @@
       "JsonNode": { },
       "MeDto": {
         "required": [
-          "id",
+          "principalId",
           "email"
         ],
         "type": "object",
         "properties": {
-          "id": {
+          "principalId": {
             "type": "string",
             "format": "uuid"
           },
@@ -2440,6 +2440,12 @@
           },
           "email": {
             "type": "string"
+          },
+          "displayName": {
+            "type": [
+              "null",
+              "string"
+            ]
           },
           "access": {
             "$ref": "#/components/schemas/Access"

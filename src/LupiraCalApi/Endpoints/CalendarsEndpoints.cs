@@ -11,13 +11,13 @@ public static class CalendarsEndpoints
 
         group.MapGet("/", (CalendarsHandler h, CancellationToken ct) => h.ListAsync(ct))
             .WithName("ListContainers")
-            .WithSummary("List the calendars and address books the caller can access.")
+            .WithSummary("List the calendars the caller can access.")
             .Produces<List<ContainerDto>>(StatusCodes.Status200OK)
             .Produces(StatusCodes.Status401Unauthorized);
 
         group.MapPost("/", (CreateCalendarRequest body, CalendarsHandler h, CancellationToken ct) => h.CreateAsync(body, ct))
             .WithName("CreateCalendar")
-            .WithSummary("Create a calendar or address book (kind = 'calendar' | 'addressbook').")
+            .WithSummary("Create a calendar. (Address books are managed by LupiraContactApi.)")
             .Produces<ContainerDto>(StatusCodes.Status200OK)
             .Produces(StatusCodes.Status401Unauthorized);
 

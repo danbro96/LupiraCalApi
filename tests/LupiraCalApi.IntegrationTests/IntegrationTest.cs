@@ -22,7 +22,7 @@ public abstract class IntegrationTest(CalApiTestFactory factory) : IAsyncLifetim
     protected static async Task<Guid> GetMyIdAsync(HttpClient api)
     {
         var me = await api.GetFromJsonAsync<MeDto>("/me");
-        return me!.Id;
+        return me!.PrincipalId;
     }
 
     protected static async Task<Guid> CreateCalendarAsync(HttpClient api, string slug = "work", string? displayName = "Work")

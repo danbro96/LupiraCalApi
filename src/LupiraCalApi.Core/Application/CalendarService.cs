@@ -75,7 +75,7 @@ public sealed class CalendarService(IDocumentSession session, PrincipalDirectory
         // Deterministic id → re-granting upserts the access level instead of duplicating the grant.
         session.Store(new CalendarOwner { Id = CalendarOwner.MakeId(calendarId, target.Id), CalendarId = calendarId, PrincipalId = target.Id, Access = level });
         await session.SaveChangesAsync(ct);
-        return OpResult<OwnerGrantDto>.Ok(new OwnerGrantDto { ContainerId = calendarId, Type = "calendar", PrincipalId = target.Id, Email = target.Email, Access = level });
+        return OpResult<OwnerGrantDto>.Ok(new OwnerGrantDto { ContainerId = calendarId, Type = "calendar", PrincipalId = target.Id, Email = target.Email, DisplayName = target.DisplayName, Access = level });
     }
 
     public async Task<OpResult> RevokeCalendarOwnerAsync(Guid callerId, Guid calendarId, string email, CancellationToken ct = default)

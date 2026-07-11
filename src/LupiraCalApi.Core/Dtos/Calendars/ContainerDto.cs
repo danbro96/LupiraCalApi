@@ -3,8 +3,8 @@ using System.Text.Json.Serialization;
 
 namespace LupiraCalApi.Dtos.Calendars;
 
-/// <summary>A calendar or address book the caller can access (<c>type</c> discriminates; access = the caller's grant level).
-/// <c>Class</c>/<c>Kind</c> classify calendars only (null for address books).</summary>
+/// <summary>A calendar the caller can access; <c>access</c> is the caller's own grant level.
+/// <c>Class</c>/<c>Kind</c> classify the calendar. (Address books live in LupiraContactApi.)</summary>
 public sealed class ContainerDto
 {
     public required Guid Id { get; set; }
