@@ -270,7 +270,7 @@
         "tags": [
           "CalendarItems"
         ],
-        "summary": "Search calendar items (text + tag + parent filter; recurrence expanded in-window). Text queries with no from/to match all-time; without a query the window defaults to ±1 year. Only items accepted into a calendar you can read.",
+        "summary": "Search calendar items (text + tag + parent + category/status filter; recurrence expanded in-window). Text queries with no from/to match all-time; without a query the window defaults to ±1 year. skip/take page over occurrences sorted by start (desc=true for newest first). Only items accepted into a calendar you can read.",
         "operationId": "SearchItems",
         "parameters": [
           {
@@ -318,6 +318,52 @@
               "type": "string",
               "format": "uuid"
             }
+          },
+          {
+            "name": "category",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "status",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "skip",
+            "in": "query",
+            "schema": {
+              "pattern": "^-?(?:0|[1-9]\\d*)$",
+              "type": [
+                "integer",
+                "string"
+              ],
+              "format": "int32"
+            }
+          },
+          {
+            "name": "take",
+            "in": "query",
+            "schema": {
+              "pattern": "^-?(?:0|[1-9]\\d*)$",
+              "type": [
+                "integer",
+                "string"
+              ],
+              "format": "int32"
+            }
+          },
+          {
+            "name": "desc",
+            "in": "query",
+            "schema": {
+              "type": "boolean",
+              "default": false
+            }
           }
         ],
         "responses": {
@@ -330,6 +376,16 @@
                   "items": {
                     "$ref": "#/components/schemas/CalendarItemOccurrenceDto"
                   }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
                 }
               }
             }
@@ -1743,6 +1799,7 @@
           "id",
           "isAllDay",
           "start",
+          "calendarIds",
           "etag"
         ],
         "type": "object",
@@ -1783,6 +1840,42 @@
               "string"
             ],
             "format": "date-time"
+          },
+          "calendarIds": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          "category": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/ItemCategory"
+              }
+            ]
+          },
+          "status": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/ItemStatus"
+              }
+            ]
+          },
+          "tags": {
+            "type": [
+              "null",
+              "array"
+            ],
+            "items": {
+              "type": "string"
+            }
           },
           "completeness": {
             "oneOf": [

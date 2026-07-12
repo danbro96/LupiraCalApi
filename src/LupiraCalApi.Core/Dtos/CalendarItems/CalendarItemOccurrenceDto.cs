@@ -1,4 +1,5 @@
 using LupiraCalApi.Domain;
+using System.Text.Json.Serialization;
 
 namespace LupiraCalApi.Dtos.CalendarItems;
 
@@ -12,6 +13,16 @@ public sealed class CalendarItemOccurrenceDto
     public required bool IsAllDay { get; set; }
     public required DateTimeOffset Start { get; set; }
     public DateTimeOffset? End { get; set; }
+
+    /// <summary>Accepted calendar memberships, limited to calendars the caller can read.</summary>
+    public required Guid[] CalendarIds { get; set; }
+
+    public ItemCategory? Category { get; set; }
+
+    [JsonConverter(typeof(JsonStringEnumConverter<ItemStatus>))]
+    public ItemStatus? Status { get; set; }
+
+    public string[]? Tags { get; set; }
 
     /// <summary>The parent item's completeness (same across its occurrences; null = not applicable), so search results rank directly.</summary>
     public CompletenessScore? Completeness { get; set; }

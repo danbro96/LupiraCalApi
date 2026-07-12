@@ -11,11 +11,13 @@ public static class CalendarItemsEndpoints
         var group = app.MapGroup("/items").RequireAuthorization("ApiPolicy").WithTags("CalendarItems");
 
         group.MapGet("/", (string? query, DateTimeOffset? from, DateTimeOffset? to, Guid? calendarId,
-                string? tag, Guid? parentId, CalendarItemsHandler h, CancellationToken ct) =>
-                h.SearchAsync(query, from, to, calendarId, tag, parentId, ct))
+                string? tag, Guid? parentId, string? category, string? status, int? skip, int? take,
+                CalendarItemsHandler h, CancellationToken ct, bool desc = false) =>
+                h.SearchAsync(query, from, to, calendarId, tag, parentId, category, status, skip, take, desc, ct))
             .WithName("SearchItems")
-            .WithSummary("Search calendar items (text + tag + parent filter; recurrence expanded in-window). Text queries with no from/to match all-time; without a query the window defaults to ±1 year. Only items accepted into a calendar you can read.")
+            .WithSummary("Search calendar items (text + tag + parent + category/status filter; recurrence expanded in-window). Text queries with no from/to match all-time; without a query the window defaults to ±1 year. skip/take page over occurrences sorted by start (desc=true for newest first). Only items accepted into a calendar you can read.")
             .Produces<List<CalendarItemOccurrenceDto>>(StatusCodes.Status200OK)
+            .ProducesProblem(StatusCodes.Status400BadRequest)
             .ProducesProblem(StatusCodes.Status403Forbidden)
             .Produces(StatusCodes.Status401Unauthorized);
 

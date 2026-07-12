@@ -64,21 +64,33 @@ public sealed class CalendarItemService(IDocumentSession session, AccessResolver
     }
 
     public async Task<OpResult<List<CalendarItemOccurrenceDto>>> SearchAsync(
-        Guid principalId, string? query, DateTimeOffset? from, DateTimeOffset? to, Guid? calendarId, string? tag, Guid? parentId, CancellationToken ct = default)
+        Guid principalId, string? query, DateTimeOffset? from, DateTimeOffset? to, Guid? calendarId, string? tag, Guid? parentId,
+        string? category = null, string? status = null, int? skip = null, int? take = null, bool desc = false, CancellationToken ct = default)
     {
-        var calIds = await access.AccessibleCalendarIdsAsync(principalId, ct);
+        if (!TryParseDefined<ItemCategory>(category, out var cat))
+            return OpResult<List<CalendarItemOccurrenceDto>>.Invalid(UnknownEnum<ItemCategory>("category", category!));
+        if (!TryParseDefined<ItemStatus>(status, out var st))
+            return OpResult<List<CalendarItemOccurrenceDto>>.Invalid(UnknownEnum<ItemStatus>("status", status!));
+        if (skip is < 0) return OpResult<List<CalendarItemOccurrenceDto>>.Invalid("skip must be >= 0.");
+        if (take is < 1) return OpResult<List<CalendarItemOccurrenceDto>>.Invalid("take must be >= 1.");
+
+        // accessibleIds enriches occurrences with every readable membership; searchIds (possibly narrowed) scopes the match.
+        var accessibleIds = await access.AccessibleCalendarIdsAsync(principalId, ct);
+        var searchIds = accessibleIds;
         if (calendarId is { } cid)
         {
-            if (!calIds.Contains(cid)) return OpResult<List<CalendarItemOccurrenceDto>>.Forbidden("No access to this calendar.");
-            calIds = [cid];
+            if (!accessibleIds.Contains(cid)) return OpResult<List<CalendarItemOccurrenceDto>>.Forbidden("No access to this calendar.");
+            searchIds = [cid];
         }
 
         // Personal/family scale: load live items, filter membership + text in memory (the snapshot is the read model).
         var candidates = await session.Query<CalendarItem>().Where(i => i.DeletedAt == null).ToListAsync(ct);
         IEnumerable<CalendarItem> items = candidates.Where(i =>
-            i.Calendars.Any(m => m.Status == CalendarEntryStatus.Accepted && calIds.Contains(m.CalendarId)));
+            i.Calendars.Any(m => m.Status == CalendarEntryStatus.Accepted && searchIds.Contains(m.CalendarId)));
         if (!string.IsNullOrWhiteSpace(tag)) items = items.Where(i => i.Tags is not null && i.Tags.Contains(tag));
         if (parentId is { } parent) items = items.Where(i => i.ParentItemId == parent);
+        if (cat is not null) items = items.Where(i => i.Category == cat);
+        if (st is not null) items = items.Where(i => i.Status == st);
         if (!string.IsNullOrWhiteSpace(query))
         {
             var term = query.Trim();
@@ -100,18 +112,25 @@ public sealed class CalendarItemService(IDocumentSession session, AccessResolver
         foreach (var i in itemList)
         {
             var score = scores[i.Id];
+            var memberIds = i.Calendars
+                .Where(m => m.Status == CalendarEntryStatus.Accepted && accessibleIds.Contains(m.CalendarId))
+                .Select(m => m.CalendarId).ToArray();
             TimeSpan? duration = (i.StartsAt is { } s && i.EndsAt is { } en) ? en - s : null;
             if (!string.IsNullOrWhiteSpace(i.RecurrenceRule))
             {
                 foreach (var occ in expander.Expand(i, windowStart, expansionEnd))
-                    results.Add(new CalendarItemOccurrenceDto { Id = i.Id, Title = i.Title, PlaceId = i.PlaceId, LocationLabel = i.LocationLabel, IsAllDay = i.IsAllDay, Start = occ, End = duration is { } d ? occ + d : null, Completeness = score, Etag = i.ContentHash });
+                    results.Add(new CalendarItemOccurrenceDto { Id = i.Id, Title = i.Title, PlaceId = i.PlaceId, LocationLabel = i.LocationLabel, IsAllDay = i.IsAllDay, Start = occ, End = duration is { } d ? occ + d : null, CalendarIds = memberIds, Category = i.Category, Status = i.Status, Tags = i.Tags, Completeness = score, Etag = i.ContentHash });
             }
             else if (OccurrenceStart(i) is { } start && start >= windowStart && start < windowEnd)
             {
-                results.Add(new CalendarItemOccurrenceDto { Id = i.Id, Title = i.Title, PlaceId = i.PlaceId, LocationLabel = i.LocationLabel, IsAllDay = i.IsAllDay, Start = start, End = duration is { } d ? start + d : i.EndsAt, Completeness = score, Etag = i.ContentHash });
+                results.Add(new CalendarItemOccurrenceDto { Id = i.Id, Title = i.Title, PlaceId = i.PlaceId, LocationLabel = i.LocationLabel, IsAllDay = i.IsAllDay, Start = start, End = duration is { } d ? start + d : i.EndsAt, CalendarIds = memberIds, Category = i.Category, Status = i.Status, Tags = i.Tags, Completeness = score, Etag = i.ContentHash });
             }
         }
-        return OpResult<List<CalendarItemOccurrenceDto>>.Ok([.. results.OrderBy(x => x.Start)]);
+        // take/skip count expanded occurrences, not items.
+        IEnumerable<CalendarItemOccurrenceDto> page = desc ? results.OrderByDescending(x => x.Start) : results.OrderBy(x => x.Start);
+        if (skip is { } sk) page = page.Skip(sk);
+        if (take is { } tk) page = page.Take(tk);
+        return OpResult<List<CalendarItemOccurrenceDto>>.Ok([.. page]);
     }
 
     /// <summary>Reverse index: items anchored to a place — as their location (<c>PlaceId</c>) or a travel/car endpoint.

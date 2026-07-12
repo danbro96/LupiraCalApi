@@ -19,7 +19,7 @@ namespace LupiraCalApi.Mcp;
 [McpServerToolType]
 public sealed class CalendarTools
 {
-    [McpServerTool, Description("Search calendar items the caller can access, optionally by text and/or time window.")]
+    [McpServerTool, Description("Search calendar items the caller can access, optionally by text, time window, category/status, tag; pageable.")]
     public static async Task<IReadOnlyList<CalendarItemOccurrenceDto>> search_items(
         CalendarItemService items, CurrentUser user,
         [Description("Free-text query over title/description. With no from/to, matches all-time.")] string? query = null,
@@ -27,10 +27,15 @@ public sealed class CalendarTools
         [Description("Window end, ISO 8601. Without a query, defaults to one year ahead; recurrences expand at most one year ahead unless set.")] DateTimeOffset? to = null,
         [Description("Restrict to one calendar id.")] Guid? calendarId = null,
         [Description("Filter to items carrying this tag.")] string? tag = null,
-        [Description("Filter to child items nested under this parent item id (e.g. a trip's sub-events).")] Guid? parentId = null)
+        [Description("Filter to child items nested under this parent item id (e.g. a trip's sub-events).")] Guid? parentId = null,
+        [Description("Filter by category (General, Meeting, Appointment, Meal, Occasion, Outing, Trip, Stay, Activity, Focus, Chore).")] string? category = null,
+        [Description("Filter by status (Tentative, Confirmed, Cancelled).")] string? status = null,
+        [Description("Skip this many occurrences (paging; applied after sorting).")] int? skip = null,
+        [Description("Max occurrences returned (counts expanded occurrences, not items).")] int? take = null,
+        [Description("Newest first (sort by occurrence start descending).")] bool desc = false)
     {
         var u = await user.GetAsync();
-        return Require(await items.SearchAsync(u.Id, query, from, to, calendarId, tag, parentId));
+        return Require(await items.SearchAsync(u.Id, query, from, to, calendarId, tag, parentId, category, status, skip, take, desc));
     }
 
     [McpServerTool, Description("Create a calendar item; file it into a calendar (CalendarId) or leave it unfiled for curation. Category is the event type (General, Meeting, Appointment, Meal, Occasion, Outing, Trip, Stay, Activity, Focus, Chore). Details are composable: Booking (provider/confirmation/reference/amount/partySize) attaches to any category; Travel (Mode + ToPlace/FromPlace labels) applies to a Trip and requires ToPlace. A presence/availability segment uses the top-level Availability field. For a historical/backfilled item known only to the month/year/roughly, still pass a concrete date and set StartPrecision/EndPrecision (Exact|Day|Month|Year|Approximate). Metadata (a JSON object, e.g. import provenance) can be merged inline at creation instead of a follow-up attach_metadata call. Set ParentItemId to nest this item under a parent (e.g. a trip's leg/sub-event); the parent must already exist. Bills and deliveries are LupiraTasks tasks, not calendar items — link them with link_item_to_task.")]
