@@ -9,12 +9,29 @@ public sealed class CreateCalendarItemRequest
 {
     public Guid? CalendarId { get; set; }
 
+    /// <summary>Client-supplied provenance/idempotency key (e.g. an import <c>sourceKey</c>). When set, the item's stream id
+    /// is derived from it (<see cref="LupiraCalApi.Domain.DeterministicGuid"/>), so re-creating with the same key is a no-op
+    /// that returns the existing item — safe batch/import replay. Also becomes the item's external UID. Omit for a random uid.</summary>
+    public string? SourceKey { get; set; }
+
     /// <summary>Nest this item under a parent (e.g. a trip's leg/sub-event). The parent must exist and be accessible to the caller.</summary>
     public Guid? ParentItemId { get; set; }
 
+    /// <summary>Alternative to <see cref="ParentItemId"/> for batch imports: reference the parent by its <see cref="SourceKey"/>;
+    /// the server resolves it to the parent's deterministic id. Used when parent + children are created in one batch. Ignored if <see cref="ParentItemId"/> is set.</summary>
+    public string? ParentSourceKey { get; set; }
+
     public string? Title { get; set; }
     public string? Description { get; set; }
+
+    /// <summary>Free-text location resolved server-side to a LupiraGeoApi place (fail-closed if geo is up but can't resolve).
+    /// Prefer <see cref="PlaceId"/> when you have already resolved/vetted the place (places-first imports) — then <see cref="Location"/>
+    /// is used only as the display label.</summary>
     public string? Location { get; set; }
+
+    /// <summary>A pre-resolved LupiraGeoApi place id. When set, it is attached directly (no geocoding, no fail-closed risk) and
+    /// <see cref="Location"/>, if any, is kept as the label. Trust the caller resolved it via geo first.</summary>
+    public Guid? PlaceId { get; set; }
     public string? Status { get; set; }
     public bool IsAllDay { get; set; }
     public DateTimeOffset? StartsAt { get; set; }

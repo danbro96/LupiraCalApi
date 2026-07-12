@@ -20,6 +20,11 @@ public sealed class TravelLegRequest
     public TransportMode Mode { get; set; }
     public string? ToPlace { get; set; }
     public string? FromPlace { get; set; }
+
+    /// <summary>Pre-resolved place ids (places-first imports). When set, used directly instead of resolving
+    /// <see cref="ToPlace"/>/<see cref="FromPlace"/> text; the text, if any, is kept as the label.</summary>
+    public Guid? ToPlaceId { get; set; }
+    public Guid? FromPlaceId { get; set; }
     public DateTimeOffset? DepartAt { get; set; }
     public DateTimeOffset? ArriveAt { get; set; }
     public string? Carrier { get; set; }

@@ -29,7 +29,7 @@ public sealed class ItemDetailsRestTests(CalApiTestFactory factory) : Integratio
     private static ItemDetailsRequest TripDetails() => new()
     {
         Booking = new BookingDetail(null, null, "BR-1", null, null, null, null),
-        Travel = new TravelLegRequest { Mode = TransportMode.Flight, ToPlace = "Arlanda", ServiceNumber = "SK123", DeparturePoint = "A12" },
+        Travel = new TravelLegRequest { Mode = TransportMode.Flight, ToPlaceId = Guid.NewGuid(), ToPlace = "Arlanda", ServiceNumber = "SK123", DeparturePoint = "A12" },
     };
 
     [Fact]
@@ -45,7 +45,7 @@ public sealed class ItemDetailsRestTests(CalApiTestFactory factory) : Integratio
         Assert.Equal(ItemCategory.Trip, dto.Category);
         Assert.Equal("SK123", dto.Details!.Travel!.ServiceNumber);
         Assert.Equal("BR-1", dto.Details.Booking!.Reference);
-        // Geo is unconfigured in tests, so ToPlaceId is null and the denormalized label falls back to the raw text.
+        // Travel carries a resolved ToPlaceId; the free-text ToPlace rides along as the denormalized label.
         Assert.Equal("Arlanda", dto.Details.Travel.ToLabel);
     }
 
@@ -116,7 +116,7 @@ public sealed class ItemDetailsRestTests(CalApiTestFactory factory) : Integratio
         // Category omitted: validation resolves the item's category; supplying only Travel keeps Booking.
         var resp = await api.PutAsJsonAsync($"/items/{item.Id}", new UpdateCalendarItemRequest
         {
-            Details = new ItemDetailsRequest { Travel = new TravelLegRequest { Mode = TransportMode.Flight, ToPlace = "Arlanda", ServiceNumber = "SK456", Seat = "23A" } },
+            Details = new ItemDetailsRequest { Travel = new TravelLegRequest { Mode = TransportMode.Flight, ToPlaceId = Guid.NewGuid(), ToPlace = "Arlanda", ServiceNumber = "SK456", Seat = "23A" } },
         });
         resp.EnsureSuccessStatusCode();
         var dto = (await resp.Content.ReadFromJsonAsync<CalendarItemDto>())!;

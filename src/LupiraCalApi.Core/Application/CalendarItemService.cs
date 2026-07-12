@@ -29,26 +29,54 @@ public sealed class CalendarItemService(IDocumentSession session, AccessResolver
 
     private const string LocationUnresolved = "Location could not be resolved to a place (geo unavailable) — retry.";
     private const string TravelUnresolved = "A travel location could not be resolved to a place (geo unavailable) — retry.";
+    private const string LocationNeedsPlaceId = "Resolve the location to a LupiraGeoApi place first and pass PlaceId — free-text Location is accepted only over CalDAV.";
 
     public async Task<OpResult<CalendarItemDto>> CreateAsync(Guid principalId, CreateCalendarItemRequest r, CancellationToken ct = default)
     {
         if (r.CalendarId is { } pre && !await access.CanWriteCalendarAsync(principalId, pre, ct))
             return OpResult<CalendarItemDto>.Forbidden("No write access to this calendar.");
 
-        var (placeId, locationLabel, unresolved) = await ResolvePlaceAsync(r.Location, ct);
-        if (unresolved) return OpResult<CalendarItemDto>.Invalid(LocationUnresolved);
+        // A client SourceKey pins the stream id + external UID (idempotent import replay); else a random uid.
+        var hasKey = !string.IsNullOrWhiteSpace(r.SourceKey);
+        var uid = hasKey ? r.SourceKey!.Trim() : $"{Guid.NewGuid():N}@cal.lupira.com";
+        var id = DeterministicGuid.From(uid);
+        var stream = hasKey ? await session.Events.FetchForWriting<CalendarItem>(id, ct) : null;
+        if (stream?.Aggregate is { DeletedAt: null } live)
+            return OpResult<CalendarItemDto>.Ok(await ToDtoAsync(live, ct));   // idempotent hit — no new events
+
+        // REST/MCP require a pre-resolved place: pass PlaceId (Location, if any, is only the display label).
+        // Free-text resolution lives on the CalDAV path (PutIcsAsync), where external clients can't send a place id.
+        Guid? placeId;
+        string? locationLabel;
+        if (r.PlaceId is { } pid)
+        {
+            placeId = pid;
+            locationLabel = string.IsNullOrWhiteSpace(r.Location) ? null : r.Location.Trim();
+        }
+        else if (!string.IsNullOrWhiteSpace(r.Location))
+        {
+            return OpResult<CalendarItemDto>.Invalid(LocationNeedsPlaceId);
+        }
+        else
+        {
+            placeId = null;
+            locationLabel = null;
+        }
+
         if (!TryParseDefined<ItemStatus>(r.Status, out var status)) return OpResult<CalendarItemDto>.Invalid(UnknownEnum<ItemStatus>("status", r.Status!));
         if (!TryParseDefined<ItemCategory>(r.Category, out var category)) return OpResult<CalendarItemDto>.Invalid(UnknownEnum<ItemCategory>("category", r.Category!));
         if (ItemDetailsMapper.Validate(category, r.Details) is { } detailsError)
             return OpResult<CalendarItemDto>.Invalid(detailsError);
         var (details, detailsUnresolved) = await ItemDetailsMapper.BuildAsync(r.Details, r.Availability, geo, ct);
         if (detailsUnresolved) return OpResult<CalendarItemDto>.Invalid(TravelUnresolved);
-        if (await ParentInvalidAsync(principalId, r.ParentItemId, ct) is { } parentError)
+
+        // Parent by explicit id, else by the parent's SourceKey (batch imports resolve it deterministically).
+        var parentItemId = r.ParentItemId ?? (string.IsNullOrWhiteSpace(r.ParentSourceKey) ? (Guid?)null : DeterministicGuid.From(r.ParentSourceKey!.Trim()));
+        if (await ParentInvalidAsync(principalId, parentItemId, ct) is { } parentError)
             return OpResult<CalendarItemDto>.Invalid(parentError);
-        var uid = $"{Guid.NewGuid():N}@cal.lupira.com";
-        var id = DeterministicGuid.From(uid);
+
         var fields = new CalendarItemFields(r.Title, r.Description, status, r.IsAllDay, r.StartsAt, r.EndsAt,
-            r.StartTimezone, null, r.StartDate, r.EndDate, r.RecurrenceRule, null, null, category, placeId, locationLabel, r.ParentItemId, r.Tags,
+            r.StartTimezone, null, r.StartDate, r.EndDate, r.RecurrenceRule, null, null, category, placeId, locationLabel, parentItemId, r.Tags,
             r.StartPrecision, r.EndPrecision);
 
         var events = new List<object> { new ItemScheduled(id, uid, fields, details) };
@@ -57,10 +85,69 @@ public sealed class CalendarItemService(IDocumentSession session, AccessResolver
         if (r.CalendarId is { } calId)
             events.Add(new AddedToCalendar(id, calId, CalendarEntryStatus.Accepted, DateTimeOffset.UtcNow));
 
-        session.Events.StartStream<CalendarItem>(id, events.ToArray());
+        if (stream is not null)
+            foreach (var e in events) stream.AppendOne(e);
+        else
+            session.Events.StartStream<CalendarItem>(id, events.ToArray());
         await session.SaveChangesAsync(ct);
         var item = await session.LoadAsync<CalendarItem>(id, ct);
         return OpResult<CalendarItemDto>.Ok(await ToDtoAsync(item!, ct));
+    }
+
+    public const int MaxBatch = 500;
+
+    /// <summary>Create many items in one call. Topologically orders by in-batch <c>ParentSourceKey</c> so parents persist
+    /// before children (each item saves via <see cref="CreateAsync"/>, which is idempotent on <c>SourceKey</c>). Never aborts
+    /// the whole batch on one bad item — returns a per-item status (created | existed | invalid). Results are in input order.</summary>
+    public async Task<OpResult<List<ItemBatchResult>>> CreateBatchAsync(Guid principalId, IReadOnlyList<CreateCalendarItemRequest> requests, CancellationToken ct = default)
+    {
+        if (requests.Count == 0) return OpResult<List<ItemBatchResult>>.Invalid("At least one item is required.");
+        if (requests.Count > MaxBatch) return OpResult<List<ItemBatchResult>>.Invalid($"At most {MaxBatch} items per batch.");
+
+        var inBatchKeys = new HashSet<string>(requests.Where(r => !string.IsNullOrWhiteSpace(r.SourceKey)).Select(r => r.SourceKey!.Trim()));
+        var ordered = TopoOrderByParent(requests, inBatchKeys);
+
+        var byRequest = new Dictionary<CreateCalendarItemRequest, ItemBatchResult>(ReferenceEqualityComparer.Instance);
+        foreach (var r in ordered)
+        {
+            if (!string.IsNullOrWhiteSpace(r.SourceKey)
+                && await session.LoadAsync<CalendarItem>(DeterministicGuid.From(r.SourceKey!.Trim()), ct) is { DeletedAt: null } existing)
+            {
+                byRequest[r] = new ItemBatchResult(r.SourceKey, existing.Id, "existed", null);
+                continue;
+            }
+            var res = await CreateAsync(principalId, r, ct);
+            byRequest[r] = res.Status == OpStatus.Ok
+                ? new ItemBatchResult(r.SourceKey, res.Value!.Id, "created", null)
+                : new ItemBatchResult(r.SourceKey, null, "invalid", res.Error);
+        }
+        return OpResult<List<ItemBatchResult>>.Ok([.. requests.Select(r => byRequest[r])]);
+    }
+
+    // Parents (referenced by another item's ParentSourceKey) before their children. Items whose parent is not in the
+    // batch keep their relative order. A cycle (shouldn't happen) drops the remainder in place — they fail parent validation.
+    private static List<CreateCalendarItemRequest> TopoOrderByParent(IReadOnlyList<CreateCalendarItemRequest> requests, HashSet<string> inBatchKeys)
+    {
+        var pending = new List<CreateCalendarItemRequest>(requests);
+        var emitted = new HashSet<string>();
+        var order = new List<CreateCalendarItemRequest>(requests.Count);
+        while (pending.Count > 0)
+        {
+            var progressed = false;
+            for (var i = pending.Count - 1; i >= 0; i--)
+            {
+                var r = pending[i];
+                var psk = r.ParentSourceKey?.Trim();
+                var blocked = r.ParentItemId is null && !string.IsNullOrWhiteSpace(psk) && inBatchKeys.Contains(psk!) && !emitted.Contains(psk!);
+                if (blocked) continue;
+                pending.RemoveAt(i);
+                order.Add(r);
+                if (!string.IsNullOrWhiteSpace(r.SourceKey)) emitted.Add(r.SourceKey!.Trim());
+                progressed = true;
+            }
+            if (!progressed) { order.AddRange(pending); break; }
+        }
+        return order;
     }
 
     public async Task<OpResult<List<CalendarItemOccurrenceDto>>> SearchAsync(

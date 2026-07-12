@@ -39,7 +39,7 @@ public sealed class RestEndpointsTests(CalApiTestFactory factory) : IntegrationT
         var calId = await CreateCalendarAsync(api);
         var start = new DateTimeOffset(2026, 7, 1, 9, 0, 0, TimeSpan.Zero);
 
-        var req = new CreateCalendarItemRequest { CalendarId = calId, Title = "Standup", Description = "daily", Location = "Zoom", Status = "Confirmed", IsAllDay = false, StartsAt = start, EndsAt = start.AddMinutes(30), StartTimezone = "UTC", Category = "General", Tags = ["work"] };
+        var req = new CreateCalendarItemRequest { CalendarId = calId, Title = "Standup", Description = "daily", PlaceId = Guid.NewGuid(), Location = "Zoom", Status = "Confirmed", IsAllDay = false, StartsAt = start, EndsAt = start.AddMinutes(30), StartTimezone = "UTC", Category = "General", Tags = ["work"] };
         var create = await api.PostAsJsonAsync("/items", req);
         create.EnsureSuccessStatusCode();
         var dto = await create.Content.ReadFromJsonAsync<CalendarItemDto>();

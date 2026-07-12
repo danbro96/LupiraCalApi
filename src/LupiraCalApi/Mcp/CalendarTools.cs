@@ -38,11 +38,18 @@ public sealed class CalendarTools
         return Require(await items.SearchAsync(u.Id, query, from, to, calendarId, tag, parentId, category, status, skip, take, desc));
     }
 
-    [McpServerTool, Description("Create a calendar item; file it into a calendar (CalendarId) or leave it unfiled for curation. Category is the event type (General, Meeting, Appointment, Meal, Occasion, Outing, Trip, Stay, Activity, Focus, Chore). Details are composable: Booking (provider/confirmation/reference/amount/partySize) attaches to any category; Travel (Mode + ToPlace/FromPlace labels) applies to a Trip and requires ToPlace. A presence/availability segment uses the top-level Availability field. For a historical/backfilled item known only to the month/year/roughly, still pass a concrete date and set StartPrecision/EndPrecision (Exact|Day|Month|Year|Approximate). Metadata (a JSON object, e.g. import provenance) can be merged inline at creation instead of a follow-up attach_metadata call. Set ParentItemId to nest this item under a parent (e.g. a trip's leg/sub-event); the parent must already exist. Bills and deliveries are LupiraTasks tasks, not calendar items — link them with link_item_to_task.")]
+    [McpServerTool, Description("Create a calendar item; file it into a calendar (CalendarId) or leave it unfiled for curation. Category is the event type (General, Meeting, Appointment, Meal, Occasion, Outing, Trip, Stay, Activity, Focus, Chore). A location must be a resolved LupiraGeoApi PlaceId (resolve via lupira-geo first — free-text Location is only a label). Details are composable: Booking (provider/confirmation/reference/amount/partySize) attaches to any category; Travel (Mode + ToPlaceId, optional FromPlaceId) applies to a Trip and requires ToPlaceId. A presence/availability segment uses the top-level Availability field. For a historical/backfilled item known only to the month/year/roughly, still pass a concrete date and set StartPrecision/EndPrecision (Exact|Day|Month|Year|Approximate). Metadata (a JSON object, e.g. import provenance) can be merged inline at creation. Set a client SourceKey for idempotent re-create; nest under a parent via ParentItemId or ParentSourceKey. Bills and deliveries are LupiraTasks tasks — link them with link_item_to_task.")]
     public static async Task<CalendarItemDto> create_item(CalendarItemService items, CurrentUser user, CreateCalendarItemRequest request)
     {
         var u = await user.GetAsync();
         return Require(await items.CreateAsync(u.Id, request));
+    }
+
+    [McpServerTool, Description("Create many calendar items in one call — for imports/backfills. Idempotent per item on its SourceKey (re-running returns the existing item, no duplicate). Children reference their parent by ParentSourceKey (the parent's SourceKey) in any order; the server orders parents first. Locations must be resolved PlaceIds (see create_item). Returns a per-item result {sourceKey, itemId, status: created|existed|invalid} in input order; one bad item does not fail the batch.")]
+    public static async Task<IReadOnlyList<ItemBatchResult>> create_items_batch(CalendarItemService items, CurrentUser user, CreateCalendarItemsBatchRequest request)
+    {
+        var u = await user.GetAsync();
+        return Require(await items.CreateBatchAsync(u.Id, request.Items));
     }
 
     [McpServerTool, Description("Update a calendar item: any subset of title, description, location (free text → place), status, times, recurrence, tags, Category, and composable Details (Booking, Travel). Omitted fields are unchanged; a supplied details member replaces that member wholesale (resend the full member; Travel requires ToPlace and applies only to Category 'Trip'). Changing Category drops the previous details. The top-level Availability field sets the presence segment's status.")]
@@ -84,6 +91,17 @@ public sealed class CalendarTools
     {
         var u = await user.GetAsync();
         return Require(await participation.RespondAsync(u.Id, itemId, participationId, status));
+    }
+
+    [McpServerTool, Description("Add a set of contacts as attendees of an item in one call (add-only — keeps existing attendees). attended=true (default) also marks them attended, for historical/backfilled events (avoids the pending-invite look); pass false for a live invite flow. Returns a slim result (the additions + already-present count), not the full item. Prefer this over repeated invite_participant.")]
+    public static async Task<SetParticipantsResult> set_participants(
+        ParticipationService participation, CurrentUser user,
+        [Description("Calendar item id.")] Guid itemId,
+        [Description("LupiraContactApi contact ids to add as attendees.")] Guid[] contactIds,
+        [Description("Also mark them attended (default true; false = plain invite in NeedsAction).")] bool attended = true)
+    {
+        var u = await user.GetAsync();
+        return Require(await participation.SetParticipantsAsync(u.Id, itemId, contactIds, attended));
     }
 
     [McpServerTool, Description("List the calendars the caller can access.")]

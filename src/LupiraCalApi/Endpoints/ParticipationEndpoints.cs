@@ -14,6 +14,13 @@ public static class ParticipationEndpoints
             .WithSummary("Invite a contact (must be a Contact id). role = chair|req-participant|opt-participant|non-participant.")
             .Produces<CalendarItemDto>(StatusCodes.Status200OK).Produces(StatusCodes.Status404NotFound);
 
+        group.MapPut("/", (Guid id, SetParticipantsRequest body, ParticipationHandler h, CancellationToken ct) => h.SetParticipantsAsync(id, body, ct))
+            .WithName("SetParticipants")
+            .WithSummary("Add a set of contacts as attendees in one call (add-only). Attended=true also marks them attended (historical backfill). Slim result (additions + already-present count), not the full item.")
+            .Produces<SetParticipantsResult>(StatusCodes.Status200OK)
+            .Produces(StatusCodes.Status404NotFound)
+            .ProducesProblem(StatusCodes.Status400BadRequest);
+
         group.MapPost("/{participationId:guid}/respond", (Guid id, Guid participationId, string? status, ParticipationHandler h, CancellationToken ct) => h.RespondAsync(id, participationId, status, ct))
             .WithName("RespondToInvitation")
             .WithSummary("Record an RSVP. status = needs-action|accepted|declined|tentative|delegated.")

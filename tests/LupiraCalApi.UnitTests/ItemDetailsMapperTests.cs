@@ -11,7 +11,7 @@ namespace LupiraCalApi.UnitTests;
 public class ItemDetailsMapperTests
 {
     private static readonly BookingDetail SomeBooking = new(null, "CN-1", "BR-1", null, null, null, null);
-    private static TravelLegRequest SomeTravel() => new() { Mode = TransportMode.Flight, ToPlace = "Arlanda", Carrier = "SAS" };
+    private static TravelLegRequest SomeTravel() => new() { Mode = TransportMode.Flight, ToPlaceId = Guid.NewGuid(), ToPlace = "Arlanda", Carrier = "SAS" };
 
     [Theory]
     [InlineData(ItemCategory.General)]
@@ -46,17 +46,25 @@ public class ItemDetailsMapperTests
         Assert.Null(ItemDetailsMapper.Validate(null, null));
     }
 
-    [Theory]
-    [InlineData(null)]
-    [InlineData("")]
-    [InlineData("  ")]
-    public void Validate_requires_travel_to_place(string? toPlace)
+    [Fact]
+    public void Validate_requires_a_resolved_travel_destination_place_id()
     {
-        var details = new ItemDetailsRequest { Travel = new TravelLegRequest { Mode = TransportMode.Train, ToPlace = toPlace, Carrier = "SJ" } };
+        // REST/MCP require a resolved place id; free-text ToPlace alone (or nothing) is not a destination.
+        var details = new ItemDetailsRequest { Travel = new TravelLegRequest { Mode = TransportMode.Train, ToPlace = "Arlanda", Carrier = "SJ" } };
         var error = ItemDetailsMapper.Validate(ItemCategory.Trip, details);
 
         Assert.NotNull(error);
-        Assert.Contains("ToPlace", error);
+        Assert.Contains("ToPlaceId", error);
+    }
+
+    [Fact]
+    public void Validate_rejects_free_text_from_place_without_id()
+    {
+        var details = new ItemDetailsRequest { Travel = new TravelLegRequest { Mode = TransportMode.Train, ToPlaceId = Guid.NewGuid(), FromPlace = "Stockholm" } };
+        var error = ItemDetailsMapper.Validate(ItemCategory.Trip, details);
+
+        Assert.NotNull(error);
+        Assert.Contains("FromPlaceId", error);
     }
 
     [Fact]

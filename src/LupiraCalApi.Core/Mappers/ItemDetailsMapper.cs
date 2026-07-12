@@ -18,8 +18,11 @@ internal static class ItemDetailsMapper
         {
             if (category != ItemCategory.Trip)
                 return $"Travel detail applies only to category 'Trip', not '{Name(category)}'.";
-            if (string.IsNullOrWhiteSpace(t.ToPlace))
-                return "Travel.ToPlace is required (Travel is replaced wholesale — resend the full member including ToPlace).";
+            // REST/MCP require resolved place ids (free-text places are a CalDAV-only affordance). ToPlace/FromPlace, if sent, are labels.
+            if (t.ToPlaceId is null)
+                return "Travel destination must be a resolved place — set ToPlaceId (resolve via geo first). Travel is replaced wholesale — resend the full member.";
+            if (!string.IsNullOrWhiteSpace(t.FromPlace) && t.FromPlaceId is null)
+                return "Travel origin must be a resolved place id (FromPlaceId) when an origin is given.";
         }
         return null;
     }
@@ -35,8 +38,13 @@ internal static class ItemDetailsMapper
         TravelLeg? travel = null;
         if (d?.Travel is { } t)
         {
-            var (toId, toLabel, toUnresolved) = await ResolveAsync(geo, t.ToPlace, ct);
-            var (fromId, fromLabel, fromUnresolved) = await ResolveAsync(geo, t.FromPlace, ct);
+            // Pre-resolved id wins (places-first); else resolve the free text. Text, if present, is kept as the label.
+            var (toId, toLabel, toUnresolved) = t.ToPlaceId is { } tid
+                ? (tid, string.IsNullOrWhiteSpace(t.ToPlace) ? null : t.ToPlace.Trim(), false)
+                : await ResolveAsync(geo, t.ToPlace, ct);
+            var (fromId, fromLabel, fromUnresolved) = t.FromPlaceId is { } fid
+                ? (fid, string.IsNullOrWhiteSpace(t.FromPlace) ? null : t.FromPlace.Trim(), false)
+                : await ResolveAsync(geo, t.FromPlace, ct);
             if (toUnresolved || fromUnresolved) return (null, true);
             travel = new TravelLeg(
                 t.Mode, toId, fromId, t.DepartAt, t.ArriveAt, t.Carrier, t.ServiceNumber,

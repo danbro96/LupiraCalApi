@@ -414,7 +414,7 @@
         "tags": [
           "CalendarItems"
         ],
-        "summary": "Create a calendar item (filed into CalendarId if given, else unfiled for later curation).",
+        "summary": "Create a calendar item (filed into CalendarId if given, else unfiled for later curation). A location must be a resolved PlaceId (free text is CalDAV-only).",
         "operationId": "CreateItem",
         "requestBody": {
           "content": {
@@ -433,6 +433,68 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/CalendarItemDto"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized"
+          }
+        },
+        "security": [
+          {
+            "Bearer": [ ]
+          }
+        ]
+      }
+    },
+    "/items/batch": {
+      "post": {
+        "tags": [
+          "CalendarItems"
+        ],
+        "summary": "Create many items in one call (idempotent per item on SourceKey; children reference parents by ParentSourceKey in any order). Returns a per-item result (created|existed|invalid) in input order.",
+        "operationId": "CreateItemsBatch",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateCalendarItemsBatchRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/ItemBatchResult"
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
                 }
               }
             }
@@ -1279,6 +1341,64 @@
             "Bearer": [ ]
           }
         ]
+      },
+      "put": {
+        "tags": [
+          "Participation"
+        ],
+        "summary": "Add a set of contacts as attendees in one call (add-only). Attended=true also marks them attended (historical backfill). Slim result (additions + already-present count), not the full item.",
+        "operationId": "SetParticipants",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SetParticipantsRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SetParticipantsResult"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not Found"
+          },
+          "400": {
+            "description": "Bad Request",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "Bearer": [ ]
+          }
+        ]
       }
     },
     "/items/{id}/participants/{participationId}/respond": {
@@ -2073,12 +2193,24 @@
             ],
             "format": "uuid"
           },
+          "sourceKey": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
           "parentItemId": {
             "type": [
               "null",
               "string"
             ],
             "format": "uuid"
+          },
+          "parentSourceKey": {
+            "type": [
+              "null",
+              "string"
+            ]
           },
           "title": {
             "type": [
@@ -2097,6 +2229,13 @@
               "null",
               "string"
             ]
+          },
+          "placeId": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "uuid"
           },
           "status": {
             "type": [
@@ -2211,6 +2350,20 @@
                 "$ref": "#/components/schemas/ItemDetailsRequest"
               }
             ]
+          }
+        }
+      },
+      "CreateCalendarItemsBatchRequest": {
+        "required": [
+          "items"
+        ],
+        "type": "object",
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/CreateCalendarItemRequest"
+            }
           }
         }
       },
@@ -2414,6 +2567,39 @@
               "string"
             ],
             "format": "date-time"
+          }
+        }
+      },
+      "ItemBatchResult": {
+        "required": [
+          "sourceKey",
+          "itemId",
+          "status",
+          "error"
+        ],
+        "type": "object",
+        "properties": {
+          "sourceKey": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "itemId": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "uuid"
+          },
+          "status": {
+            "type": "string"
+          },
+          "error": {
+            "type": [
+              "null",
+              "string"
+            ]
           }
         }
       },
@@ -2642,6 +2828,23 @@
           },
           "access": {
             "$ref": "#/components/schemas/Access"
+          }
+        }
+      },
+      "ParticipationRef": {
+        "required": [
+          "contactId",
+          "participationId"
+        ],
+        "type": "object",
+        "properties": {
+          "contactId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "participationId": {
+            "type": "string",
+            "format": "uuid"
           }
         }
       },
@@ -2925,6 +3128,52 @@
           }
         }
       },
+      "SetParticipantsRequest": {
+        "required": [
+          "contactIds"
+        ],
+        "type": "object",
+        "properties": {
+          "contactIds": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          "attended": {
+            "type": "boolean"
+          }
+        }
+      },
+      "SetParticipantsResult": {
+        "required": [
+          "itemId",
+          "added",
+          "alreadyPresent"
+        ],
+        "type": "object",
+        "properties": {
+          "itemId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "added": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ParticipationRef"
+            }
+          },
+          "alreadyPresent": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          }
+        }
+      },
       "TransportMode": {
         "enum": [
           "Flight",
@@ -3055,6 +3304,20 @@
               "null",
               "string"
             ]
+          },
+          "toPlaceId": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "uuid"
+          },
+          "fromPlaceId": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "uuid"
           },
           "departAt": {
             "type": [

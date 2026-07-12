@@ -38,4 +38,10 @@ public sealed class ParticipationHandler(CurrentUser user, ParticipationService 
         var u = await user.GetAsync(ct);
         return OpResultMap.OkNotFoundProblem(await participation.RemoveAsync(u.Id, id, participationId, ct));
     }
+
+    public async Task<Results<Ok<SetParticipantsResult>, NotFound, ProblemHttpResult, UnauthorizedHttpResult>> SetParticipantsAsync(Guid id, SetParticipantsRequest body, CancellationToken ct)
+    {
+        var u = await user.GetAsync(ct);
+        return OpResultMap.OkNotFoundProblem(await participation.SetParticipantsAsync(u.Id, id, body.ContactIds, body.Attended, ct));
+    }
 }

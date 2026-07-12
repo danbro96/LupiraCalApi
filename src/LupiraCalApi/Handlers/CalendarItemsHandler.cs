@@ -29,6 +29,12 @@ public sealed class CalendarItemsHandler(CurrentUser user, CalendarItemService i
         return OpResultMap.OkProblem(await items.CreateAsync(u.Id, body, ct));
     }
 
+    public async Task<Results<Ok<List<ItemBatchResult>>, ProblemHttpResult, UnauthorizedHttpResult>> CreateBatchAsync(CreateCalendarItemsBatchRequest body, CancellationToken ct)
+    {
+        var u = await user.GetAsync(ct);
+        return OpResultMap.OkProblem(await items.CreateBatchAsync(u.Id, body.Items, ct));
+    }
+
     public async Task<Results<Ok<CalendarItemDto>, NotFound, ProblemHttpResult, UnauthorizedHttpResult>> GetAsync(Guid id, CancellationToken ct)
     {
         var u = await user.GetAsync(ct);

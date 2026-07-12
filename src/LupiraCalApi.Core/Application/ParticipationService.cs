@@ -38,6 +38,53 @@ public sealed class ParticipationService(IDocumentSession session, AccessResolve
     public Task<OpResult<CalendarItemDto>> RemoveAsync(Guid principalId, Guid itemId, Guid participationId, CancellationToken ct = default) =>
         AppendAsync(principalId, itemId, _ => new AttendeeRemoved(itemId, participationId), ct);
 
+    public const int MaxAttendees = 200;
+
+    /// <summary>Add a set of contacts as attendees in one call (add-only — existing attendees are kept). When
+    /// <paramref name="attended"/>, each is also marked attended (historical backfill) via <see cref="AttendanceConfirmed"/>.
+    /// Returns a slim result (the additions + already-present count), not the full item DTO.</summary>
+    public async Task<OpResult<SetParticipantsResult>> SetParticipantsAsync(Guid principalId, Guid itemId, IReadOnlyList<Guid> contactIds, bool attended, CancellationToken ct = default)
+    {
+        var distinct = contactIds.Where(id => id != Guid.Empty).Distinct().ToList();
+        if (distinct.Count == 0) return OpResult<SetParticipantsResult>.Invalid("At least one contactId is required.");
+        if (distinct.Count > MaxAttendees) return OpResult<SetParticipantsResult>.Invalid($"At most {MaxAttendees} attendees per call.");
+
+        // Validate contacts (fail-open when unconfigured/unreachable, matching InviteAsync).
+        if (contacts.IsConfigured && await contacts.ResolveAsync(distinct, ct) is { } resolved)
+        {
+            var known = resolved.Select(c => c.ContactId).ToHashSet();
+            var unknown = distinct.Where(id => !known.Contains(id)).ToList();
+            if (unknown.Count > 0) return OpResult<SetParticipantsResult>.Invalid($"Unknown contact(s): {string.Join(", ", unknown)}.");
+        }
+
+        var stream = await session.Events.FetchForWriting<CalendarItem>(itemId, ct);
+        var item = stream.Aggregate;
+        if (item is null || item.DeletedAt is not null) return OpResult<SetParticipantsResult>.NotFound();
+        if (!await access.CanWriteItemAsync(principalId, item, ct)) return OpResult<SetParticipantsResult>.Forbidden("No write access to this item.");
+
+        var existing = item.Attendees.ToDictionary(a => a.ContactId);
+        var added = new List<ParticipationRef>();
+        var now = DateTimeOffset.UtcNow;
+        var alreadyPresent = 0;
+        var appended = false;
+        foreach (var cid in distinct)
+        {
+            if (existing.TryGetValue(cid, out var a))
+            {
+                alreadyPresent++;
+                if (attended && a.AttendedAt is null) { stream.AppendOne(new AttendanceConfirmed(itemId, a.ParticipationId, now)); appended = true; }
+                continue;
+            }
+            var pid = Guid.NewGuid();
+            stream.AppendOne(new AttendeeInvited(itemId, pid, cid, ParticipationRole.RequiredParticipant, now));
+            if (attended) stream.AppendOne(new AttendanceConfirmed(itemId, pid, now));
+            appended = true;
+            added.Add(new ParticipationRef(cid, pid));
+        }
+        if (appended) await session.SaveChangesAsync(ct);
+        return OpResult<SetParticipantsResult>.Ok(new SetParticipantsResult(itemId, added, alreadyPresent));
+    }
+
     private async Task<OpResult<CalendarItemDto>> AppendAsync(Guid principalId, Guid itemId, Func<CalendarItem, object?> makeEvent, CancellationToken ct)
     {
         var stream = await session.Events.FetchForWriting<CalendarItem>(itemId, ct);

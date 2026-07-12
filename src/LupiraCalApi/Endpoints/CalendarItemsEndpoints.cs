@@ -23,8 +23,16 @@ public static class CalendarItemsEndpoints
 
         group.MapPost("/", (CreateCalendarItemRequest body, CalendarItemsHandler h, CancellationToken ct) => h.CreateAsync(body, ct))
             .WithName("CreateItem")
-            .WithSummary("Create a calendar item (filed into CalendarId if given, else unfiled for later curation).")
+            .WithSummary("Create a calendar item (filed into CalendarId if given, else unfiled for later curation). A location must be a resolved PlaceId (free text is CalDAV-only).")
             .Produces<CalendarItemDto>(StatusCodes.Status200OK)
+            .ProducesProblem(StatusCodes.Status403Forbidden)
+            .Produces(StatusCodes.Status401Unauthorized);
+
+        group.MapPost("/batch", (CreateCalendarItemsBatchRequest body, CalendarItemsHandler h, CancellationToken ct) => h.CreateBatchAsync(body, ct))
+            .WithName("CreateItemsBatch")
+            .WithSummary("Create many items in one call (idempotent per item on SourceKey; children reference parents by ParentSourceKey in any order). Returns a per-item result (created|existed|invalid) in input order.")
+            .Produces<List<ItemBatchResult>>(StatusCodes.Status200OK)
+            .ProducesProblem(StatusCodes.Status400BadRequest)
             .ProducesProblem(StatusCodes.Status403Forbidden)
             .Produces(StatusCodes.Status401Unauthorized);
 
