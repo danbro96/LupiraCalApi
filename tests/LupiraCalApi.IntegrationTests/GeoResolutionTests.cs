@@ -1,3 +1,4 @@
+using System.Net;
 using System.Net.Http.Json;
 using LupiraCalApi.Application;
 using LupiraCalApi.Dtos.CalendarItems;
@@ -19,6 +20,23 @@ public sealed class GeoResolutionTests(CalApiTestFactory factory) : IntegrationT
         public bool IsConfigured => true;
         public Task<GeoPlaceResolution?> ResolveAsync(string text, CancellationToken ct = default) =>
             Task.FromResult<GeoPlaceResolution?>(new GeoPlaceResolution(id, name, 59.33, 18.06));
+    }
+
+    // Geo configured but unreachable (GeocodeUnavailable / transport error) — the retryable case.
+    private sealed class StubGeoDown : IGeoResolver
+    {
+        public bool IsConfigured => true;
+        public Task<GeoPlaceResolution?> ResolveAsync(string text, CancellationToken ct = default) =>
+            Task.FromResult<GeoPlaceResolution?>(null);
+    }
+
+    private HttpClient ClientWith(IGeoResolver geo)
+    {
+        var scoped = Factory.WithWebHostBuilder(b =>
+            b.ConfigureTestServices(s => s.AddSingleton(geo)));
+        var api = scoped.CreateClient();
+        api.DefaultRequestHeaders.Add("X-Dev-User", Email);
+        return api;
     }
 
     private static CreateCalendarItemRequest Coffee(Guid calId, string location) => new()
@@ -55,5 +73,32 @@ public sealed class GeoResolutionTests(CalApiTestFactory factory) : IntegrationT
         var dto = (await resp.Content.ReadFromJsonAsync<CalendarItemDto>())!;
         Assert.Equal(geoId, dto.PlaceId);
         Assert.Equal("Cafe Central", dto.LocationLabel);
+    }
+
+    [Fact]
+    public async Task Configured_geo_unreachable_rejects_a_rest_write()
+    {
+        var api = ClientWith(new StubGeoDown());
+        var calId = await CreateCalendarAsync(api);
+        var resp = await api.PostAsJsonAsync("/items", Coffee(calId, "Cafe Central"));
+        Assert.Equal(HttpStatusCode.BadRequest, resp.StatusCode);   // fail-closed: no silent text-only item
+    }
+
+    [Fact]
+    public async Task Configured_geo_unreachable_dav_put_still_stores_the_label()
+    {
+        var api = ClientWith(new StubGeoDown());
+        var calId = await CreateCalendarAsync(api);
+        var uid = $"{Guid.NewGuid():N}@test";
+        var ics = "BEGIN:VCALENDAR\r\nVERSION:2.0\r\nPRODID:-//lupira-test//EN\r\nBEGIN:VEVENT\r\n" +
+                  $"UID:{uid}\r\nSUMMARY:Coffee\r\nDTSTART:20260701T090000Z\r\nDTEND:20260701T100000Z\r\n" +
+                  "LOCATION:Cafe Central\r\nEND:VEVENT\r\nEND:VCALENDAR\r\n";
+
+        var put = await PutIcsBackendAsync(api, Email, calId, uid, ics);
+        put.EnsureSuccessStatusCode();   // DAV stays lenient — external free-text is never rejected
+
+        var get = await GetIcsBackendAsync(api, Email, calId, uid);
+        get.EnsureSuccessStatusCode();
+        Assert.Contains("LOCATION:Cafe Central", await get.Content.ReadAsStringAsync());
     }
 }

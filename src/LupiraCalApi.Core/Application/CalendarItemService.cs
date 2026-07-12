@@ -15,31 +15,39 @@ namespace LupiraCalApi.Application;
 /// </summary>
 public sealed class CalendarItemService(IDocumentSession session, AccessResolver access, RecurrenceExpander expander, IGeoResolver geo, CompletenessResolver completeness)
 {
-    /// <summary>Resolve free-text to a (geo place id, label). Geo owns resolution; when it's unconfigured/unreachable the
-    /// id is null and the label falls back to the trimmed input — no local place catalog.</summary>
-    private async Task<(Guid? PlaceId, string? Label)> ResolvePlaceAsync(string? text, CancellationToken ct)
+    /// <summary>Resolve free-text to a (geo place id, label). Geo owns resolution. <c>Unresolved</c> is true only when geo
+    /// IS configured but couldn't resolve (unreachable/GeocodeUnavailable) — a retryable failure the REST/MCP paths reject
+    /// (fail-closed) while the DAV path ignores (label-only). When geo is unconfigured (dev/test) it degrades to the
+    /// trimmed-text label and is never treated as an error.</summary>
+    private async Task<(Guid? PlaceId, string? Label, bool Unresolved)> ResolvePlaceAsync(string? text, CancellationToken ct)
     {
-        if (string.IsNullOrWhiteSpace(text)) return (null, null);
-        if (geo.IsConfigured && await geo.ResolveAsync(text, ct) is { } r) return (r.PlaceId, r.Name);
-        return (null, text.Trim());
+        if (string.IsNullOrWhiteSpace(text)) return (null, null, false);
+        if (!geo.IsConfigured) return (null, text.Trim(), false);
+        if (await geo.ResolveAsync(text, ct) is { } r) return (r.PlaceId, r.Name, false);
+        return (null, text.Trim(), true);
     }
+
+    private const string LocationUnresolved = "Location could not be resolved to a place (geo unavailable) — retry.";
+    private const string TravelUnresolved = "A travel location could not be resolved to a place (geo unavailable) — retry.";
 
     public async Task<OpResult<CalendarItemDto>> CreateAsync(Guid principalId, CreateCalendarItemRequest r, CancellationToken ct = default)
     {
         if (r.CalendarId is { } pre && !await access.CanWriteCalendarAsync(principalId, pre, ct))
             return OpResult<CalendarItemDto>.Forbidden("No write access to this calendar.");
 
-        var (placeId, locationLabel) = await ResolvePlaceAsync(r.Location, ct);
+        var (placeId, locationLabel, unresolved) = await ResolvePlaceAsync(r.Location, ct);
+        if (unresolved) return OpResult<CalendarItemDto>.Invalid(LocationUnresolved);
         if (!TryParseDefined<ItemStatus>(r.Status, out var status)) return OpResult<CalendarItemDto>.Invalid(UnknownEnum<ItemStatus>("status", r.Status!));
         if (!TryParseDefined<ItemCategory>(r.Category, out var category)) return OpResult<CalendarItemDto>.Invalid(UnknownEnum<ItemCategory>("category", r.Category!));
         if (ItemDetailsMapper.Validate(category, r.Details) is { } detailsError)
             return OpResult<CalendarItemDto>.Invalid(detailsError);
+        var (details, detailsUnresolved) = await ItemDetailsMapper.BuildAsync(r.Details, r.Availability, geo, ct);
+        if (detailsUnresolved) return OpResult<CalendarItemDto>.Invalid(TravelUnresolved);
         var uid = $"{Guid.NewGuid():N}@cal.lupira.com";
         var id = DeterministicGuid.From(uid);
         var fields = new CalendarItemFields(r.Title, r.Description, status, r.IsAllDay, r.StartsAt, r.EndsAt,
             r.StartTimezone, null, r.StartDate, r.EndDate, r.RecurrenceRule, null, null, category, placeId, locationLabel, null, r.Tags,
             r.StartPrecision, r.EndPrecision);
-        var details = await ItemDetailsMapper.BuildAsync(r.Details, r.Availability, geo, ct);
 
         var events = new List<object> { new ItemScheduled(id, uid, fields, details) };
         if (r.Metadata is { } meta)
@@ -145,7 +153,8 @@ public sealed class CalendarItemService(IDocumentSession session, AccessResolver
         var endsAt = r.EndsAt ?? item.EndsAt;
         var rrule = r.RecurrenceRule ?? item.RecurrenceRule;
         var tags = r.Tags ?? item.Tags;
-        var (placeId, locationLabel) = r.Location is not null ? await ResolvePlaceAsync(r.Location, ct) : (item.PlaceId, item.LocationLabel);
+        var (placeId, locationLabel, unresolved) = r.Location is not null ? await ResolvePlaceAsync(r.Location, ct) : (item.PlaceId, item.LocationLabel, false);
+        if (unresolved) return OpResult<CalendarItemDto>.Invalid(LocationUnresolved);
 
         var category = categoryIn ?? item.Category;
         var categoryChanged = category != item.Category;
@@ -159,7 +168,8 @@ public sealed class CalendarItemService(IDocumentSession session, AccessResolver
             item.RecurrenceExceptions, item.RecurrenceOverrides, category, placeId, locationLabel, item.ParentItemId, tags,
             r.StartPrecision ?? item.StartPrecision, r.EndPrecision ?? item.EndPrecision);
 
-        var incoming = await ItemDetailsMapper.BuildAsync(r.Details, r.Availability, geo, ct);
+        var (incoming, detailsUnresolved) = await ItemDetailsMapper.BuildAsync(r.Details, r.Availability, geo, ct);
+        if (detailsUnresolved) return OpResult<CalendarItemDto>.Invalid(TravelUnresolved);
         // null incoming keeps existing details (Apply only overwrites when non-null); reclassifying with none clears the previous details.
         var details = incoming is null
             ? (categoryChanged ? new ItemDetails() : null)
@@ -280,7 +290,7 @@ public sealed class CalendarItemService(IDocumentSession session, AccessResolver
         try { p = ICalSerializer.ParseICalendar(rawIcs); }
         catch (FormatException ex) { return OpResult<DavWriteResult>.Invalid(ex.Message); }
 
-        var (placeId, locationLabel) = await ResolvePlaceAsync(p.Location, ct);
+        var (placeId, locationLabel, _) = await ResolvePlaceAsync(p.Location, ct);   // DAV stays lenient: external clients send free-text, unresolved → label-only
         var fields = new CalendarItemFields(p.Title, p.Description, null, p.IsAllDay, p.StartsAt, p.EndsAt,
             p.StartTimezone, p.EndTimezone, p.StartDate, p.EndDate, p.RecurrenceRule,
             p.RecurrenceExceptions, p.RecurrenceOverrides, null, placeId, locationLabel, null, null);

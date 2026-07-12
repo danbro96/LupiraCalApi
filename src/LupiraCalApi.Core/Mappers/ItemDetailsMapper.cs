@@ -26,16 +26,18 @@ internal static class ItemDetailsMapper
 
     private static string Name(ItemCategory? c) => c?.ToString() ?? "none";
 
-    /// <summary>Resolve the request into a details carrier. Returns null when nothing is set (so the caller preserves existing
-    /// details). Callers must <see cref="Validate"/> first.</summary>
-    public static async Task<ItemDetails?> BuildAsync(
+    /// <summary>Resolve the request into a details carrier. <c>Details</c> is null when nothing is set (so the caller preserves
+    /// existing details). <c>Unresolved</c> is true when a travel place had text but geo (configured) couldn't resolve it — a
+    /// retryable failure the REST/MCP callers reject. Callers must <see cref="Validate"/> first.</summary>
+    public static async Task<(ItemDetails? Details, bool Unresolved)> BuildAsync(
         ItemDetailsRequest? d, AvailabilityStatus? availability, IGeoResolver geo, CancellationToken ct)
     {
         TravelLeg? travel = null;
         if (d?.Travel is { } t)
         {
-            var (toId, toLabel) = await ResolveAsync(geo, t.ToPlace, ct);
-            var (fromId, fromLabel) = await ResolveAsync(geo, t.FromPlace, ct);
+            var (toId, toLabel, toUnresolved) = await ResolveAsync(geo, t.ToPlace, ct);
+            var (fromId, fromLabel, fromUnresolved) = await ResolveAsync(geo, t.FromPlace, ct);
+            if (toUnresolved || fromUnresolved) return (null, true);
             travel = new TravelLeg(
                 t.Mode, toId, fromId, t.DepartAt, t.ArriveAt, t.Carrier, t.ServiceNumber,
                 t.DeparturePoint, t.ArrivalPoint, t.Seat, t.DriverContactId, toLabel, fromLabel);
@@ -44,16 +46,18 @@ internal static class ItemDetailsMapper
         var booking = d?.Booking;
         var presence = availability is { } s ? new PresenceDetail(s) : null;
 
-        if (booking is null && travel is null && presence is null) return null;
-        return new ItemDetails(booking, travel, presence);
+        if (booking is null && travel is null && presence is null) return (null, false);
+        return (new ItemDetails(booking, travel, presence), false);
     }
 
-    /// <summary>Resolve free-text to a (geo place id, label); geo off/unresolved ⇒ (null, trimmed text).</summary>
-    private static async Task<(Guid? Id, string? Label)> ResolveAsync(IGeoResolver geo, string? text, CancellationToken ct)
+    /// <summary>Resolve free-text to a (geo place id, label). <c>Unresolved</c> true only when geo is configured but couldn't
+    /// resolve (retryable); unconfigured (dev/test) degrades to the trimmed label without error.</summary>
+    private static async Task<(Guid? Id, string? Label, bool Unresolved)> ResolveAsync(IGeoResolver geo, string? text, CancellationToken ct)
     {
-        if (string.IsNullOrWhiteSpace(text)) return (null, null);
-        if (geo.IsConfigured && await geo.ResolveAsync(text, ct) is { } r) return (r.PlaceId, r.Name);
-        return (null, text.Trim());
+        if (string.IsNullOrWhiteSpace(text)) return (null, null, false);
+        if (!geo.IsConfigured) return (null, text.Trim(), false);
+        if (await geo.ResolveAsync(text, ct) is { } r) return (r.PlaceId, r.Name, false);
+        return (null, text.Trim(), true);
     }
 
     /// <summary>Member-level merge: each populated member of <paramref name="incoming"/> replaces the same member on

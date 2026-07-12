@@ -39,7 +39,9 @@ public sealed class GeoApiClient(HttpClient http, IOptions<GeoApiOptions> option
                 return null;
             }
             var body = await resp.Content.ReadFromJsonAsync<ResolveResponse>(Json, ct);
-            return body is null ? null : new GeoPlaceResolution(body.PlaceId, body.Name, body.Latitude, body.Longitude);
+            // PlaceId is null on GeocodeUnavailable (geocoder unreachable) — a retryable no-resolution, not a place.
+            return body?.PlaceId is { } pid && pid != Guid.Empty
+                ? new GeoPlaceResolution(pid, body.Name, body.Latitude, body.Longitude) : null;
         }
         catch (Exception ex) when (ex is HttpRequestException or TaskCanceledException && !ct.IsCancellationRequested)
         {
@@ -91,7 +93,7 @@ public sealed class GeoApiClient(HttpClient http, IOptions<GeoApiOptions> option
 
     private sealed class ResolveResponse
     {
-        public Guid PlaceId { get; set; }
+        public Guid? PlaceId { get; set; }
         public string Name { get; set; } = "";
         public double? Latitude { get; set; }
         public double? Longitude { get; set; }
