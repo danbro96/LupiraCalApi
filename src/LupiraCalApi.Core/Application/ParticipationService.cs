@@ -20,7 +20,10 @@ public sealed class ParticipationService(IDocumentSession session, AccessResolve
             && resolved.All(c => c.ContactId != contactId))
             return OpResult<CalendarItemDto>.Invalid("Unknown contact.");
 
-        return await AppendAsync(principalId, itemId, _ => new AttendeeInvited(itemId, Guid.NewGuid(), contactId, ParseRole(role), DateTimeOffset.UtcNow), ct);
+        // Idempotent by contact: a contact already holding a (non-removed) participation row is not re-invited.
+        return await AppendAsync(principalId, itemId, item => item.Attendees.Any(a => a.ContactId == contactId)
+            ? null
+            : new AttendeeInvited(itemId, Guid.NewGuid(), contactId, ParseRole(role), DateTimeOffset.UtcNow), ct);
     }
 
     public Task<OpResult<CalendarItemDto>> RespondAsync(Guid principalId, Guid itemId, Guid participationId, string? status, CancellationToken ct = default) =>
@@ -35,14 +38,17 @@ public sealed class ParticipationService(IDocumentSession session, AccessResolve
     public Task<OpResult<CalendarItemDto>> RemoveAsync(Guid principalId, Guid itemId, Guid participationId, CancellationToken ct = default) =>
         AppendAsync(principalId, itemId, _ => new AttendeeRemoved(itemId, participationId), ct);
 
-    private async Task<OpResult<CalendarItemDto>> AppendAsync(Guid principalId, Guid itemId, Func<CalendarItem, object> makeEvent, CancellationToken ct)
+    private async Task<OpResult<CalendarItemDto>> AppendAsync(Guid principalId, Guid itemId, Func<CalendarItem, object?> makeEvent, CancellationToken ct)
     {
         var stream = await session.Events.FetchForWriting<CalendarItem>(itemId, ct);
         var item = stream.Aggregate;
         if (item is null || item.DeletedAt is not null) return OpResult<CalendarItemDto>.NotFound();
         if (!await access.CanWriteItemAsync(principalId, item, ct)) return OpResult<CalendarItemDto>.Forbidden("No write access to this item.");
-        stream.AppendOne(makeEvent(item));
-        await session.SaveChangesAsync(ct);
+        if (makeEvent(item) is { } evt)
+        {
+            stream.AppendOne(evt);
+            await session.SaveChangesAsync(ct);
+        }
         var updated = await session.LoadAsync<CalendarItem>(itemId, ct);
         return OpResult<CalendarItemDto>.Ok(updated!.ToResponse(await completeness.ScoreItemAsync(updated!, ct)));
     }

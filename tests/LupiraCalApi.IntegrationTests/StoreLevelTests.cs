@@ -60,6 +60,26 @@ public sealed class StoreLevelTests(CalApiTestFactory factory) : IntegrationTest
     }
 
     [Fact]
+    public async Task Inviting_the_same_contact_twice_is_idempotent()
+    {
+        var principal = Guid.NewGuid();
+        var calId = (await InScope(sp => sp.GetRequiredService<CalendarService>()
+            .CreateAsync(principal, new CreateCalendarRequest { Slug = "w", DisplayName = "W", Type = "calendar", DefaultTimezone = "UTC" }))).Value!.Id;
+
+        var start = new DateTimeOffset(2026, 7, 1, 9, 0, 0, TimeSpan.Zero);
+        var itemId = (await InScope(sp => sp.GetRequiredService<CalendarItemService>()
+            .CreateAsync(principal, new CreateCalendarItemRequest { CalendarId = calId, Title = "Mtg", IsAllDay = false, StartsAt = start, EndsAt = start.AddHours(1), StartTimezone = "UTC" }))).Value!.Id;
+
+        var contact = Guid.NewGuid();
+        _ = await InScope(sp => sp.GetRequiredService<ParticipationService>().InviteAsync(principal, itemId, contact, "req-participant"));
+        _ = await InScope(sp => sp.GetRequiredService<ParticipationService>().InviteAsync(principal, itemId, contact, "req-participant"));
+
+        await using var session = Factory.Store.LightweightSession();
+        var att = Assert.Single((await session.LoadAsync<CalendarItem>(itemId))!.Attendees);
+        Assert.Equal(contact, att.ContactId);
+    }
+
+    [Fact]
     public async Task Granting_a_second_owner_lets_them_read_the_calendar()
     {
         var alice = await ProvisionAsync("sub-alice", "alice@x.test");
