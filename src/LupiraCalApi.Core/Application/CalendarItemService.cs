@@ -85,6 +85,14 @@ public sealed class CalendarItemService(IDocumentSession session, AccessResolver
 
         // Personal/family scale: load live items, filter membership + text in memory (the snapshot is the read model).
         var candidates = await session.Query<CalendarItem>().Where(i => i.DeletedAt == null).ToListAsync(ct);
+
+        // Hierarchy enrichment is gated on readability: candidates spans every principal's items,
+        // so an unreadable parent must yield a null title and unreadable children must not count.
+        bool Readable(CalendarItem c) => c.Calendars.Any(m => m.Status == CalendarEntryStatus.Accepted && accessibleIds.Contains(m.CalendarId));
+        var titleById = candidates.Where(Readable).ToDictionary(c => c.Id, c => c.Title);
+        var childCounts = candidates.Where(c => c.ParentItemId is not null && Readable(c))
+            .GroupBy(c => c.ParentItemId!.Value).ToDictionary(g => g.Key, g => g.Count());
+
         IEnumerable<CalendarItem> items = candidates.Where(i =>
             i.Calendars.Any(m => m.Status == CalendarEntryStatus.Accepted && searchIds.Contains(m.CalendarId)));
         if (!string.IsNullOrWhiteSpace(tag)) items = items.Where(i => i.Tags is not null && i.Tags.Contains(tag));
@@ -102,10 +110,10 @@ public sealed class CalendarItemService(IDocumentSession session, AccessResolver
         var itemList = items.ToList();
         var scores = await completeness.ScoreItemsAsync(itemList, ct);
 
-        // Text queries default to all-time; browsing without a query keeps the ±1y window.
-        var hasQuery = !string.IsNullOrWhiteSpace(query);
-        var windowStart = from ?? (hasQuery ? DateTimeOffset.MinValue : DateTimeOffset.UtcNow.AddYears(-1));
-        var windowEnd = to ?? (hasQuery ? DateTimeOffset.MaxValue : DateTimeOffset.UtcNow.AddYears(1));
+        // Text queries and parent drill-downs default to all-time; browsing keeps the ±1y window.
+        var allTime = !string.IsNullOrWhiteSpace(query) || parentId is not null;
+        var windowStart = from ?? (allTime ? DateTimeOffset.MinValue : DateTimeOffset.UtcNow.AddYears(-1));
+        var windowEnd = to ?? (allTime ? DateTimeOffset.MaxValue : DateTimeOffset.UtcNow.AddYears(1));
         // RRULE expansion needs a finite ceiling — an unbounded rule against MaxValue never terminates.
         var expansionEnd = to ?? DateTimeOffset.UtcNow.AddYears(1);
         var results = new List<CalendarItemOccurrenceDto>();
@@ -115,15 +123,17 @@ public sealed class CalendarItemService(IDocumentSession session, AccessResolver
             var memberIds = i.Calendars
                 .Where(m => m.Status == CalendarEntryStatus.Accepted && accessibleIds.Contains(m.CalendarId))
                 .Select(m => m.CalendarId).ToArray();
+            var parentTitle = i.ParentItemId is { } pid ? titleById.GetValueOrDefault(pid) : null;
+            var childCount = childCounts.GetValueOrDefault(i.Id);
             TimeSpan? duration = (i.StartsAt is { } s && i.EndsAt is { } en) ? en - s : null;
             if (!string.IsNullOrWhiteSpace(i.RecurrenceRule))
             {
                 foreach (var occ in expander.Expand(i, windowStart, expansionEnd))
-                    results.Add(new CalendarItemOccurrenceDto { Id = i.Id, Title = i.Title, PlaceId = i.PlaceId, LocationLabel = i.LocationLabel, IsAllDay = i.IsAllDay, Start = occ, End = duration is { } d ? occ + d : null, CalendarIds = memberIds, Category = i.Category, Status = i.Status, Tags = i.Tags, Completeness = score, Etag = i.ContentHash });
+                    results.Add(new CalendarItemOccurrenceDto { Id = i.Id, Title = i.Title, PlaceId = i.PlaceId, LocationLabel = i.LocationLabel, IsAllDay = i.IsAllDay, Start = occ, End = duration is { } d ? occ + d : null, CalendarIds = memberIds, Category = i.Category, Status = i.Status, Tags = i.Tags, ParentItemId = i.ParentItemId, ParentTitle = parentTitle, ChildCount = childCount, Completeness = score, Etag = i.ContentHash });
             }
             else if (OccurrenceStart(i) is { } start && start >= windowStart && start < windowEnd)
             {
-                results.Add(new CalendarItemOccurrenceDto { Id = i.Id, Title = i.Title, PlaceId = i.PlaceId, LocationLabel = i.LocationLabel, IsAllDay = i.IsAllDay, Start = start, End = duration is { } d ? start + d : i.EndsAt, CalendarIds = memberIds, Category = i.Category, Status = i.Status, Tags = i.Tags, Completeness = score, Etag = i.ContentHash });
+                results.Add(new CalendarItemOccurrenceDto { Id = i.Id, Title = i.Title, PlaceId = i.PlaceId, LocationLabel = i.LocationLabel, IsAllDay = i.IsAllDay, Start = start, End = duration is { } d ? start + d : i.EndsAt, CalendarIds = memberIds, Category = i.Category, Status = i.Status, Tags = i.Tags, ParentItemId = i.ParentItemId, ParentTitle = parentTitle, ChildCount = childCount, Completeness = score, Etag = i.ContentHash });
             }
         }
         // take/skip count expanded occurrences, not items.

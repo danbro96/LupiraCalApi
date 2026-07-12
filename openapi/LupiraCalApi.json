@@ -1800,6 +1800,7 @@
           "isAllDay",
           "start",
           "calendarIds",
+          "childCount",
           "etag"
         ],
         "type": "object",
@@ -1876,6 +1877,27 @@
             "items": {
               "type": "string"
             }
+          },
+          "parentItemId": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "uuid"
+          },
+          "parentTitle": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "childCount": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int32"
           },
           "completeness": {
             "oneOf": [

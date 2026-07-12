@@ -12,10 +12,10 @@ public sealed class CalendarItemsRestTests(CalApiTestFactory factory) : Integrat
 {
     const string Email = "alice@x.test";
 
-    private static async Task<CalendarItemDto> CreateAsync(HttpClient api, Guid calId, string title = "Mtg", string[]? tags = null, DateTimeOffset? startsAt = null, string? category = null, string? status = null)
+    private static async Task<CalendarItemDto> CreateAsync(HttpClient api, Guid calId, string title = "Mtg", string[]? tags = null, DateTimeOffset? startsAt = null, string? category = null, string? status = null, Guid? parentItemId = null)
     {
         var start = startsAt ?? new DateTimeOffset(2026, 7, 1, 9, 0, 0, TimeSpan.Zero);
-        var resp = await api.PostAsJsonAsync("/items", new CreateCalendarItemRequest { CalendarId = calId, Title = title, IsAllDay = false, StartsAt = start, EndsAt = start.AddHours(1), StartTimezone = "UTC", Tags = tags, Category = category, Status = status });
+        var resp = await api.PostAsJsonAsync("/items", new CreateCalendarItemRequest { CalendarId = calId, Title = title, IsAllDay = false, StartsAt = start, EndsAt = start.AddHours(1), StartTimezone = "UTC", Tags = tags, Category = category, Status = status, ParentItemId = parentItemId });
         resp.EnsureSuccessStatusCode();
         return (await resp.Content.ReadFromJsonAsync<CalendarItemDto>())!;
     }
@@ -167,6 +167,113 @@ public sealed class CalendarItemsRestTests(CalApiTestFactory factory) : Integrat
         var bob = Factory.ApiClient("bob@x.test");
         var bobSees = await bob.GetFromJsonAsync<List<CalendarItemOccurrenceDto>>("/items?query=Standup");
         Assert.Equal([workId], Assert.Single(bobSees!).CalendarIds);
+    }
+
+    [Fact]
+    public async Task Search_enriches_parent_fields_and_child_count()
+    {
+        var api = Factory.ApiClient(Email);
+        var calId = await CreateCalendarAsync(api);
+        var trip = await CreateAsync(api, calId, "Tokyo trip", category: "Trip");
+        await CreateAsync(api, calId, "Flight out", parentItemId: trip.Id);
+        await CreateAsync(api, calId, "Hotel", parentItemId: trip.Id);
+
+        var all = await api.GetFromJsonAsync<List<CalendarItemOccurrenceDto>>("/items");
+        var tripOcc = Assert.Single(all!, o => o.Title == "Tokyo trip");
+        Assert.Null(tripOcc.ParentItemId);
+        Assert.Equal(2, tripOcc.ChildCount);
+        var leg = Assert.Single(all!, o => o.Title == "Flight out");
+        Assert.Equal(trip.Id, leg.ParentItemId);
+        Assert.Equal("Tokyo trip", leg.ParentTitle);
+        Assert.Equal(0, leg.ChildCount);
+
+        // ChildCount is independent of the current filters: a query excluding the legs keeps the count.
+        var queried = await api.GetFromJsonAsync<List<CalendarItemOccurrenceDto>>("/items?query=Tokyo");
+        Assert.Equal(2, Assert.Single(queried!).ChildCount);
+    }
+
+    [Fact]
+    public async Task Search_parent_title_gated_by_access()
+    {
+        var alice = Factory.ApiClient(Email);
+        var privateId = await CreateCalendarAsync(alice, "private", "Private");
+        var sharedId = await CreateCalendarAsync(alice, "shared", "Shared");
+        var trip = await CreateAsync(alice, privateId, "Secret trip");
+        await CreateAsync(alice, sharedId, "Flight out", parentItemId: trip.Id);
+        (await alice.PostAsJsonAsync($"/calendars/{sharedId}/owners", new GrantOwnerRequest { Email = "bob@x.test", Access = "read" })).EnsureSuccessStatusCode();
+
+        var bob = Factory.ApiClient("bob@x.test");
+        var bobSees = await bob.GetFromJsonAsync<List<CalendarItemOccurrenceDto>>("/items");
+        var leg = Assert.Single(bobSees!);
+        Assert.Equal(trip.Id, leg.ParentItemId);
+        Assert.Null(leg.ParentTitle);
+
+        var aliceSees = await alice.GetFromJsonAsync<List<CalendarItemOccurrenceDto>>("/items?query=Flight");
+        Assert.Equal("Secret trip", Assert.Single(aliceSees!).ParentTitle);
+    }
+
+    [Fact]
+    public async Task Search_deleted_parent_yields_null_title()
+    {
+        var api = Factory.ApiClient(Email);
+        var calId = await CreateCalendarAsync(api);
+        var trip = await CreateAsync(api, calId, "Tokyo trip");
+        await CreateAsync(api, calId, "Flight out", parentItemId: trip.Id);
+        (await api.DeleteAsync($"/items/{trip.Id}")).EnsureSuccessStatusCode();
+
+        var all = await api.GetFromJsonAsync<List<CalendarItemOccurrenceDto>>("/items");
+        var leg = Assert.Single(all!);
+        Assert.Equal(trip.Id, leg.ParentItemId);
+        Assert.Null(leg.ParentTitle);
+    }
+
+    [Fact]
+    public async Task Search_child_count_counts_only_readable_children()
+    {
+        var alice = Factory.ApiClient(Email);
+        var sharedId = await CreateCalendarAsync(alice, "shared", "Shared");
+        var privateId = await CreateCalendarAsync(alice, "private", "Private");
+        var trip = await CreateAsync(alice, sharedId, "Tokyo trip");
+        await CreateAsync(alice, sharedId, "Flight out", parentItemId: trip.Id);
+        await CreateAsync(alice, privateId, "Secret leg", parentItemId: trip.Id);
+        (await alice.PostAsJsonAsync($"/calendars/{sharedId}/owners", new GrantOwnerRequest { Email = "bob@x.test", Access = "read" })).EnsureSuccessStatusCode();
+
+        var bob = Factory.ApiClient("bob@x.test");
+        var bobTrip = Assert.Single((await bob.GetFromJsonAsync<List<CalendarItemOccurrenceDto>>("/items?query=Tokyo"))!);
+        Assert.Equal(1, bobTrip.ChildCount);
+        var aliceTrip = Assert.Single((await alice.GetFromJsonAsync<List<CalendarItemOccurrenceDto>>("/items?query=Tokyo"))!);
+        Assert.Equal(2, aliceTrip.ChildCount);
+    }
+
+    [Fact]
+    public async Task Search_filters_by_parent_id()
+    {
+        var api = Factory.ApiClient(Email);
+        var calId = await CreateCalendarAsync(api);
+        var trip = await CreateAsync(api, calId, "Tokyo trip");
+        var leg1 = await CreateAsync(api, calId, "Flight out", parentItemId: trip.Id);
+        var leg2 = await CreateAsync(api, calId, "Hotel", parentItemId: trip.Id);
+        await CreateAsync(api, calId, "Unrelated");
+
+        var children = await api.GetFromJsonAsync<List<CalendarItemOccurrenceDto>>($"/items?parentId={trip.Id}");
+        Assert.Equal(2, children!.Count);
+        Assert.Contains(children, o => o.Id == leg1.Id);
+        Assert.Contains(children, o => o.Id == leg2.Id);
+    }
+
+    [Fact]
+    public async Task Search_by_parent_id_defaults_to_all_time()
+    {
+        var api = Factory.ApiClient(Email);
+        var calId = await CreateCalendarAsync(api);
+        var trip = await CreateAsync(api, calId, "Old trip");
+        await CreateAsync(api, calId, "Old flight", startsAt: new DateTimeOffset(2020, 3, 1, 8, 0, 0, TimeSpan.Zero), parentItemId: trip.Id);
+
+        var children = await api.GetFromJsonAsync<List<CalendarItemOccurrenceDto>>($"/items?parentId={trip.Id}");
+        Assert.Contains(children!, o => o.Title == "Old flight");
+
+        var browse = await api.GetFromJsonAsync<List<CalendarItemOccurrenceDto>>("/items");
+        Assert.DoesNotContain(browse!, o => o.Title == "Old flight");
     }
 
     [Fact]

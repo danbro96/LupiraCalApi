@@ -24,7 +24,15 @@ public sealed class CalendarItemOccurrenceDto
 
     public string[]? Tags { get; set; }
 
-    /// <summary>The parent item's completeness (same across its occurrences; null = not applicable), so search results rank directly.</summary>
+    /// <summary>Hierarchy link (e.g. the trip a leg belongs to). Title only when the caller can read the parent.</summary>
+    public Guid? ParentItemId { get; set; }
+
+    public string? ParentTitle { get; set; }
+
+    /// <summary>Direct children visible to the caller, independent of the current filters.</summary>
+    public required int ChildCount { get; set; }
+
+    /// <summary>The item's own completeness (same across its occurrences; null = not applicable), so search results rank directly.</summary>
     public CompletenessScore? Completeness { get; set; }
 
     public required string Etag { get; set; }
