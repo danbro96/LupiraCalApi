@@ -43,10 +43,12 @@ public sealed class CalendarItemService(IDocumentSession session, AccessResolver
             return OpResult<CalendarItemDto>.Invalid(detailsError);
         var (details, detailsUnresolved) = await ItemDetailsMapper.BuildAsync(r.Details, r.Availability, geo, ct);
         if (detailsUnresolved) return OpResult<CalendarItemDto>.Invalid(TravelUnresolved);
+        if (await ParentInvalidAsync(principalId, r.ParentItemId, ct) is { } parentError)
+            return OpResult<CalendarItemDto>.Invalid(parentError);
         var uid = $"{Guid.NewGuid():N}@cal.lupira.com";
         var id = DeterministicGuid.From(uid);
         var fields = new CalendarItemFields(r.Title, r.Description, status, r.IsAllDay, r.StartsAt, r.EndsAt,
-            r.StartTimezone, null, r.StartDate, r.EndDate, r.RecurrenceRule, null, null, category, placeId, locationLabel, null, r.Tags,
+            r.StartTimezone, null, r.StartDate, r.EndDate, r.RecurrenceRule, null, null, category, placeId, locationLabel, r.ParentItemId, r.Tags,
             r.StartPrecision, r.EndPrecision);
 
         var events = new List<object> { new ItemScheduled(id, uid, fields, details) };
@@ -62,7 +64,7 @@ public sealed class CalendarItemService(IDocumentSession session, AccessResolver
     }
 
     public async Task<OpResult<List<CalendarItemOccurrenceDto>>> SearchAsync(
-        Guid principalId, string? query, DateTimeOffset? from, DateTimeOffset? to, Guid? calendarId, string? tag, CancellationToken ct = default)
+        Guid principalId, string? query, DateTimeOffset? from, DateTimeOffset? to, Guid? calendarId, string? tag, Guid? parentId, CancellationToken ct = default)
     {
         var calIds = await access.AccessibleCalendarIdsAsync(principalId, ct);
         if (calendarId is { } cid)
@@ -76,6 +78,7 @@ public sealed class CalendarItemService(IDocumentSession session, AccessResolver
         IEnumerable<CalendarItem> items = candidates.Where(i =>
             i.Calendars.Any(m => m.Status == CalendarEntryStatus.Accepted && calIds.Contains(m.CalendarId)));
         if (!string.IsNullOrWhiteSpace(tag)) items = items.Where(i => i.Tags is not null && i.Tags.Contains(tag));
+        if (parentId is { } parent) items = items.Where(i => i.ParentItemId == parent);
         if (!string.IsNullOrWhiteSpace(query))
         {
             var term = query.Trim();
@@ -162,10 +165,13 @@ public sealed class CalendarItemService(IDocumentSession session, AccessResolver
         // Validate against the resolved category (an omitted r.Category means "the item's current category").
         if (ItemDetailsMapper.Validate(category, r.Details) is { } detailsError)
             return OpResult<CalendarItemDto>.Invalid(detailsError);
+        if (await ParentInvalidAsync(principalId, r.ParentItemId, ct) is { } parentError)
+            return OpResult<CalendarItemDto>.Invalid(parentError);
+        var parentItemId = r.ParentItemId ?? item.ParentItemId;
 
         var fields = new CalendarItemFields(title, description, status, item.IsAllDay, startsAt, endsAt,
             item.StartTimezone, item.EndTimezone, item.StartDate, item.EndDate, rrule,
-            item.RecurrenceExceptions, item.RecurrenceOverrides, category, placeId, locationLabel, item.ParentItemId, tags,
+            item.RecurrenceExceptions, item.RecurrenceOverrides, category, placeId, locationLabel, parentItemId, tags,
             r.StartPrecision ?? item.StartPrecision, r.EndPrecision ?? item.EndPrecision);
 
         var (incoming, detailsUnresolved) = await ItemDetailsMapper.BuildAsync(r.Details, r.Availability, geo, ct);
@@ -326,6 +332,18 @@ public sealed class CalendarItemService(IDocumentSession session, AccessResolver
         foreach (var m in item.Calendars.Where(x => x.Status == CalendarEntryStatus.Accepted))
             if (await access.CanWriteCalendarAsync(principalId, m.CalendarId, ct)) return true;
         return false;
+    }
+
+    /// <summary>Validates a proposed parent link: null id ⇒ ok; returns an error string when the parent is missing,
+    /// deleted, or not in a calendar the caller can read. (No cycle check — parenting is a by-convention hint.)</summary>
+    private async Task<string?> ParentInvalidAsync(Guid principalId, Guid? parentId, CancellationToken ct)
+    {
+        if (parentId is not { } pid) return null;
+        var parent = await session.LoadAsync<CalendarItem>(pid, ct);
+        if (parent is null || parent.DeletedAt is not null) return "Parent item not found.";
+        var calIds = await access.AccessibleCalendarIdsAsync(principalId, ct);
+        return parent.Calendars.Any(m => m.Status == CalendarEntryStatus.Accepted && calIds.Contains(m.CalendarId))
+            ? null : "No access to the parent item.";
     }
 
     private static DateTimeOffset? OccurrenceStart(CalendarItem i)

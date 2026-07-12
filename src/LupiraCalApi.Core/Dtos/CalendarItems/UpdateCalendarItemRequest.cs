@@ -14,6 +14,9 @@ public sealed class UpdateCalendarItemRequest
     public Domain.DatePrecision? StartPrecision { get; set; }
     public Domain.DatePrecision? EndPrecision { get; set; }
 
+    /// <summary>Re-nest under a parent item (or set for the first time). Must exist and be accessible; omitted ⇒ kept.</summary>
+    public Guid? ParentItemId { get; set; }
+
     /// <summary>Reclassify the item (enum name). Changing the category drops the previous details.</summary>
     public string? Category { get; set; }
     public string[]? Tags { get; set; }

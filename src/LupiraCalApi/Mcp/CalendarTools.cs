@@ -26,13 +26,14 @@ public sealed class CalendarTools
         [Description("Window start, ISO 8601.")] DateTimeOffset? from = null,
         [Description("Window end, ISO 8601.")] DateTimeOffset? to = null,
         [Description("Restrict to one calendar id.")] Guid? calendarId = null,
-        [Description("Filter to items carrying this tag.")] string? tag = null)
+        [Description("Filter to items carrying this tag.")] string? tag = null,
+        [Description("Filter to child items nested under this parent item id (e.g. a trip's sub-events).")] Guid? parentId = null)
     {
         var u = await user.GetAsync();
-        return Require(await items.SearchAsync(u.Id, query, from, to, calendarId, tag));
+        return Require(await items.SearchAsync(u.Id, query, from, to, calendarId, tag, parentId));
     }
 
-    [McpServerTool, Description("Create a calendar item; file it into a calendar (CalendarId) or leave it unfiled for curation. Category is the event type (General, Meeting, Appointment, Meal, Occasion, Outing, Trip, Stay, Activity, Focus, Chore). Details are composable: Booking (provider/confirmation/reference/amount/partySize) attaches to any category; Travel (Mode + ToPlace/FromPlace labels) applies to a Trip and requires ToPlace. A presence/availability segment uses the top-level Availability field. For a historical/backfilled item known only to the month/year/roughly, still pass a concrete date and set StartPrecision/EndPrecision (Exact|Day|Month|Year|Approximate). Metadata (a JSON object, e.g. import provenance) can be merged inline at creation instead of a follow-up attach_metadata call. Bills and deliveries are LupiraTasks tasks, not calendar items — link them with link_item_to_task.")]
+    [McpServerTool, Description("Create a calendar item; file it into a calendar (CalendarId) or leave it unfiled for curation. Category is the event type (General, Meeting, Appointment, Meal, Occasion, Outing, Trip, Stay, Activity, Focus, Chore). Details are composable: Booking (provider/confirmation/reference/amount/partySize) attaches to any category; Travel (Mode + ToPlace/FromPlace labels) applies to a Trip and requires ToPlace. A presence/availability segment uses the top-level Availability field. For a historical/backfilled item known only to the month/year/roughly, still pass a concrete date and set StartPrecision/EndPrecision (Exact|Day|Month|Year|Approximate). Metadata (a JSON object, e.g. import provenance) can be merged inline at creation instead of a follow-up attach_metadata call. Set ParentItemId to nest this item under a parent (e.g. a trip's leg/sub-event); the parent must already exist. Bills and deliveries are LupiraTasks tasks, not calendar items — link them with link_item_to_task.")]
     public static async Task<CalendarItemDto> create_item(CalendarItemService items, CurrentUser user, CreateCalendarItemRequest request)
     {
         var u = await user.GetAsync();

@@ -8,6 +8,10 @@ namespace LupiraCalApi.Dtos.CalendarItems;
 public sealed class CreateCalendarItemRequest
 {
     public Guid? CalendarId { get; set; }
+
+    /// <summary>Nest this item under a parent (e.g. a trip's leg/sub-event). The parent must exist and be accessible to the caller.</summary>
+    public Guid? ParentItemId { get; set; }
+
     public string? Title { get; set; }
     public string? Description { get; set; }
     public string? Location { get; set; }
