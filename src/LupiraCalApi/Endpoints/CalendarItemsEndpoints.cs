@@ -14,7 +14,7 @@ public static class CalendarItemsEndpoints
                 string? tag, Guid? parentId, CalendarItemsHandler h, CancellationToken ct) =>
                 h.SearchAsync(query, from, to, calendarId, tag, parentId, ct))
             .WithName("SearchItems")
-            .WithSummary("Search calendar items (text + tag + parent filter; recurrence expanded in-window). Only items accepted into a calendar you can read.")
+            .WithSummary("Search calendar items (text + tag + parent filter; recurrence expanded in-window). Text queries with no from/to match all-time; without a query the window defaults to ±1 year. Only items accepted into a calendar you can read.")
             .Produces<List<CalendarItemOccurrenceDto>>(StatusCodes.Status200OK)
             .ProducesProblem(StatusCodes.Status403Forbidden)
             .Produces(StatusCodes.Status401Unauthorized);

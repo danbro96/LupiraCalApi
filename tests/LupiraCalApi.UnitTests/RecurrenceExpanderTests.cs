@@ -91,6 +91,17 @@ public class RecurrenceExpanderTests
     }
 
     [Fact]
+    public void MinValue_window_start_expands_from_dtstart_without_error()
+    {
+        // Query-only search passes an all-time window start; expansion must anchor at DTSTART, not year 1.
+        var ics = Ics(new DateTimeOffset(2011, 6, 1, 9, 0, 0, TimeSpan.Zero), "FREQ=DAILY;COUNT=3");
+
+        var occ = Expander.Expand(ics, DateTimeOffset.MinValue, new DateTimeOffset(2011, 7, 1, 0, 0, 0, TimeSpan.Zero));
+
+        Assert.Equal(3, occ.Count);
+    }
+
+    [Fact]
     public void Zero_width_window_returns_empty()
     {
         var instant = new DateTimeOffset(2026, 7, 1, 9, 0, 0, TimeSpan.Zero);

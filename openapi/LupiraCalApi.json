@@ -270,7 +270,7 @@
         "tags": [
           "CalendarItems"
         ],
-        "summary": "Search calendar items (text + tag filter; recurrence expanded in-window). Only items accepted into a calendar you can read.",
+        "summary": "Search calendar items (text + tag + parent filter; recurrence expanded in-window). Text queries with no from/to match all-time; without a query the window defaults to ±1 year. Only items accepted into a calendar you can read.",
         "operationId": "SearchItems",
         "parameters": [
           {
@@ -309,6 +309,14 @@
             "in": "query",
             "schema": {
               "type": "string"
+            }
+          },
+          {
+            "name": "parentId",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
             }
           }
         ],
@@ -1950,6 +1958,13 @@
             ],
             "format": "uuid"
           },
+          "parentItemId": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "uuid"
+          },
           "title": {
             "type": [
               "null",
@@ -3045,6 +3060,13 @@
                 "$ref": "#/components/schemas/DatePrecision"
               }
             ]
+          },
+          "parentItemId": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "uuid"
           },
           "category": {
             "type": [

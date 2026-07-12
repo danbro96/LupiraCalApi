@@ -10,9 +10,9 @@ public sealed class CalendarItemsRestTests(CalApiTestFactory factory) : Integrat
 {
     const string Email = "alice@x.test";
 
-    private static async Task<CalendarItemDto> CreateAsync(HttpClient api, Guid calId, string title = "Mtg", string[]? tags = null)
+    private static async Task<CalendarItemDto> CreateAsync(HttpClient api, Guid calId, string title = "Mtg", string[]? tags = null, DateTimeOffset? startsAt = null)
     {
-        var start = new DateTimeOffset(2026, 7, 1, 9, 0, 0, TimeSpan.Zero);
+        var start = startsAt ?? new DateTimeOffset(2026, 7, 1, 9, 0, 0, TimeSpan.Zero);
         var resp = await api.PostAsJsonAsync("/items", new CreateCalendarItemRequest { CalendarId = calId, Title = title, IsAllDay = false, StartsAt = start, EndsAt = start.AddHours(1), StartTimezone = "UTC", Tags = tags });
         resp.EnsureSuccessStatusCode();
         return (await resp.Content.ReadFromJsonAsync<CalendarItemDto>())!;
@@ -76,5 +76,19 @@ public sealed class CalendarItemsRestTests(CalApiTestFactory factory) : Integrat
         var byText = await api.GetFromJsonAsync<List<CalendarItemOccurrenceDto>>($"/items?query=Dentist&from={from}&to={to}");
         Assert.Contains(byText!, o => o.Title == "Dentist");
         Assert.DoesNotContain(byText!, o => o.Title == "Standup");
+    }
+
+    [Fact]
+    public async Task Query_without_window_matches_all_time_but_browse_keeps_the_default_window()
+    {
+        var api = Factory.ApiClient(Email);
+        var calId = await CreateCalendarAsync(api);
+        await CreateAsync(api, calId, "Konfirmation", startsAt: new DateTimeOffset(2011, 6, 29, 12, 0, 0, TimeSpan.Zero));
+
+        var byQuery = await api.GetFromJsonAsync<List<CalendarItemOccurrenceDto>>("/items?query=konfirmation");
+        Assert.Contains(byQuery!, o => o.Title == "Konfirmation");
+
+        var browse = await api.GetFromJsonAsync<List<CalendarItemOccurrenceDto>>("/items");
+        Assert.DoesNotContain(browse!, o => o.Title == "Konfirmation");
     }
 }

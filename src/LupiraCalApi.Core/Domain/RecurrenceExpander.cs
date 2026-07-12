@@ -20,9 +20,15 @@ public sealed class RecurrenceExpander
         var calendar = IcalCalendar.Load(sourceIcalendar);
         if (calendar is null) return [];
 
+        // Ical.Net can't evaluate rules from an unrepresentable period start (e.g. DateTimeOffset.MinValue from an
+        // all-time text search); no occurrence precedes the earliest DTSTART, so clamp the period start to it.
+        var floor = calendar.Events.Min(e => e.DtStart?.AsUtc);
+        if (floor is null) return [];
+        var startUtc = windowStart.UtcDateTime > floor.Value ? windowStart.UtcDateTime : floor.Value;
+
         // GetOccurrences returns a lazy, ascending (possibly infinite) sequence from the given start; the
         // bounded TakeWhile guards infinite RRULEs, and the Where trims any occurrence that began pre-window.
-        var start = new CalDateTime(windowStart.UtcDateTime, "UTC");
+        var start = new CalDateTime(startUtc, "UTC");
         return calendar.GetOccurrences(start)
             .TakeWhile(o => o.Period.StartTime.AsUtc < windowEnd.UtcDateTime)
             .Where(o => o.Period.StartTime.AsUtc >= windowStart.UtcDateTime)

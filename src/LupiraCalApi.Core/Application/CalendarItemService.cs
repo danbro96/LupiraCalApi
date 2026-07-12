@@ -90,8 +90,12 @@ public sealed class CalendarItemService(IDocumentSession session, AccessResolver
         var itemList = items.ToList();
         var scores = await completeness.ScoreItemsAsync(itemList, ct);
 
-        var windowStart = from ?? DateTimeOffset.UtcNow.AddYears(-1);
-        var windowEnd = to ?? DateTimeOffset.UtcNow.AddYears(1);
+        // Text queries default to all-time; browsing without a query keeps the ±1y window.
+        var hasQuery = !string.IsNullOrWhiteSpace(query);
+        var windowStart = from ?? (hasQuery ? DateTimeOffset.MinValue : DateTimeOffset.UtcNow.AddYears(-1));
+        var windowEnd = to ?? (hasQuery ? DateTimeOffset.MaxValue : DateTimeOffset.UtcNow.AddYears(1));
+        // RRULE expansion needs a finite ceiling — an unbounded rule against MaxValue never terminates.
+        var expansionEnd = to ?? DateTimeOffset.UtcNow.AddYears(1);
         var results = new List<CalendarItemOccurrenceDto>();
         foreach (var i in itemList)
         {
@@ -99,7 +103,7 @@ public sealed class CalendarItemService(IDocumentSession session, AccessResolver
             TimeSpan? duration = (i.StartsAt is { } s && i.EndsAt is { } en) ? en - s : null;
             if (!string.IsNullOrWhiteSpace(i.RecurrenceRule))
             {
-                foreach (var occ in expander.Expand(i, windowStart, windowEnd))
+                foreach (var occ in expander.Expand(i, windowStart, expansionEnd))
                     results.Add(new CalendarItemOccurrenceDto { Id = i.Id, Title = i.Title, PlaceId = i.PlaceId, LocationLabel = i.LocationLabel, IsAllDay = i.IsAllDay, Start = occ, End = duration is { } d ? occ + d : null, Completeness = score, Etag = i.ContentHash });
             }
             else if (OccurrenceStart(i) is { } start && start >= windowStart && start < windowEnd)

@@ -22,9 +22,9 @@ public sealed class CalendarTools
     [McpServerTool, Description("Search calendar items the caller can access, optionally by text and/or time window.")]
     public static async Task<IReadOnlyList<CalendarItemOccurrenceDto>> search_items(
         CalendarItemService items, CurrentUser user,
-        [Description("Free-text query over title/description.")] string? query = null,
-        [Description("Window start, ISO 8601.")] DateTimeOffset? from = null,
-        [Description("Window end, ISO 8601.")] DateTimeOffset? to = null,
+        [Description("Free-text query over title/description. With no from/to, matches all-time.")] string? query = null,
+        [Description("Window start, ISO 8601. Without a query, defaults to one year ago.")] DateTimeOffset? from = null,
+        [Description("Window end, ISO 8601. Without a query, defaults to one year ahead; recurrences expand at most one year ahead unless set.")] DateTimeOffset? to = null,
         [Description("Restrict to one calendar id.")] Guid? calendarId = null,
         [Description("Filter to items carrying this tag.")] string? tag = null,
         [Description("Filter to child items nested under this parent item id (e.g. a trip's sub-events).")] Guid? parentId = null)
