@@ -67,6 +67,56 @@
         ]
       }
     },
+    "/participation/summary": {
+      "get": {
+        "tags": [
+          "Participation"
+        ],
+        "summary": "Per-contact participation across your readable calendars (contactId, item count, most recent occurrence start), ordered most-interacted first. Optional from/to restricts the window. A ranking signal for contact pickers/resolvers.",
+        "operationId": "GetParticipationSummary",
+        "parameters": [
+          {
+            "name": "from",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "format": "date-time"
+            }
+          },
+          {
+            "name": "to",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "format": "date-time"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/ParticipationSummaryEntry"
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized"
+          }
+        },
+        "security": [
+          {
+            "Bearer": [ ]
+          }
+        ]
+      }
+    },
     "/calendars": {
       "get": {
         "tags": [
@@ -270,7 +320,7 @@
         "tags": [
           "CalendarItems"
         ],
-        "summary": "Search calendar items (text + tag + parent + category/status filter; recurrence expanded in-window). Text queries with no from/to match all-time; without a query the window defaults to ±1 year. skip/take page over occurrences sorted by start (desc=true for newest first). Only items accepted into a calendar you can read.",
+        "summary": "Search calendar items (text + tag + parent + attendee contact + category/status filter; recurrence expanded in-window). Text queries and parent/contact filters with no from/to match all-time; otherwise the window defaults to ±1 year. skip/take page over occurrences sorted by start (desc=true for newest first). Only items accepted into a calendar you can read.",
         "operationId": "SearchItems",
         "parameters": [
           {
@@ -313,6 +363,14 @@
           },
           {
             "name": "parentId",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "contactId",
             "in": "query",
             "schema": {
               "type": "string",
@@ -2865,6 +2923,35 @@
           "Delegated"
         ]
       },
+      "ParticipationSummaryEntry": {
+        "required": [
+          "contactId",
+          "count",
+          "lastAt"
+        ],
+        "type": "object",
+        "properties": {
+          "contactId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "count": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          },
+          "lastAt": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "date-time"
+          }
+        }
+      },
       "PresenceDetail": {
         "required": [
           "status"
@@ -3498,6 +3585,9 @@
       "name": "Me"
     },
     {
+      "name": "Participation"
+    },
+    {
       "name": "Calendars"
     },
     {
@@ -3511,9 +3601,6 @@
     },
     {
       "name": "Curation"
-    },
-    {
-      "name": "Participation"
     }
   ]
 }

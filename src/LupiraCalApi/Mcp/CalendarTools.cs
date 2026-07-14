@@ -28,6 +28,7 @@ public sealed class CalendarTools
         [Description("Restrict to one calendar id.")] Guid? calendarId = null,
         [Description("Filter to items carrying this tag.")] string? tag = null,
         [Description("Filter to child items nested under this parent item id (e.g. a trip's sub-events).")] Guid? parentId = null,
+        [Description("Filter to items where this LupiraContactApi contact is an attendee. With no from/to, matches all-time.")] Guid? contactId = null,
         [Description("Filter by category (General, Meeting, Appointment, Meal, Occasion, Outing, Trip, Stay, Activity, Focus, Chore).")] string? category = null,
         [Description("Filter by status (Tentative, Confirmed, Cancelled).")] string? status = null,
         [Description("Skip this many occurrences (paging; applied after sorting).")] int? skip = null,
@@ -35,7 +36,7 @@ public sealed class CalendarTools
         [Description("Newest first (sort by occurrence start descending).")] bool desc = false)
     {
         var u = await user.GetAsync();
-        return Require(await items.SearchAsync(u.Id, query, from, to, calendarId, tag, parentId, category, status, skip, take, desc));
+        return Require(await items.SearchAsync(u.Id, query, from, to, calendarId, tag, parentId, contactId, category, status, skip, take, desc));
     }
 
     [McpServerTool, Description("Create a calendar item; file it into a calendar (CalendarId) or leave it unfiled for curation. Category is the event type (General, Meeting, Appointment, Meal, Occasion, Outing, Trip, Stay, Activity, Focus, Chore). A location must be a resolved LupiraGeoApi PlaceId (resolve via lupira-geo first — free-text Location is only a label). Details are composable: Booking (provider/confirmation/reference/amount/partySize) attaches to any category; Travel (Mode + ToPlaceId, optional FromPlaceId) applies to a Trip and requires ToPlaceId. A presence/availability segment uses the top-level Availability field. For a historical/backfilled item known only to the month/year/roughly, still pass a concrete date and set StartPrecision/EndPrecision (Exact|Day|Month|Year|Approximate). Metadata (a JSON object, e.g. import provenance) can be merged inline at creation. Set a client SourceKey for idempotent re-create; nest under a parent via ParentItemId or ParentSourceKey. Bills and deliveries are LupiraTasks tasks — link them with link_item_to_task.")]
@@ -112,6 +113,16 @@ public sealed class CalendarTools
     {
         var u = await user.GetAsync();
         return Require(await participation.SetParticipantsAsync(u.Id, itemId, contactIds, attended));
+    }
+
+    [McpServerTool, Description("Per-contact participation across the caller's readable calendars: {contactId, count, lastAt}, ordered most-interacted first. Use it to rank ambiguous contact matches (e.g. lupira-contact resolve_contacts candidates) by real interaction. Optional from/to restricts to occurrences in that window.")]
+    public static async Task<IReadOnlyList<ParticipationSummaryEntry>> participation_summary(
+        ParticipationService participation, CurrentUser user,
+        [Description("Window start, ISO 8601 (optional; default all-time).")] DateTimeOffset? from = null,
+        [Description("Window end, ISO 8601 (optional; default all-time).")] DateTimeOffset? to = null)
+    {
+        var u = await user.GetAsync();
+        return Require(await participation.SummaryAsync(u.Id, from, to));
     }
 
     [McpServerTool, Description("List the calendars the caller can access.")]

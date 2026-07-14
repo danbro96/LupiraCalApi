@@ -44,4 +44,10 @@ public sealed class ParticipationHandler(CurrentUser user, ParticipationService 
         var u = await user.GetAsync(ct);
         return OpResultMap.OkNotFoundProblem(await participation.SetParticipantsAsync(u.Id, id, body.ContactIds, body.Attended, ct));
     }
+
+    public async Task<Results<Ok<List<ParticipationSummaryEntry>>, UnauthorizedHttpResult>> SummaryAsync(DateTimeOffset? from, DateTimeOffset? to, CancellationToken ct)
+    {
+        var u = await user.GetAsync(ct);
+        return OpResultMap.OkOnly(await participation.SummaryAsync(u.Id, from, to, ct));
+    }
 }

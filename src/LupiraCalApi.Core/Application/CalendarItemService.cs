@@ -151,7 +151,7 @@ public sealed class CalendarItemService(IDocumentSession session, AccessResolver
     }
 
     public async Task<OpResult<List<CalendarItemOccurrenceDto>>> SearchAsync(
-        Guid principalId, string? query, DateTimeOffset? from, DateTimeOffset? to, Guid? calendarId, string? tag, Guid? parentId,
+        Guid principalId, string? query, DateTimeOffset? from, DateTimeOffset? to, Guid? calendarId, string? tag, Guid? parentId, Guid? contactId,
         string? category = null, string? status = null, int? skip = null, int? take = null, bool desc = false, CancellationToken ct = default)
     {
         if (!TryParseDefined<ItemCategory>(category, out var cat))
@@ -184,6 +184,7 @@ public sealed class CalendarItemService(IDocumentSession session, AccessResolver
             i.Calendars.Any(m => m.Status == CalendarEntryStatus.Accepted && searchIds.Contains(m.CalendarId)));
         if (!string.IsNullOrWhiteSpace(tag)) items = items.Where(i => i.Tags is not null && i.Tags.Contains(tag));
         if (parentId is { } parent) items = items.Where(i => i.ParentItemId == parent);
+        if (contactId is { } contact) items = items.Where(i => i.Attendees.Any(a => a.ContactId == contact));
         if (cat is not null) items = items.Where(i => i.Category == cat);
         if (st is not null) items = items.Where(i => i.Status == st);
         if (!string.IsNullOrWhiteSpace(query))
@@ -197,8 +198,8 @@ public sealed class CalendarItemService(IDocumentSession session, AccessResolver
         var itemList = items.ToList();
         var scores = await completeness.ScoreItemsAsync(itemList, ct);
 
-        // Text queries and parent drill-downs default to all-time; browsing keeps the ±1y window.
-        var allTime = !string.IsNullOrWhiteSpace(query) || parentId is not null;
+        // Text queries and parent/contact drill-downs default to all-time; browsing keeps the ±1y window.
+        var allTime = !string.IsNullOrWhiteSpace(query) || parentId is not null || contactId is not null;
         var windowStart = from ?? (allTime ? DateTimeOffset.MinValue : DateTimeOffset.UtcNow.AddYears(-1));
         var windowEnd = to ?? (allTime ? DateTimeOffset.MaxValue : DateTimeOffset.UtcNow.AddYears(1));
         // RRULE expansion needs a finite ceiling — an unbounded rule against MaxValue never terminates.

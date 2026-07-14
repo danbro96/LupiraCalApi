@@ -10,11 +10,11 @@ namespace LupiraCalApi.Handlers;
 public sealed class CalendarItemsHandler(CurrentUser user, CalendarItemService items)
 {
     public async Task<Results<Ok<List<CalendarItemOccurrenceDto>>, ProblemHttpResult, UnauthorizedHttpResult>> SearchAsync(
-        string? query, DateTimeOffset? from, DateTimeOffset? to, Guid? calendarId, string? tag, Guid? parentId,
+        string? query, DateTimeOffset? from, DateTimeOffset? to, Guid? calendarId, string? tag, Guid? parentId, Guid? contactId,
         string? category, string? status, int? skip, int? take, bool desc, CancellationToken ct)
     {
         var u = await user.GetAsync(ct);
-        return OpResultMap.OkProblem(await items.SearchAsync(u.Id, query, from, to, calendarId, tag, parentId, category, status, skip, take, desc, ct));
+        return OpResultMap.OkProblem(await items.SearchAsync(u.Id, query, from, to, calendarId, tag, parentId, contactId, category, status, skip, take, desc, ct));
     }
 
     public async Task<Results<Ok<List<CalendarItemDto>>, UnauthorizedHttpResult>> ByPlaceAsync(Guid placeId, CancellationToken ct)

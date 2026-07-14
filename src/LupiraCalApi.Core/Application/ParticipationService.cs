@@ -85,6 +85,37 @@ public sealed class ParticipationService(IDocumentSession session, AccessResolve
         return OpResult<SetParticipantsResult>.Ok(new SetParticipantsResult(itemId, added, alreadyPresent));
     }
 
+    /// <summary>Per-contact participation across the caller's readable calendars, ordered most-interacted first.
+    /// Optional from/to restricts to items whose occurrence start falls in the window (start-less items only match
+    /// the unbounded query).</summary>
+    public async Task<OpResult<List<ParticipationSummaryEntry>>> SummaryAsync(Guid principalId, DateTimeOffset? from, DateTimeOffset? to, CancellationToken ct = default)
+    {
+        var calIds = await access.AccessibleCalendarIdsAsync(principalId, ct);
+        var items = await session.Query<CalendarItem>().Where(i => i.DeletedAt == null).ToListAsync(ct);
+        return OpResult<List<ParticipationSummaryEntry>>.Ok(Summarize(items, calIds, from, to));
+    }
+
+    internal static List<ParticipationSummaryEntry> Summarize(IEnumerable<CalendarItem> items, IReadOnlyCollection<Guid> readableCalendarIds, DateTimeOffset? from, DateTimeOffset? to)
+    {
+        var perContact = new Dictionary<Guid, (int Count, DateTimeOffset? LastAt)>();
+        foreach (var i in items)
+        {
+            if (!i.Calendars.Any(m => m.Status == CalendarEntryStatus.Accepted && readableCalendarIds.Contains(m.CalendarId))) continue;
+            var at = CalendarItemService.OccurrenceStart(i);
+            if (from is { } f && (at is null || at < f)) continue;
+            if (to is { } t && (at is null || at >= t)) continue;
+            // Withdrawn participations (LeftAt) don't count as interaction; removed attendees are already gone.
+            foreach (var a in i.Attendees.Where(a => a.LeftAt is null).DistinctBy(a => a.ContactId))
+            {
+                var prev = perContact.GetValueOrDefault(a.ContactId);
+                perContact[a.ContactId] = (prev.Count + 1, at > prev.LastAt || prev.LastAt is null ? at : prev.LastAt);
+            }
+        }
+        return [.. perContact
+            .Select(kv => new ParticipationSummaryEntry(kv.Key, kv.Value.Count, kv.Value.LastAt))
+            .OrderByDescending(e => e.Count).ThenByDescending(e => e.LastAt ?? DateTimeOffset.MinValue).ThenBy(e => e.ContactId)];
+    }
+
     private async Task<OpResult<CalendarItemDto>> AppendAsync(Guid principalId, Guid itemId, Func<CalendarItem, object?> makeEvent, CancellationToken ct)
     {
         var stream = await session.Events.FetchForWriting<CalendarItem>(itemId, ct);
