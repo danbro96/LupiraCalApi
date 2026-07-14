@@ -13,7 +13,7 @@ namespace LupiraCalApi.Application;
 /// the inline <see cref="CalendarItem"/> snapshot is the read model. The raw <c>SourceIcalendar</c> blob + content
 /// hash ride on the events (DAV source of truth + ETag). Items are calendar-independent (many-to-many via curation).
 /// </summary>
-public sealed class CalendarItemService(IDocumentSession session, AccessResolver access, RecurrenceExpander expander, IGeoResolver geo, CompletenessResolver completeness)
+public sealed class CalendarItemService(IDocumentSession session, AccessResolver access, RecurrenceExpander expander, IGeoResolver geo, CompletenessResolver completeness, IContactResolver contacts)
 {
     /// <summary>Resolve free-text to a (geo place id, label). Geo owns resolution. <c>Unresolved</c> is true only when geo
     /// IS configured but couldn't resolve (unreachable/GeocodeUnavailable) — a retryable failure the REST/MCP paths reject
@@ -230,6 +230,16 @@ public sealed class CalendarItemService(IDocumentSession session, AccessResolver
                 results.Add(new CalendarItemOccurrenceDto { Id = i.Id, Title = i.Title, PlaceId = i.PlaceId, LocationLabel = i.LocationLabel, IsAllDay = i.IsAllDay, Start = start, End = duration is { } d ? start + d : i.EndsAt, CalendarIds = memberIds, Category = i.Category, Status = i.Status, Tags = i.Tags, ParentItemId = i.ParentItemId, ParentTitle = parentTitle, ChildCount = childCount, Completeness = score, Etag = i.ContentHash });
             }
         }
+        // Birthdays are not stored items — they're synthesized at read time from LupiraContactApi whenever a
+        // Birthdays-kind calendar is in scope and no item-relational filter (tag/parent/contact/category) excludes them.
+        if (tag is null && parentId is null && contactId is null && cat is null && (st is null || st == ItemStatus.Confirmed))
+        {
+            var bdayCalIds = (await session.Query<Calendar>().Where(c => c.Kind == CalendarKind.Birthdays).ToListAsync(ct))
+                .Select(c => c.Id).Where(searchIds.Contains).ToArray();
+            if (bdayCalIds.Length > 0)
+                results.AddRange(await SynthesizeBirthdaysAsync(bdayCalIds, query, from, to, ct));
+        }
+
         // take/skip count expanded occurrences, not items.
         IEnumerable<CalendarItemOccurrenceDto> page = desc ? results.OrderByDescending(x => x.Start) : results.OrderBy(x => x.Start);
         if (skip is { } sk) page = page.Skip(sk);
@@ -471,6 +481,54 @@ public sealed class CalendarItemService(IDocumentSession session, AccessResolver
         var calIds = await access.AccessibleCalendarIdsAsync(principalId, ct);
         return parent.Calendars.Any(m => m.Status == CalendarEntryStatus.Accepted && calIds.Contains(m.CalendarId))
             ? null : "No access to the parent item.";
+    }
+
+    /// <summary>The read-time Birthdays projection: one all-day, yearly-recurring occurrence per contact-with-a-birthday,
+    /// expanded across the window. Year-less birthdays still recur on their month-day; a Feb-29 birthday only lands in
+    /// leap years (skipped otherwise), matching the RRULE expander. Fails open (empty) when contacts are unavailable.</summary>
+    private async Task<IReadOnlyList<CalendarItemOccurrenceDto>> SynthesizeBirthdaysAsync(
+        Guid[] calendarIds, string? query, DateTimeOffset? from, DateTimeOffset? to, CancellationToken ct)
+    {
+        if (!contacts.IsConfigured) return [];
+        if (await contacts.BirthdaysAsync(ct) is not { Count: > 0 } birthdays) return [];
+
+        // A yearly-recurring synthetic event has no natural all-time bound; default to the ±1y browse window
+        // (same ceiling logic as the RRULE expander) unless the caller pins from/to.
+        var now = DateTimeOffset.UtcNow;
+        var windowStart = from ?? now.AddYears(-1);
+        var windowEnd = to ?? now.AddYears(1);
+        if (windowEnd <= windowStart) return [];
+
+        var term = string.IsNullOrWhiteSpace(query) ? null : query.Trim();
+        var results = new List<CalendarItemOccurrenceDto>();
+        foreach (var b in birthdays)
+        {
+            if (b.Month is < 1 or > 12 || b.Day < 1) continue;
+            var title = $"{b.DisplayName}'s birthday";
+            if (term is not null && !title.Contains(term, StringComparison.OrdinalIgnoreCase)) continue;
+
+            var id = DeterministicGuid.From($"birthday:{b.ContactId:N}");
+            var etag = $"bday-{b.ContactId:N}-{b.Year?.ToString() ?? "----"}{b.Month:D2}{b.Day:D2}";
+            for (var year = windowStart.Year; year <= windowEnd.Year; year++)
+            {
+                if (b.Day > DateTime.DaysInMonth(year, b.Month)) continue;   // Feb 29 in a non-leap year
+                var start = AllDayInstant(new DateOnly(year, b.Month, b.Day));
+                if (start < windowStart || start >= windowEnd) continue;
+                results.Add(new CalendarItemOccurrenceDto
+                {
+                    Id = id,
+                    Title = title,
+                    IsAllDay = true,
+                    Start = start,
+                    End = null,
+                    CalendarIds = calendarIds,
+                    Status = ItemStatus.Confirmed,
+                    ChildCount = 0,
+                    Etag = etag,
+                });
+            }
+        }
+        return results;
     }
 
     internal static DateTimeOffset AllDayInstant(DateOnly d) => new(d.Year, d.Month, d.Day, 0, 0, 0, TimeSpan.Zero);

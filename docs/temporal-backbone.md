@@ -172,7 +172,8 @@ A contact has no time-proximity, so the assistant prioritises contact enrichment
 - *Contact enrichment:* rank low-completeness contacts by **relevance** (upcoming-event attendee · recent interaction); over a threshold, ask the user for the top missing field.
 
 ## Standard calendar set
-- **Agenda:** Personal · Group · Birthdays (from contacts) · Availability · FoodPlan *(later)*.
+- **Agenda:** Personal · Group · Birthdays · Availability · FoodPlan *(later)*.
+  - **Birthdays** holds no stored items — its occurrences are **synthesized at read time** from LupiraContactApi (every live, non-deceased contact with a birthday → one all-day, yearly-recurring occurrence). Year-less birthdays still recur on their month-day; a Feb-29 birthday lands only in leap years. Search fetches them whenever a Birthdays-kind calendar is in scope and no item-relational filter (tag/parent/contact/category) excludes them; contacts unavailable ⇒ the calendar reads empty (fail-open). *REST/MCP only for now — not yet on the DAV projection, whose sync-token delta feed can't carry event-less synthetic items.*
 - **System (agent-managed; the assistant has full CRUD — see Agent write access):** Inbox (all external events, source of truth; curation proposes from here) · LlmPrompts (LLM instructions — research, follow-ups, answer-processing; carry an `ItemPrompt`) · UserCheckIn (frozen messages to the user — `ItemAction(SendCheckIn)`, delivered at fire, no LLM) · DevOps (recurring ops — `ItemPrompt` or `ItemAction`).
 
 ## Agent write access

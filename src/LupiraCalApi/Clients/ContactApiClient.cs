@@ -6,9 +6,10 @@ using Microsoft.Extensions.Options;
 
 namespace LupiraCalApi.Clients;
 
-/// <summary>HTTP <see cref="IContactResolver"/> against LupiraContactApi <c>POST /internal/contacts/resolve</c>.
-/// Service-authed (cached Authentik client-credentials bearer in prod, <c>X-Dev-User</c> locally). A failure
-/// returns null so resolution never breaks a write — callers fail open.</summary>
+/// <summary>HTTP <see cref="IContactResolver"/> against LupiraContactApi's internal seam
+/// (<c>POST /internal/contacts/resolve</c>, <c>GET /internal/contacts/birthdays</c>). Service-authed (cached
+/// Authentik client-credentials bearer in prod, <c>X-Dev-User</c> locally). A failure returns null so a lookup
+/// never breaks a write or a search — callers fail open.</summary>
 public sealed class ContactApiClient(HttpClient http, IOptions<ContactApiOptions> options, ILogger<ContactApiClient> logger) : IContactResolver
 {
     private static readonly JsonSerializerOptions Json = new(JsonSerializerDefaults.Web);
@@ -44,6 +45,30 @@ public sealed class ContactApiClient(HttpClient http, IOptions<ContactApiOptions
         catch (Exception ex) when (ex is HttpRequestException or TaskCanceledException && !ct.IsCancellationRequested)
         {
             logger.LogWarning(ex, "Contact resolve failed for {Count} ids.", contactIds.Count);
+            return null;
+        }
+    }
+
+    public async Task<IReadOnlyList<ContactBirthday>?> BirthdaysAsync(CancellationToken ct = default)
+    {
+        try
+        {
+            using var req = new HttpRequestMessage(HttpMethod.Get, "internal/contacts/birthdays");
+            foreach (var (key, value) in await AuthHeadersAsync(ct))
+                req.Headers.TryAddWithoutValidation(key, value);
+
+            using var resp = await http.SendAsync(req, ct);
+            if (!resp.IsSuccessStatusCode)
+            {
+                logger.LogWarning("Contact birthdays returned {Status}.", (int)resp.StatusCode);
+                return null;
+            }
+            var body = await resp.Content.ReadFromJsonAsync<BirthdaysResponse>(Json, ct);
+            return body is null ? null : [.. body.Contacts.Select(c => new ContactBirthday(c.ContactId, c.DisplayName, c.Year, c.Month, c.Day))];
+        }
+        catch (Exception ex) when (ex is HttpRequestException or TaskCanceledException && !ct.IsCancellationRequested)
+        {
+            logger.LogWarning(ex, "Contact birthdays failed.");
             return null;
         }
     }
@@ -98,6 +123,20 @@ public sealed class ContactApiClient(HttpClient http, IOptions<ContactApiOptions
     {
         public Guid ContactId { get; set; }
         public string DisplayName { get; set; } = "";
+    }
+
+    private sealed class BirthdaysResponse
+    {
+        public List<ContactBirthdayItem> Contacts { get; set; } = [];
+    }
+
+    private sealed class ContactBirthdayItem
+    {
+        public Guid ContactId { get; set; }
+        public string DisplayName { get; set; } = "";
+        public int? Year { get; set; }
+        public int Month { get; set; }
+        public int Day { get; set; }
     }
 
     private sealed class TokenResponse
