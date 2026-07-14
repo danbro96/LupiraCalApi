@@ -212,7 +212,13 @@ public sealed class CalendarItemService(IDocumentSession session, AccessResolver
                 .Select(m => m.CalendarId).ToArray();
             var parentTitle = i.ParentItemId is { } pid ? titleById.GetValueOrDefault(pid) : null;
             var childCount = childCounts.GetValueOrDefault(i.Id);
-            TimeSpan? duration = (i.StartsAt is { } s && i.EndsAt is { } en) ? en - s : null;
+            // All-day items carry their span in StartDate/EndDate, not StartsAt/EndsAt; derive the end at the
+            // inclusive last day's 00:00Z (same convention as TimeRangeFilter) so multi-day all-day occurrences
+            // report an End instead of null.
+            TimeSpan? duration =
+                i.StartsAt is { } s && i.EndsAt is { } en ? en - s
+                : i.IsAllDay && i.StartDate is { } sd && i.EndDate is { } ed ? AllDayInstant(ed) - AllDayInstant(sd)
+                : null;
             if (!string.IsNullOrWhiteSpace(i.RecurrenceRule))
             {
                 foreach (var occ in expander.Expand(i, windowStart, expansionEnd))
@@ -466,9 +472,11 @@ public sealed class CalendarItemService(IDocumentSession session, AccessResolver
             ? null : "No access to the parent item.";
     }
 
-    private static DateTimeOffset? OccurrenceStart(CalendarItem i)
+    internal static DateTimeOffset AllDayInstant(DateOnly d) => new(d.Year, d.Month, d.Day, 0, 0, 0, TimeSpan.Zero);
+
+    internal static DateTimeOffset? OccurrenceStart(CalendarItem i)
     {
-        if (i.IsAllDay && i.StartDate is { } d) return new DateTimeOffset(d.Year, d.Month, d.Day, 0, 0, 0, TimeSpan.Zero);
+        if (i.IsAllDay && i.StartDate is { } d) return AllDayInstant(d);
         return i.StartsAt;
     }
 

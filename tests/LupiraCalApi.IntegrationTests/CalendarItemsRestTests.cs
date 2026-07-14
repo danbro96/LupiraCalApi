@@ -148,6 +148,27 @@ public sealed class CalendarItemsRestTests(CalApiTestFactory factory) : Integrat
     }
 
     [Fact]
+    public async Task Multi_day_all_day_occurrence_reports_inclusive_end()
+    {
+        var api = Factory.ApiClient(Email);
+        var calId = await CreateCalendarAsync(api);
+        var resp = await api.PostAsJsonAsync("/items", new CreateCalendarItemRequest
+        {
+            CalendarId = calId, Title = "Gbg trip", IsAllDay = true,
+            StartDate = new DateOnly(2026, 7, 16), EndDate = new DateOnly(2026, 7, 18),
+        });
+        resp.EnsureSuccessStatusCode();
+
+        var found = await api.GetFromJsonAsync<List<CalendarItemOccurrenceDto>>(
+            $"/items?calendarId={calId}&from=2026-07-01T00:00:00Z&to=2026-07-31T00:00:00Z");
+        var occ = Assert.Single(found!);
+        Assert.True(occ.IsAllDay);
+        Assert.Equal(new DateTimeOffset(2026, 7, 16, 0, 0, 0, TimeSpan.Zero), occ.Start);
+        // Inclusive last day at 00:00Z — the grid's coverage predicate spans 07-16..07-18 and stops at 07-19.
+        Assert.Equal(new DateTimeOffset(2026, 7, 18, 0, 0, 0, TimeSpan.Zero), occ.End);
+    }
+
+    [Fact]
     public async Task Calendar_ids_report_all_readable_memberships_and_never_unreadable_ones()
     {
         var alice = Factory.ApiClient(Email);
