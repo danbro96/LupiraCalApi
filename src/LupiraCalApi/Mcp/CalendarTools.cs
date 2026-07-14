@@ -60,6 +60,16 @@ public sealed class CalendarTools
         return Require(await items.UpdateAsync(u.Id, itemId, request));
     }
 
+    [McpServerTool, Description("Delete a calendar item (soft delete + tombstone). Removes the whole item from every calendar it's filed in — not a single occurrence of a recurring series, and not just one calendar. Requires write access. Already-deleted or unknown ids return not found.")]
+    public static async Task<string> delete_item(
+        CalendarItemService items, CurrentUser user,
+        [Description("Calendar item id.")] Guid itemId)
+    {
+        var u = await user.GetAsync();
+        Require(await items.DeleteAsync(u.Id, itemId));
+        return $"Deleted calendar item {itemId}.";
+    }
+
     [McpServerTool, Description("Merge an arbitrary JSON object of metadata into a calendar item.")]
     public static async Task<CalendarItemDto> attach_metadata(
         CalendarItemService items, CurrentUser user,
