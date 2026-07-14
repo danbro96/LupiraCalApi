@@ -82,6 +82,25 @@ public sealed class CalendarTools
         return Require(await items.AttachMetadataAsync(u.Id, itemId, node));
     }
 
+    [McpServerTool, Description("File an already-created calendar item into a calendar. status = proposed|accepted (default proposed); 'accepted' files it directly (then visible over DAV), 'proposed' queues it for accept/reject. Returns the updated item. Unknown or inaccessible items return not found.")]
+    public static async Task<CalendarItemDto> file_item(
+        CurationService curation, CurrentUser user,
+        [Description("Calendar item id.")] Guid itemId,
+        [Description("Target calendar id.")] Guid calendarId,
+        [Description("proposed|accepted (default proposed).")] string? status = null)
+    {
+        var u = await user.GetAsync();
+        return Require(await curation.AddToCalendarAsync(u.Id, itemId, calendarId, status));
+    }
+
+    [McpServerTool, Description("File many existing calendar items into calendars in one call. Each entry files ItemId into CalendarId with an optional Status (proposed|accepted, default proposed) and is authorized independently — one bad entry never fails the batch. Returns a per-entry result {itemId, calendarId, status: filed|notfound|forbidden|invalid, error} in input order.")]
+    public static async Task<IReadOnlyList<FileItemResult>> file_items_batch(
+        CurationService curation, CurrentUser user, FileItemsBatchRequest request)
+    {
+        var u = await user.GetAsync();
+        return Require(await curation.AddToCalendarBatchAsync(u.Id, request.Entries));
+    }
+
     [McpServerTool, Description("Invite a contact to a calendar item as an attendee. role = chair|req-participant|opt-participant|non-participant (default req-participant).")]
     public static async Task<CalendarItemDto> invite_participant(
         ParticipationService participation, CurrentUser user,

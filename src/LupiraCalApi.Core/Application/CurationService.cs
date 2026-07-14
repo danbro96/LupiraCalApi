@@ -28,6 +28,32 @@ public sealed class CurationService(IDocumentSession session, AccessResolver acc
     public Task<OpResult<CalendarItemDto>> AddToCalendarAsync(Guid principalId, Guid itemId, Guid calendarId, string? status, CancellationToken ct = default) =>
         MutateAsync(principalId, itemId, calendarId, new AddedToCalendar(itemId, calendarId, ParseEntryStatus(status), DateTimeOffset.UtcNow), ct);
 
+    /// <summary>File many existing items into calendars in one call. Each entry runs through <see cref="AddToCalendarAsync"/>
+    /// so it carries the same per-calendar authorization and opaque-404 IDOR guard. Never aborts the whole batch — returns a
+    /// per-entry status (filed | notfound | forbidden | invalid | conflict), in input order.</summary>
+    public async Task<OpResult<List<FileItemResult>>> AddToCalendarBatchAsync(Guid principalId, IReadOnlyList<FileItemRequest> entries, CancellationToken ct = default)
+    {
+        if (entries.Count == 0) return OpResult<List<FileItemResult>>.Invalid("At least one entry is required.");
+        if (entries.Count > CalendarItemService.MaxBatch) return OpResult<List<FileItemResult>>.Invalid($"At most {CalendarItemService.MaxBatch} entries per batch.");
+
+        var results = new List<FileItemResult>(entries.Count);
+        foreach (var e in entries)
+        {
+            var res = await AddToCalendarAsync(principalId, e.ItemId, e.CalendarId, e.Status, ct);
+            results.Add(new FileItemResult(e.ItemId, e.CalendarId, StatusName(res.Status), res.Error));
+        }
+        return OpResult<List<FileItemResult>>.Ok(results);
+    }
+
+    private static string StatusName(OpStatus s) => s switch
+    {
+        OpStatus.Ok => "filed",
+        OpStatus.NotFound => "notfound",
+        OpStatus.Forbidden => "forbidden",
+        OpStatus.Conflict => "conflict",
+        _ => "invalid",
+    };
+
     private async Task<OpResult<CalendarItemDto>> MutateAsync(Guid principalId, Guid itemId, Guid calendarId, object @event, CancellationToken ct)
     {
         if (!await access.CanWriteCalendarAsync(principalId, calendarId, ct)) return OpResult<CalendarItemDto>.Forbidden("No write access to this calendar.");

@@ -28,6 +28,68 @@ public sealed class StoreLevelTests(CalApiTestFactory factory) : IntegrationTest
     private Task<OpResult> RevokeCalAsync(Guid caller, Guid calId, string email) =>
         InScope(sp => sp.GetRequiredService<CalendarService>().RevokeCalendarOwnerAsync(caller, calId, email));
 
+    private static readonly DateTimeOffset Start = new(2026, 7, 1, 9, 0, 0, TimeSpan.Zero);
+
+    private Task<Guid> CreateCalForAsync(Guid principal, string slug) =>
+        InScope(async sp => (await sp.GetRequiredService<CalendarService>()
+            .CreateAsync(principal, new CreateCalendarRequest { Slug = slug, DisplayName = slug, Type = "calendar", DefaultTimezone = "UTC" })).Value!.Id);
+
+    private Task<Guid> CreateItemAsync(Guid principal, Guid? calId, string title) =>
+        InScope(async sp => (await sp.GetRequiredService<CalendarItemService>()
+            .CreateAsync(principal, new CreateCalendarItemRequest { CalendarId = calId, Title = title, IsAllDay = false, StartsAt = Start, EndsAt = Start.AddHours(1), StartTimezone = "UTC" })).Value!.Id);
+
+    private Task<OpResult<List<FileItemResult>>> FileBatchAsync(Guid caller, IReadOnlyList<FileItemRequest> entries) =>
+        InScope(sp => sp.GetRequiredService<CurationService>().AddToCalendarBatchAsync(caller, entries));
+
+    [Fact]
+    public async Task File_batch_files_each_entry_and_reports_per_entry_status_in_order()
+    {
+        var alice = await ProvisionAsync("sub-alice", "alice@x.test");
+        var calId = await CreateCalForAsync(alice, "work");
+        var i1 = await CreateItemAsync(alice, null, "One");
+        var i2 = await CreateItemAsync(alice, null, "Two");
+        var missing = Guid.NewGuid();
+
+        var res = (await FileBatchAsync(alice,
+        [
+            new FileItemRequest { ItemId = i1, CalendarId = calId, Status = "accepted" },
+            new FileItemRequest { ItemId = i2, CalendarId = calId, Status = "proposed" },
+            new FileItemRequest { ItemId = missing, CalendarId = calId },
+        ])).Value!;
+
+        Assert.Equal(["filed", "filed", "notfound"], res.Select(r => r.Status));   // per-entry, one bad entry does not abort
+        Assert.Equal([i1, i2, missing], res.Select(r => r.ItemId));                // input order preserved
+
+        await using var s = Factory.Store.LightweightSession();
+        Assert.Equal(CalendarEntryStatus.Accepted, (await s.LoadAsync<CalendarItem>(i1))!.Calendars.Single(m => m.CalendarId == calId).Status);
+        Assert.Equal(CalendarEntryStatus.Proposed, (await s.LoadAsync<CalendarItem>(i2))!.Calendars.Single(m => m.CalendarId == calId).Status);
+    }
+
+    [Fact] // security: the single-item IDOR guard must hold through the batch path (opaque notfound, never filed)
+    public async Task File_batch_cannot_file_another_users_item_and_preserves_never_abort()
+    {
+        var alice = await ProvisionAsync("sub-alice", "alice@x.test");
+        var calA = await CreateCalForAsync(alice, "a-cal");
+        var aliceItem = await CreateItemAsync(alice, calA, "A secret");
+
+        var bob = await ProvisionAsync("sub-bob", "bob@x.test");
+        var calB = await CreateCalForAsync(bob, "b-cal");
+        var bobItem = await CreateItemAsync(bob, null, "Bob unfiled");
+
+        var res = (await FileBatchAsync(bob,
+        [
+            new FileItemRequest { ItemId = aliceItem, CalendarId = calB, Status = "accepted" },   // IDOR attempt → opaque notfound
+            new FileItemRequest { ItemId = bobItem, CalendarId = calB, Status = "accepted" },      // legit → filed (batch not aborted by the bad entry)
+            new FileItemRequest { ItemId = bobItem, CalendarId = calA, Status = "accepted" },      // no write to alice's calendar → forbidden
+        ])).Value!;
+
+        Assert.Equal(["notfound", "filed", "forbidden"], res.Select(r => r.Status));
+
+        // Bob still cannot read Alice's item — filing it did not self-grant access.
+        var read = await InScope(sp => sp.GetRequiredService<CalendarItemService>().GetAsync(bob, aliceItem));
+        Assert.Equal(OpStatus.Forbidden, read.Status);
+    }
+
     [Fact]
     public async Task Participation_history_is_composed_from_events()
     {
