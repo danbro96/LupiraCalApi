@@ -71,7 +71,19 @@ public sealed class CalendarTools
         return $"Deleted calendar item {itemId}.";
     }
 
-    [McpServerTool, Description("Merge an arbitrary JSON object of metadata into a calendar item.")]
+    [McpServerTool, Description("Check-in worklist: calendar items ranked thinnest-first by completeness score (0..1, ascending; most recent start first on ties). Item-granular — recurring items appear once. Each item carries Completeness with ranked Gaps: the fields worth asking the user about. Exempt items (system/Birthdays/Availability calendars, cancelled, presence/payload) never appear. When a gap doesn't apply (e.g. no booking for a homemade dinner), acknowledge it via attach_metadata with {\"completeness\":{\"na\":[\"booking\"]}} — the field stops counting and the ask goes away.")]
+    public static async Task<IReadOnlyList<CalendarItemDto>> list_thin_items(
+        CalendarItemService items, CurrentUser user,
+        [Description("Restrict to one calendar id.")] Guid? calendarId = null,
+        [Description("Filter by category (General, Meeting, Appointment, Meal, Occasion, Outing, Trip, Stay, Activity, Focus, Chore).")] string? category = null,
+        [Description("Only items scoring strictly below this (0..1). Default 1 = any item with gaps.")] double? maxScore = null,
+        [Description("Max items returned (default 25).")] int? take = null)
+    {
+        var u = await user.GetAsync();
+        return Require(await items.ThinItemsAsync(u.Id, calendarId, category, maxScore, take));
+    }
+
+    [McpServerTool, Description("Merge an arbitrary JSON object of metadata into a calendar item. Also the channel for completeness N/A acknowledgments: {\"completeness\":{\"na\":[\"booking\",\"seat\"]}} marks those rubric fields as not applicable so the item's completeness score stops counting them.")]
     public static async Task<CalendarItemDto> attach_metadata(
         CalendarItemService items, CurrentUser user,
         [Description("Calendar item id.")] Guid itemId,

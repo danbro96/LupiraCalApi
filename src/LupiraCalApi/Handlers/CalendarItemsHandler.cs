@@ -23,6 +23,13 @@ public sealed class CalendarItemsHandler(CurrentUser user, CalendarItemService i
         return OpResultMap.OkOnly(await items.ByPlaceAsync(u.Id, placeId, ct));
     }
 
+    public async Task<Results<Ok<List<CalendarItemDto>>, ProblemHttpResult, UnauthorizedHttpResult>> ThinAsync(
+        Guid? calendarId, string? category, double? maxScore, int? take, CancellationToken ct)
+    {
+        var u = await user.GetAsync(ct);
+        return OpResultMap.OkProblem(await items.ThinItemsAsync(u.Id, calendarId, category, maxScore, take, ct));
+    }
+
     public async Task<Results<Ok<CalendarItemDto>, ProblemHttpResult, UnauthorizedHttpResult>> CreateAsync(CreateCalendarItemRequest body, CancellationToken ct)
     {
         var u = await user.GetAsync(ct);

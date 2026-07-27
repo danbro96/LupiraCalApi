@@ -43,6 +43,15 @@ public static class CalendarItemsEndpoints
             .Produces(StatusCodes.Status404NotFound)
             .Produces(StatusCodes.Status401Unauthorized);
 
+        group.MapGet("/thin", (Guid? calendarId, string? category, double? maxScore, int? take, CalendarItemsHandler h, CancellationToken ct) =>
+                h.ThinAsync(calendarId, category, maxScore, take, ct))
+            .WithName("GetThinItems")
+            .WithSummary("Check-in worklist: items ranked thinnest-first by completeness score (< maxScore, default 1 = any item with gaps). Item-granular (no recurrence expansion); exempt items (system/Birthdays/Availability calendars, cancelled) are excluded. Acknowledge an inapplicable gap field by merging metadata {\"completeness\":{\"na\":[\"booking\"]}} so it stops counting.")
+            .Produces<List<CalendarItemDto>>(StatusCodes.Status200OK)
+            .ProducesProblem(StatusCodes.Status400BadRequest)
+            .ProducesProblem(StatusCodes.Status403Forbidden)
+            .Produces(StatusCodes.Status401Unauthorized);
+
         group.MapGet("/by-place/{placeId:guid}", (Guid placeId, CalendarItemsHandler h, CancellationToken ct) => h.ByPlaceAsync(placeId, ct))
             .WithName("GetItemsByPlace")
             .WithSummary("Calendar items anchored to a LupiraGeoApi place (its location, or a travel endpoint). Only items in a calendar you can read.")

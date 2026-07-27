@@ -266,6 +266,40 @@ public sealed class CalendarItemService(IDocumentSession session, AccessResolver
         i.PlaceId == placeId
         || (i.Details?.Travel is { } t && (t.ToPlaceId == placeId || t.FromPlaceId == placeId));
 
+    /// <summary>Check-in worklist: scoreable items ranked thinnest-first (score asc, most recent start first on ties).
+    /// Item-granular — no recurrence expansion. Exempt items (system/Birthdays/Availability calendars, cancelled,
+    /// presence/payload) carry no score and are excluded.</summary>
+    public async Task<OpResult<List<CalendarItemDto>>> ThinItemsAsync(
+        Guid principalId, Guid? calendarId = null, string? category = null, double? maxScore = null, int? take = null, CancellationToken ct = default)
+    {
+        if (!TryParseDefined<ItemCategory>(category, out var cat))
+            return OpResult<List<CalendarItemDto>>.Invalid(UnknownEnum<ItemCategory>("category", category!));
+        if (maxScore is < 0 or > 1) return OpResult<List<CalendarItemDto>>.Invalid("maxScore must be between 0 and 1.");
+        if (take is < 1) return OpResult<List<CalendarItemDto>>.Invalid("take must be >= 1.");
+
+        var accessibleIds = await access.AccessibleCalendarIdsAsync(principalId, ct);
+        var searchIds = accessibleIds;
+        if (calendarId is { } cid)
+        {
+            if (!accessibleIds.Contains(cid)) return OpResult<List<CalendarItemDto>>.Forbidden("No access to this calendar.");
+            searchIds = [cid];
+        }
+
+        var candidates = await session.Query<CalendarItem>().Where(i => i.DeletedAt == null).ToListAsync(ct);
+        var items = candidates
+            .Where(i => i.Calendars.Any(m => m.Status == CalendarEntryStatus.Accepted && searchIds.Contains(m.CalendarId))
+                && (cat is null || i.Category == cat))
+            .ToList();
+
+        var scores = await completeness.ScoreItemsAsync(items, ct);
+        var thin = items
+            .Select(i => (Item: i, Score: scores[i.Id]))
+            .Where(x => x.Score is not null && x.Score.Score < (maxScore ?? 1.0))
+            .OrderBy(x => x.Score!.Score).ThenByDescending(x => x.Item.StartsAt)
+            .Take(take ?? 25);
+        return OpResult<List<CalendarItemDto>>.Ok([.. thin.Select(x => x.Item.ToResponse(x.Score))]);
+    }
+
     public async Task<OpResult<CalendarItemDto>> GetAsync(Guid principalId, Guid id, CancellationToken ct = default)
     {
         var item = await session.LoadAsync<CalendarItem>(id, ct);

@@ -55,6 +55,51 @@ public sealed class CompletenessTests(CalApiTestFactory factory) : IntegrationTe
     }
 
     [Fact]
+    public async Task Thin_worklist_ranks_thinnest_first_and_respects_take()
+    {
+        var api = Factory.ApiClient(Email);
+        var calId = await CreateCalendarAsync(api);
+        var thin = await CreateItemAsync(api, calId, "Thin");
+        var rich = await CreateItemAsync(api, calId, "Rich", location: "HQ", description: "Quarterly planning with pre-reads");
+
+        var list = await api.GetFromJsonAsync<List<CalendarItemDto>>($"/items/thin?calendarId={calId}");
+        Assert.Equal([thin.Id, rich.Id], list!.Select(i => i.Id));
+
+        var one = await api.GetFromJsonAsync<List<CalendarItemDto>>($"/items/thin?calendarId={calId}&take=1");
+        Assert.Equal(thin.Id, Assert.Single(one!).Id);
+    }
+
+    [Fact]
+    public async Task Thin_worklist_excludes_exempt_items()
+    {
+        var api = Factory.ApiClient(Email);
+        var seeded = await (await api.PostAsync("/me/bootstrap", null)).Content.ReadFromJsonAsync<List<LupiraCalApi.Dtos.Calendars.ContainerDto>>();
+        var inbox = seeded!.Single(c => c.Kind == LupiraCalApi.Domain.CalendarKind.Inbox);
+        await CreateItemAsync(api, inbox.Id, "Captured thin");
+
+        var list = await api.GetFromJsonAsync<List<CalendarItemDto>>($"/items/thin?calendarId={inbox.Id}");
+        Assert.Empty(list!);
+    }
+
+    [Fact]
+    public async Task Acknowledging_na_via_metadata_raises_the_score()
+    {
+        var api = Factory.ApiClient(Email);
+        var calId = await CreateCalendarAsync(api);
+        var item = await CreateItemAsync(api, calId, "Dinner at home", location: "Home", description: "Homemade taco friday", category: "Meal");
+
+        var before = (await api.GetFromJsonAsync<CalendarItemDto>($"/items/{item.Id}"))!.Completeness!;
+        Assert.Contains(before.Gaps, g => g.Field == "booking");
+
+        var resp = await api.PostAsJsonAsync($"/items/{item.Id}/metadata", new { completeness = new { na = new[] { "booking", "attendees" } } });
+        resp.EnsureSuccessStatusCode();
+
+        var after = (await api.GetFromJsonAsync<CalendarItemDto>($"/items/{item.Id}"))!.Completeness!;
+        Assert.True(after.Score > before.Score, $"expected score to rise, got {before.Score} -> {after.Score}");
+        Assert.DoesNotContain(after.Gaps, g => g.Field is "booking" or "attendees");
+    }
+
+    [Fact]
     public async Task Cancelled_items_are_exempt()
     {
         var api = Factory.ApiClient(Email);

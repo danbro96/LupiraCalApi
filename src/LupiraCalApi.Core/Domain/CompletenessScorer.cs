@@ -1,3 +1,5 @@
+using System.Text.Json;
+using System.Text.Json.Nodes;
 using System.Text.Json.Serialization;
 
 namespace LupiraCalApi.Domain;
@@ -18,14 +20,17 @@ public sealed record CompletenessScore(double Score, int RubricVersion, IReadOnl
 /// Pure, kind-aware completeness rubric for items. Scores <em>presence</em>, not quality — crude on purpose,
 /// enough to rank thin-vs-rich. Time-agnostic: past and future items score alike; cutoffs are the caller's
 /// time filters. Exempt records score <c>null</c>. Calendar-context exemption (Birthdays/Availability/system
-/// calendars) and <paramref name="hasChildren"/> are decided by the caller and passed in; snapshot-local
-/// exemptions (cancelled, a presence segment, a fired payload) are handled here.
+/// calendars), <paramref name="hasChildren"/>, and <paramref name="inheritedAttendees"/> (the parent's attendee
+/// presence — a trip's shared list covers its legs) are decided by the caller and passed in; snapshot-local
+/// exemptions (cancelled, a presence segment, a fired payload) are handled here. A field acknowledged as
+/// inapplicable via metadata <c>completeness.na</c> (e.g. no booking for a homemade dinner) is dropped from
+/// the rubric entirely.
 /// </summary>
 public static class CompletenessScorer
 {
     public const int Version = 2;
 
-    public static CompletenessScore? ScoreItem(CalendarItem item, bool calendarExempt, bool hasChildren = false)
+    public static CompletenessScore? ScoreItem(CalendarItem item, bool calendarExempt, bool hasChildren = false, double inheritedAttendees = 0)
     {
         if (calendarExempt || item.Status == ItemStatus.Cancelled
             || item.Details?.Presence is not null || item.Prompt is not null || item.Action is not null)
@@ -33,6 +38,7 @@ public static class CompletenessScorer
 
         var fields = new List<(string Field, double Weight, double Presence)>();
         var d = item.Details;
+        var attendees = Math.Max(AttendeePresence(item), inheritedAttendees);
 
         var category = item.Category ?? ItemCategory.General;   // an uncategorised timed item scores as a general event
         if (category == ItemCategory.Trip && hasChildren) category = ItemCategory.General;   // a parent trip's legs live on child items
@@ -42,9 +48,19 @@ public static class CompletenessScorer
             case ItemCategory.Trip:
                 fields.Add(("fromToPlace", 2, TravelFromTo(d?.Travel)));
                 fields.Add(("departArriveTimes", 1, Math.Max(BothTimes(item), LegTimes(d?.Travel))));
-                fields.Add(("carrier", 1, Text(d?.Travel?.Carrier)));
+                if (d?.Travel is { } leg)
+                {
+                    // Mode-scoped logistics: only fields the mode can actually have. No leg → mode unknown,
+                    // and the absent fromToPlace gap already carries the "add travel details" ask.
+                    if (leg.Mode is TransportMode.Flight or TransportMode.Train or TransportMode.Metro
+                        or TransportMode.Tram or TransportMode.Bus or TransportMode.Coach or TransportMode.Ferry)
+                        fields.Add(("carrier", 1, Math.Max(Text(leg.Carrier), Text(leg.ServiceNumber))));
+                    if (leg.Mode is TransportMode.Flight or TransportMode.Train or TransportMode.Coach or TransportMode.Ferry)
+                        fields.Add(("seat", 0.5, Text(leg.Seat)));
+                    if (leg.Mode == TransportMode.Car)
+                        fields.Add(("driver", 1, Has(leg.DriverContactId)));
+                }
                 fields.Add(("booking", 1, Booking(d)));
-                fields.Add(("seat", 0.5, Text(d?.Travel?.Seat)));
                 break;
 
             case ItemCategory.Stay:
@@ -57,6 +73,7 @@ public static class CompletenessScorer
                 fields.Add(("location", 2, Place(item)));
                 fields.Add(("provider", 2, Has(d?.Booking?.ProviderContactId)));
                 fields.Add(("time", 1, Time(item, allDayWeak: true)));
+                fields.Add(("description", 1, Description(item)));
                 break;
 
             case ItemCategory.Meal:
@@ -64,19 +81,19 @@ public static class CompletenessScorer
                 fields.Add(("location", 2, Place(item)));
                 fields.Add(("time", 1, Time(item, allDayWeak: true)));
                 fields.Add(("booking", 1, Booking(d)));
-                fields.Add(("attendees", 1, Attendees(item)));
+                fields.Add(("attendees", 1, attendees));
                 break;
 
             case ItemCategory.Occasion:
                 fields.Add(("location", 2, Place(item)));
                 fields.Add(("time", 1, Time(item)));   // occasions are legitimately all-day
                 fields.Add(("description", 1, Description(item)));
-                fields.Add(("attendees", 1, Attendees(item)));
+                fields.Add(("attendees", 1, attendees));
                 break;
 
             case ItemCategory.Meeting:
                 fields.Add(("location", 2, Place(item)));
-                fields.Add(("attendees", 2, Attendees(item)));
+                fields.Add(("attendees", 2, attendees));
                 fields.Add(("time", 1, Time(item, allDayWeak: true)));
                 fields.Add(("description", 1, Description(item)));
                 break;
@@ -84,11 +101,15 @@ public static class CompletenessScorer
             // General/Activity/Focus/Chore: a location/time/description cut (no attendees, so a
             // solo focus block or errand isn't penalised for missing them).
             default:
+                if (item.Category is null) fields.Add(("category", 1, 0));   // the first ask — the category unlocks the right rubric
                 fields.Add(("location", 2, Place(item)));
                 fields.Add(("time", 1, Time(item)));
                 fields.Add(("description", 1, Description(item)));
                 break;
         }
+
+        var na = NaFields(item.Metadata);
+        if (na.Count > 0) fields.RemoveAll(f => na.Contains(f.Field));
 
         return Build(fields);
     }
@@ -107,15 +128,31 @@ public static class CompletenessScorer
         return new CompletenessScore(Math.Round(score, 4), Version, gaps);
     }
 
+    /// <summary>Rubric fields the user acknowledged as inapplicable: metadata <c>{"completeness":{"na":["booking"]}}</c>.</summary>
+    private static HashSet<string> NaFields(string metadata)
+    {
+        if (string.IsNullOrWhiteSpace(metadata)) return [];
+        try
+        {
+            if (JsonNode.Parse(metadata)?["completeness"]?["na"] is not JsonArray na) return [];
+            return new HashSet<string>(
+                na.Select(n => n?.GetValueKind() == JsonValueKind.String ? n.GetValue<string>() : null).OfType<string>(),
+                StringComparer.OrdinalIgnoreCase);
+        }
+        catch (JsonException) { return []; }
+    }
+
     // ---- presence helpers (1 present · 0.5 weak · 0 absent) ----
 
-    private static double Place(CalendarItem i) => i.PlaceId is not null || !string.IsNullOrWhiteSpace(i.LocationLabel) ? 1 : 0;
+    private static double Place(CalendarItem i) =>
+        i.PlaceId is not null ? 1 : !string.IsNullOrWhiteSpace(i.LocationLabel) ? 0.5 : 0;   // a raw label geo didn't resolve → weak
 
     private static double Time(CalendarItem i, bool allDayWeak = false)
     {
         if (i.StartsAt is null && !(i.IsAllDay && i.StartDate is not null)) return 0;
         if (Fuzzy(i.StartPrecision)) return 0.5;
-        return allDayWeak && i.StartsAt is null ? 0.5 : 1;   // clocked category on a date-only span → the time is the ask
+        if (i.StartsAt is null) return allDayWeak ? 0.5 : 1;   // date-only span; clocked categories still want the clock time
+        return i.EndsAt is null ? 0.75 : 1;   // start known, duration open
     }
 
     private static double BothTimes(CalendarItem i)
@@ -133,22 +170,22 @@ public static class CompletenessScorer
     private static double Description(CalendarItem i)
     {
         if (string.IsNullOrWhiteSpace(i.Description)) return 0;
-        return string.Equals(i.Description.Trim(), i.Title?.Trim(), StringComparison.OrdinalIgnoreCase) ? 0.5 : 1;   // echoes the title → weak
+        var text = i.Description.Trim();
+        if (string.Equals(text, i.Title?.Trim(), StringComparison.OrdinalIgnoreCase)) return 0.5;   // echoes the title → weak
+        return text.Length < 20 ? 0.5 : 1;   // a few characters add little over the title
     }
 
-    private static double Attendees(CalendarItem i)
+    internal static double AttendeePresence(CalendarItem i)
     {
         if (i.Attendees.Count == 0) return 0;
         return i.Attendees.All(a => a.Status == ParticipationStatus.NeedsAction) ? 0.5 : 1;   // listed but none RSVP'd → weak
     }
 
-    private static double TravelFromTo(TravelLeg? t)
-    {
-        if (t is null) return 0;
-        var to = t.ToPlaceId is not null || !string.IsNullOrWhiteSpace(t.ToLabel);
-        var from = t.FromPlaceId is not null || !string.IsNullOrWhiteSpace(t.FromLabel);
-        return (from, to) switch { (true, true) => 1, (false, false) => 0, _ => 0.5 };
-    }
+    private static double TravelFromTo(TravelLeg? t) =>
+        t is null ? 0 : (Endpoint(t.FromPlaceId, t.FromLabel) + Endpoint(t.ToPlaceId, t.ToLabel)) / 2;
+
+    private static double Endpoint(Guid? placeId, string? label) =>
+        placeId is not null ? 1 : !string.IsNullOrWhiteSpace(label) ? 0.5 : 0;
 
     private static double Booking(ItemDetails? d)
     {
