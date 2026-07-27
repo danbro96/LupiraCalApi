@@ -55,6 +55,20 @@ public sealed class CompletenessTests(CalApiTestFactory factory) : IntegrationTe
     }
 
     [Fact]
+    public async Task Cancelled_items_are_exempt()
+    {
+        var api = Factory.ApiClient(Email);
+        var calId = await CreateCalendarAsync(api);
+        var item = await CreateItemAsync(api, calId, "Called off");
+
+        var put = await api.PutAsJsonAsync($"/items/{item.Id}", new UpdateCalendarItemRequest { Status = "Cancelled" });
+        put.EnsureSuccessStatusCode();
+
+        var got = await api.GetFromJsonAsync<CalendarItemDto>($"/items/{item.Id}");
+        Assert.Null(got!.Completeness);
+    }
+
+    [Fact]
     public async Task Items_in_system_calendars_are_exempt()
     {
         var api = Factory.ApiClient(Email);
