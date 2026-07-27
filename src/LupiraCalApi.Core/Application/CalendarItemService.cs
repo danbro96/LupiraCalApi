@@ -524,6 +524,7 @@ public sealed class CalendarItemService(IDocumentSession session, AccessResolver
                     CalendarIds = calendarIds,
                     Status = ItemStatus.Confirmed,
                     ChildCount = 0,
+                    Origin = new OccurrenceOrigin { Kind = OriginKind.Birthday, SourceId = b.ContactId },
                     Etag = etag,
                 });
             }

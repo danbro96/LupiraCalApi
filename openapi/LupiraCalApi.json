@@ -2087,6 +2087,16 @@
               }
             ]
           },
+          "origin": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/OccurrenceOrigin"
+              }
+            ]
+          },
           "etag": {
             "type": "string"
           }
@@ -2840,6 +2850,27 @@
           "Medium",
           "Large",
           null
+        ]
+      },
+      "OccurrenceOrigin": {
+        "required": [
+          "kind",
+          "sourceId"
+        ],
+        "type": "object",
+        "properties": {
+          "kind": {
+            "$ref": "#/components/schemas/OriginKind"
+          },
+          "sourceId": {
+            "type": "string",
+            "format": "uuid"
+          }
+        }
+      },
+      "OriginKind": {
+        "enum": [
+          "Birthday"
         ]
       },
       "OutputKind": {

@@ -35,5 +35,20 @@ public sealed class CalendarItemOccurrenceDto
     /// <summary>The item's own completeness (same across its occurrences; null = not applicable), so search results rank directly.</summary>
     public CompletenessScore? Completeness { get; set; }
 
+    /// <summary>Provenance of a read-time-projected occurrence (e.g. Birthdays → a contact). Null for stored items.</summary>
+    public OccurrenceOrigin? Origin { get; set; }
+
     public required string Etag { get; set; }
+}
+
+/// <summary>What a read-time-projected occurrence was synthesized from.</summary>
+[JsonConverter(typeof(JsonStringEnumConverter<OriginKind>))]
+public enum OriginKind { Birthday }
+
+/// <summary>Ties a projected occurrence back to the entity it was derived from — the birthday occurrence's
+/// <see cref="SourceId"/> is the contact whose birthday it is.</summary>
+public sealed class OccurrenceOrigin
+{
+    public required OriginKind Kind { get; set; }
+    public required Guid SourceId { get; set; }
 }

@@ -68,6 +68,8 @@ public sealed class BirthdaysTests(CalApiTestFactory factory) : IntegrationTest(
                 Assert.Equal(new DateTimeOffset(2026, 3, 15, 0, 0, 0, TimeSpan.Zero), o.Start);
                 Assert.Null(o.Completeness);   // birthdays are exempt from completeness
                 Assert.Contains(bdays, o.CalendarIds);
+                Assert.Equal(OriginKind.Birthday, o.Origin?.Kind);   // provenance links back to the contact
+                Assert.Equal(ada.ContactId, o.Origin?.SourceId);
             },
             o => Assert.Equal("Grace Hopper's birthday", o.Title));   // Leap Kid skipped — 2026 has no Feb 29
     }
