@@ -56,4 +56,10 @@ public sealed class CalendarItemDto
     public required IReadOnlyList<ItemAttendee> Attendees { get; set; }
     public required IReadOnlyList<CalendarMembershipDto> Calendars { get; set; }
     public required string Etag { get; set; }
+
+    /// <summary>Server-side timestamps (from the event timeline) + stream version — the ordering/versioning
+    /// surface offline clients key on. <c>Etag</c> stays content-derived and is orthogonal.</summary>
+    public required DateTimeOffset CreatedAt { get; set; }
+    public required DateTimeOffset UpdatedAt { get; set; }
+    public required int Version { get; set; }
 }

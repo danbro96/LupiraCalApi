@@ -1,5 +1,6 @@
 using LupiraCalApi.Dtos.CalendarItems;
 using LupiraCalApi.Handlers;
+using Microsoft.AspNetCore.Mvc;
 using System.Text.Json.Nodes;
 
 namespace LupiraCalApi.Endpoints;
@@ -58,51 +59,51 @@ public static class CalendarItemsEndpoints
             .Produces<List<CalendarItemDto>>(StatusCodes.Status200OK)
             .Produces(StatusCodes.Status401Unauthorized);
 
-        group.MapPut("/{id:guid}", (Guid id, UpdateCalendarItemRequest body, CalendarItemsHandler h, CancellationToken ct) => h.UpdateAsync(id, body, ct))
+        group.MapPut("/{id:guid}", (Guid id, UpdateCalendarItemRequest body, [FromHeader(Name = "Idempotency-Key")] Guid? idempotencyKey, CalendarItemsHandler h, CancellationToken ct) => h.UpdateAsync(id, body, idempotencyKey, ct))
             .WithName("UpdateItem")
-            .WithSummary("Update a calendar item (only provided fields change).")
+            .WithSummary("Update a calendar item. Plain fields: omitted = kept; fields paired with a *Provided sentinel are written verbatim when it is true (enables clearing recurrence, switching all-day, editing timezones). Offline clients send Idempotency-Key (their command id) + body OccurredAt for replay-safe, last-writer-wins updates.")
             .Produces<CalendarItemDto>(StatusCodes.Status200OK)
             .Produces(StatusCodes.Status404NotFound)
             .Produces(StatusCodes.Status401Unauthorized);
 
-        group.MapDelete("/{id:guid}", (Guid id, CalendarItemsHandler h, CancellationToken ct) => h.DeleteAsync(id, ct))
+        group.MapDelete("/{id:guid}", (Guid id, [FromHeader(Name = "Idempotency-Key")] Guid? idempotencyKey, CalendarItemsHandler h, CancellationToken ct) => h.DeleteAsync(id, idempotencyKey, ct))
             .WithName("DeleteItem")
-            .WithSummary("Delete a calendar item (soft delete + tombstone).")
+            .WithSummary("Delete a calendar item (soft delete + tombstone). A replay bearing the same Idempotency-Key succeeds instead of 404ing.")
             .Produces(StatusCodes.Status204NoContent)
             .Produces(StatusCodes.Status404NotFound)
             .Produces(StatusCodes.Status401Unauthorized);
 
-        group.MapPost("/{id:guid}/metadata", (Guid id, JsonNode patch, CalendarItemsHandler h, CancellationToken ct) => h.AttachMetadataAsync(id, patch, ct))
+        group.MapPost("/{id:guid}/metadata", (Guid id, JsonNode patch, DateTimeOffset? occurredAt, [FromHeader(Name = "Idempotency-Key")] Guid? idempotencyKey, CalendarItemsHandler h, CancellationToken ct) => h.AttachMetadataAsync(id, patch, occurredAt, idempotencyKey, ct))
             .WithName("MergeItemMetadata")
-            .WithSummary("Merge arbitrary JSON metadata into a calendar item.")
+            .WithSummary("Merge arbitrary JSON metadata into a calendar item. Offline clients pass ?occurredAt= + Idempotency-Key for replay-safe, last-writer-wins merges.")
             .Produces<CalendarItemDto>(StatusCodes.Status200OK)
             .Produces(StatusCodes.Status404NotFound)
             .Produces(StatusCodes.Status401Unauthorized);
 
-        group.MapPut("/{id:guid}/prompt", (Guid id, SetItemPromptRequest body, CalendarItemsHandler h, CancellationToken ct) => h.SetPromptAsync(id, body, ct))
+        group.MapPut("/{id:guid}/prompt", (Guid id, SetItemPromptRequest body, [FromHeader(Name = "Idempotency-Key")] Guid? idempotencyKey, CalendarItemsHandler h, CancellationToken ct) => h.SetPromptAsync(id, body, idempotencyKey, ct))
             .WithName("SetItemPrompt")
-            .WithSummary("Set the LLM-interpreted payload on an item (server-side only; never in ICS). 409 if the item carries an action.")
+            .WithSummary("Set the LLM-interpreted payload on an item (server-side only; never in the export). 409 if the item carries an action.")
             .Produces<CalendarItemDto>(StatusCodes.Status200OK)
             .Produces(StatusCodes.Status404NotFound)
             .ProducesProblem(StatusCodes.Status409Conflict)
             .Produces(StatusCodes.Status401Unauthorized);
 
-        group.MapDelete("/{id:guid}/prompt", (Guid id, CalendarItemsHandler h, CancellationToken ct) => h.ClearPromptAsync(id, ct))
+        group.MapDelete("/{id:guid}/prompt", (Guid id, DateTimeOffset? occurredAt, [FromHeader(Name = "Idempotency-Key")] Guid? idempotencyKey, CalendarItemsHandler h, CancellationToken ct) => h.ClearPromptAsync(id, occurredAt, idempotencyKey, ct))
             .WithName("ClearItemPrompt")
             .WithSummary("Clear the item's LLM payload.")
             .Produces(StatusCodes.Status204NoContent)
             .Produces(StatusCodes.Status404NotFound)
             .Produces(StatusCodes.Status401Unauthorized);
 
-        group.MapPut("/{id:guid}/action", (Guid id, SetItemActionRequest body, CalendarItemsHandler h, CancellationToken ct) => h.SetActionAsync(id, body, ct))
+        group.MapPut("/{id:guid}/action", (Guid id, SetItemActionRequest body, [FromHeader(Name = "Idempotency-Key")] Guid? idempotencyKey, CalendarItemsHandler h, CancellationToken ct) => h.SetActionAsync(id, body, idempotencyKey, ct))
             .WithName("SetItemAction")
-            .WithSummary("Set the deterministic payload on an item (server-side only; never in ICS). 409 if the item carries a prompt.")
+            .WithSummary("Set the deterministic payload on an item (server-side only; never in the export). 409 if the item carries a prompt.")
             .Produces<CalendarItemDto>(StatusCodes.Status200OK)
             .Produces(StatusCodes.Status404NotFound)
             .ProducesProblem(StatusCodes.Status409Conflict)
             .Produces(StatusCodes.Status401Unauthorized);
 
-        group.MapDelete("/{id:guid}/action", (Guid id, CalendarItemsHandler h, CancellationToken ct) => h.ClearActionAsync(id, ct))
+        group.MapDelete("/{id:guid}/action", (Guid id, DateTimeOffset? occurredAt, [FromHeader(Name = "Idempotency-Key")] Guid? idempotencyKey, CalendarItemsHandler h, CancellationToken ct) => h.ClearActionAsync(id, occurredAt, idempotencyKey, ct))
             .WithName("ClearItemAction")
             .WithSummary("Clear the item's deterministic payload.")
             .Produces(StatusCodes.Status204NoContent)

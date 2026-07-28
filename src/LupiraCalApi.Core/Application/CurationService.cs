@@ -1,4 +1,5 @@
 using LupiraCalApi.Auth;
+using LupiraCalApi.Data;
 using LupiraCalApi.Domain;
 using LupiraCalApi.Dtos.CalendarItems;
 using LupiraCalApi.Mappers;
@@ -7,8 +8,9 @@ using Marten;
 namespace LupiraCalApi.Application;
 
 /// <summary>Curation of the many-to-many <c>CalendarItem ↔ Calendar</c> membership: list proposed items, accept/reject,
-/// or file an existing item into a calendar. Authorized against the target calendar.</summary>
-public sealed class CurationService(IDocumentSession session, AccessResolver access, CompletenessResolver completeness)
+/// or file an existing item into a calendar. Authorized against the target calendar. Mutations take an optional
+/// client stamp (occurredAt → the event's <c>At</c>, the filing section's LWW timestamp) + Idempotency-Key command id.</summary>
+public sealed class CurationService(IDocumentSession session, AccessResolver access, CompletenessResolver completeness, Idempotency idempotency)
 {
     public async Task<OpResult<List<CalendarItemDto>>> ListProposedAsync(Guid principalId, Guid calendarId, CancellationToken ct = default)
     {
@@ -19,14 +21,14 @@ public sealed class CurationService(IDocumentSession session, AccessResolver acc
         return OpResult<List<CalendarItemDto>>.Ok([.. proposed.Select(i => i.ToResponse(scores[i.Id]))]);
     }
 
-    public Task<OpResult<CalendarItemDto>> AcceptAsync(Guid principalId, Guid itemId, Guid calendarId, CancellationToken ct = default) =>
-        MutateAsync(principalId, itemId, calendarId, new CalendarEntryStatusChanged(itemId, calendarId, CalendarEntryStatus.Accepted, DateTimeOffset.UtcNow), ct);
+    public Task<OpResult<CalendarItemDto>> AcceptAsync(Guid principalId, Guid itemId, Guid calendarId, DateTimeOffset? occurredAt = null, Guid? commandId = null, CancellationToken ct = default) =>
+        MutateAsync(principalId, itemId, calendarId, new CalendarEntryStatusChanged(itemId, calendarId, CalendarEntryStatus.Accepted, occurredAt ?? DateTimeOffset.UtcNow, commandId), commandId, ct);
 
-    public Task<OpResult<CalendarItemDto>> RejectAsync(Guid principalId, Guid itemId, Guid calendarId, CancellationToken ct = default) =>
-        MutateAsync(principalId, itemId, calendarId, new RemovedFromCalendar(itemId, calendarId, DateTimeOffset.UtcNow), ct);
+    public Task<OpResult<CalendarItemDto>> RejectAsync(Guid principalId, Guid itemId, Guid calendarId, DateTimeOffset? occurredAt = null, Guid? commandId = null, CancellationToken ct = default) =>
+        MutateAsync(principalId, itemId, calendarId, new RemovedFromCalendar(itemId, calendarId, occurredAt ?? DateTimeOffset.UtcNow, commandId), commandId, ct);
 
-    public Task<OpResult<CalendarItemDto>> AddToCalendarAsync(Guid principalId, Guid itemId, Guid calendarId, string? status, CancellationToken ct = default) =>
-        MutateAsync(principalId, itemId, calendarId, new AddedToCalendar(itemId, calendarId, ParseEntryStatus(status), DateTimeOffset.UtcNow), ct);
+    public Task<OpResult<CalendarItemDto>> AddToCalendarAsync(Guid principalId, Guid itemId, Guid calendarId, string? status, DateTimeOffset? occurredAt = null, Guid? commandId = null, CancellationToken ct = default) =>
+        MutateAsync(principalId, itemId, calendarId, new AddedToCalendar(itemId, calendarId, ParseEntryStatus(status), occurredAt ?? DateTimeOffset.UtcNow, commandId), commandId, ct);
 
     /// <summary>File many existing items into calendars in one call. Each entry runs through <see cref="AddToCalendarAsync"/>
     /// so it carries the same per-calendar authorization and opaque-404 IDOR guard. Never aborts the whole batch — returns a
@@ -39,7 +41,7 @@ public sealed class CurationService(IDocumentSession session, AccessResolver acc
         var results = new List<FileItemResult>(entries.Count);
         foreach (var e in entries)
         {
-            var res = await AddToCalendarAsync(principalId, e.ItemId, e.CalendarId, e.Status, ct);
+            var res = await AddToCalendarAsync(principalId, e.ItemId, e.CalendarId, e.Status, ct: ct);
             results.Add(new FileItemResult(e.ItemId, e.CalendarId, StatusName(res.Status), res.Error));
         }
         return OpResult<List<FileItemResult>>.Ok(results);
@@ -54,8 +56,10 @@ public sealed class CurationService(IDocumentSession session, AccessResolver acc
         _ => "invalid",
     };
 
-    private async Task<OpResult<CalendarItemDto>> MutateAsync(Guid principalId, Guid itemId, Guid calendarId, object @event, CancellationToken ct)
+    private async Task<OpResult<CalendarItemDto>> MutateAsync(Guid principalId, Guid itemId, Guid calendarId, object @event, Guid? commandId, CancellationToken ct)
     {
+        if (await idempotency.SeenAsync(commandId, ct) is not null && await session.LoadAsync<CalendarItem>(itemId, ct) is { } replayed)
+            return OpResult<CalendarItemDto>.Ok(replayed.ToResponse(await completeness.ScoreItemAsync(replayed, ct)));
         if (!await access.CanWriteCalendarAsync(principalId, calendarId, ct)) return OpResult<CalendarItemDto>.Forbidden("No write access to this calendar.");
         var stream = await session.Events.FetchForWriting<CalendarItem>(itemId, ct);
         var item = stream.Aggregate;
@@ -69,7 +73,9 @@ public sealed class CurationService(IDocumentSession session, AccessResolver acc
             || await access.CanReadItemAsync(principalId, item, ct);
         if (!mayCurate) return OpResult<CalendarItemDto>.NotFound();
         stream.AppendOne(@event);
-        await session.SaveChangesAsync(ct);
+        idempotency.Record(commandId, itemId, (int)(stream.CurrentVersion ?? 0) + 1);
+        try { await session.SaveChangesAsync(ct); }
+        catch (Exception ex) when (Idempotency.IsDuplicate(ex)) { /* replayed concurrently — current state is authoritative */ }
         var updated = await session.LoadAsync<CalendarItem>(itemId, ct);
         return OpResult<CalendarItemDto>.Ok(updated!.ToResponse(await completeness.ScoreItemAsync(updated!, ct)));
     }

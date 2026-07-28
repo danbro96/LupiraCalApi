@@ -18,6 +18,11 @@ public static class MartenRegistrations
         // this to CreateOrUpdate in Development so `dotnet run` and the integration tests self-provision.
         opts.AutoCreateSchemaObjects = AutoCreate.None;
 
+        // Rich append: sequences + versions are reserved client-side BEFORE inline projections run, so
+        // CalendarItem.Apply can stamp UpdatedSequence (the sync feed's cursor watermark) from IEvent.Sequence.
+        // Under the default Quick mode the sequence is assigned server-side at INSERT and reads 0 in Apply.
+        opts.Events.AppendMode = JasperFx.Events.EventAppendMode.Rich;
+
         // Provenance stamped on every event — unbackfillable, so captured at write time (see PrincipalDirectory).
         // Server timestamp + sequence are always recorded by Marten; these add actor, trace correlation, and headers.
         opts.Events.MetadataConfig.CorrelationIdEnabled = true;   // = OTel TraceId
@@ -50,6 +55,12 @@ public static class MartenRegistrations
 
         // Event-sourced aggregates (resource read models) — inline for read-your-write.
         opts.Projections.Snapshot<CalendarItem>(SnapshotLifecycle.Inline);
+        // The sync changes feed pages items by "touched since cursor" — indexed so the delta query never scans.
+        opts.Schema.For<CalendarItem>().Index(x => x.UpdatedSequence);
+
+        // Idempotency ledger (Idempotency-Key on mutations); identity = the client's command id, so a duplicate
+        // key is a PK violation that rolls back the whole transaction (see Data/Idempotency).
+        opts.Schema.For<ProcessedCommand>().Identity(x => x.CommandId);
 
         // Plain documents (collections, identity, cross-API edges) + the indexes the services query by. Places are
         // owned by LupiraGeoApi and contacts by LupiraContactApi — items/legs reference them by bare Guid (no local doc).

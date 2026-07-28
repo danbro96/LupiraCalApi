@@ -1,4 +1,5 @@
 using LupiraCalApi.Auth;
+using LupiraCalApi.Data;
 using LupiraCalApi.Domain;
 using LupiraCalApi.Dtos.CalendarItems;
 using LupiraCalApi.Mappers;
@@ -12,9 +13,21 @@ namespace LupiraCalApi.Application;
 /// The calendar-item core shared by REST, DAV, and MCP. Every mutation appends events to the item's Marten stream;
 /// the inline <see cref="CalendarItem"/> snapshot is the read model. The raw <c>SourceIcalendar</c> blob + content
 /// hash ride on the events (DAV source of truth + ETag). Items are calendar-independent (many-to-many via curation).
+/// Mutations may carry an <c>Idempotency-Key</c> command id (see <see cref="Idempotency"/>) and an
+/// <c>occurredAt</c> client stamp (see <see cref="SectionLww"/>); creates need neither — <c>SourceKey</c>
+/// already makes them replay-safe.
 /// </summary>
-public sealed class CalendarItemService(IDocumentSession session, AccessResolver access, RecurrenceExpander expander, IGeoResolver geo, CompletenessResolver completeness, IContactResolver contacts)
+public sealed class CalendarItemService(IDocumentSession session, AccessResolver access, RecurrenceExpander expander, IGeoResolver geo, CompletenessResolver completeness, IContactResolver contacts, Idempotency idempotency)
 {
+    /// <summary>Commit staged events + the dedup ledger row in one transaction. False when the dedup race was
+    /// lost — the caller re-reads and returns the already-committed state (idempotent success).</summary>
+    private async Task<bool> SaveGuardedAsync(Guid? commandId, Guid aggregateId, int resultVersion, CancellationToken ct)
+    {
+        idempotency.Record(commandId, aggregateId, resultVersion);
+        try { await session.SaveChangesAsync(ct); }
+        catch (Exception ex) when (Idempotency.IsDuplicate(ex)) { return false; }
+        return true;
+    }
     /// <summary>Resolve free-text to a (geo place id, label). Geo owns resolution. <c>Unresolved</c> is true only when geo
     /// IS configured but couldn't resolve (unreachable/GeocodeUnavailable) — a retryable failure the REST/MCP paths reject
     /// (fail-closed) while the DAV path ignores (label-only). When geo is unconfigured (dev/test) it degrades to the
@@ -310,8 +323,9 @@ public sealed class CalendarItemService(IDocumentSession session, AccessResolver
         return OpResult<CalendarItemDto>.Ok(await ToDtoAsync(item, ct));
     }
 
-    public async Task<OpResult<CalendarItemDto>> UpdateAsync(Guid principalId, Guid id, UpdateCalendarItemRequest r, CancellationToken ct = default)
+    public async Task<OpResult<CalendarItemDto>> UpdateAsync(Guid principalId, Guid id, UpdateCalendarItemRequest r, Guid? commandId = null, CancellationToken ct = default)
     {
+        if (await idempotency.SeenAsync(commandId, ct) is not null) return await ReplayedAsync(id, ct);
         var stream = await session.Events.FetchForWriting<CalendarItem>(id, ct);
         var item = stream.Aggregate;
         if (item is null || item.DeletedAt is not null) return OpResult<CalendarItemDto>.NotFound();
@@ -323,10 +337,17 @@ public sealed class CalendarItemService(IDocumentSession session, AccessResolver
         var title = r.Title ?? item.Title;
         var description = r.Description ?? item.Description;
         var status = statusIn ?? item.Status;
-        var startsAt = r.StartsAt ?? item.StartsAt;
-        var endsAt = r.EndsAt ?? item.EndsAt;
-        var rrule = r.RecurrenceRule ?? item.RecurrenceRule;
+        // Sentinel merge: Provided writes the value verbatim (incl. null = clear); else omitted ⇒ kept.
+        var startsAt = r.StartsAtProvided ? r.StartsAt : r.StartsAt ?? item.StartsAt;
+        var endsAt = r.EndsAtProvided ? r.EndsAt : r.EndsAt ?? item.EndsAt;
+        var isAllDay = r.IsAllDay ?? item.IsAllDay;
+        var startDate = r.StartDateProvided ? r.StartDate : r.StartDate ?? item.StartDate;
+        var endDate = r.EndDateProvided ? r.EndDate : r.EndDate ?? item.EndDate;
+        var startTimezone = r.StartTimezoneProvided ? r.StartTimezone : r.StartTimezone ?? item.StartTimezone;
+        var endTimezone = r.EndTimezoneProvided ? r.EndTimezone : r.EndTimezone ?? item.EndTimezone;
+        var rrule = r.RecurrenceRuleProvided ? r.RecurrenceRule : r.RecurrenceRule ?? item.RecurrenceRule;
         var tags = r.Tags ?? item.Tags;
+        if (isAllDay && startDate is null) return OpResult<CalendarItemDto>.Invalid("An all-day item needs StartDate.");
         var (placeId, locationLabel, unresolved) = r.Location is not null ? await ResolvePlaceAsync(r.Location, ct) : (item.PlaceId, item.LocationLabel, false);
         if (unresolved) return OpResult<CalendarItemDto>.Invalid(LocationUnresolved);
 
@@ -340,8 +361,8 @@ public sealed class CalendarItemService(IDocumentSession session, AccessResolver
             return OpResult<CalendarItemDto>.Invalid(parentError);
         var parentItemId = r.ParentItemId ?? item.ParentItemId;
 
-        var fields = new CalendarItemFields(title, description, status, item.IsAllDay, startsAt, endsAt,
-            item.StartTimezone, item.EndTimezone, item.StartDate, item.EndDate, rrule,
+        var fields = new CalendarItemFields(title, description, status, isAllDay, startsAt, endsAt,
+            startTimezone, endTimezone, startDate, endDate, rrule,
             item.RecurrenceExceptions, item.RecurrenceOverrides, category, placeId, locationLabel, parentItemId, tags,
             r.StartPrecision ?? item.StartPrecision, r.EndPrecision ?? item.EndPrecision);
 
@@ -352,25 +373,29 @@ public sealed class CalendarItemService(IDocumentSession session, AccessResolver
             ? (categoryChanged ? new ItemDetails() : null)
             : (categoryChanged ? incoming : ItemDetailsMapper.Merge(item.Details, incoming));
 
-        stream.AppendOne(new ItemRevised(id, fields, details));
-        await session.SaveChangesAsync(ct);
+        stream.AppendOne(new ItemRevised(id, fields, details, r.OccurredAt, commandId));
+        await SaveGuardedAsync(commandId, id, (int)(stream.CurrentVersion ?? 0) + 1, ct);
         var updated = await session.LoadAsync<CalendarItem>(id, ct);
         return OpResult<CalendarItemDto>.Ok(await ToDtoAsync(updated!, ct));
     }
 
-    public async Task<OpResult> DeleteAsync(Guid principalId, Guid id, CancellationToken ct = default)
+    public async Task<OpResult> DeleteAsync(Guid principalId, Guid id, Guid? commandId = null, CancellationToken ct = default)
     {
+        // A replayed delete after a lost response finds the item already gone — 404 would wedge an offline
+        // client's outbox, so the ledger turns it into an idempotent success.
+        if (await idempotency.SeenAsync(commandId, ct) is not null) return OpResult.Ok();
         var stream = await session.Events.FetchForWriting<CalendarItem>(id, ct);
         var item = stream.Aggregate;
         if (item is null || item.DeletedAt is not null) return OpResult.NotFound();
         if (!await CanWriteItemAsync(principalId, item, ct)) return OpResult.Forbidden("No write access to this item.");
         stream.AppendOne(new ItemDeleted(id, DateTimeOffset.UtcNow));
-        await session.SaveChangesAsync(ct);
+        await SaveGuardedAsync(commandId, id, (int)(stream.CurrentVersion ?? 0) + 1, ct);
         return OpResult.Ok();
     }
 
-    public async Task<OpResult<CalendarItemDto>> AttachMetadataAsync(Guid principalId, Guid id, JsonNode patch, CancellationToken ct = default)
+    public async Task<OpResult<CalendarItemDto>> AttachMetadataAsync(Guid principalId, Guid id, JsonNode patch, DateTimeOffset? occurredAt = null, Guid? commandId = null, CancellationToken ct = default)
     {
+        if (await idempotency.SeenAsync(commandId, ct) is not null) return await ReplayedAsync(id, ct);
         var stream = await session.Events.FetchForWriting<CalendarItem>(id, ct);
         var item = stream.Aggregate;
         if (item is null || item.DeletedAt is not null) return OpResult<CalendarItemDto>.NotFound();
@@ -379,65 +404,76 @@ public sealed class CalendarItemService(IDocumentSession session, AccessResolver
         var current = (JsonNode.Parse(string.IsNullOrWhiteSpace(item.Metadata) ? "{}" : item.Metadata) as JsonObject) ?? new JsonObject();
         if (patch is JsonObject obj)
             foreach (var kv in obj) current[kv.Key] = kv.Value?.DeepClone();
-        stream.AppendOne(new ItemMetadataAttached(id, current.ToJsonString()));
-        await session.SaveChangesAsync(ct);
+        stream.AppendOne(new ItemMetadataAttached(id, current.ToJsonString(), occurredAt, commandId));
+        await SaveGuardedAsync(commandId, id, (int)(stream.CurrentVersion ?? 0) + 1, ct);
         var updated = await session.LoadAsync<CalendarItem>(id, ct);
         return OpResult<CalendarItemDto>.Ok(await ToDtoAsync(updated!, ct));
     }
 
+    /// <summary>Response for a mutation whose command id is already in the ledger: the current state, deleted or
+    /// not — the original call succeeded, so the replay must too.</summary>
+    private async Task<OpResult<CalendarItemDto>> ReplayedAsync(Guid id, CancellationToken ct) =>
+        await session.LoadAsync<CalendarItem>(id, ct) is { } current
+            ? OpResult<CalendarItemDto>.Ok(await ToDtoAsync(current, ct))
+            : OpResult<CalendarItemDto>.NotFound();
+
     // ---- event-bound payload (server-side only, XOR — an item carries one prompt OR one action) ----
 
-    public async Task<OpResult<CalendarItemDto>> SetPromptAsync(Guid principalId, Guid id, ItemPrompt prompt, CancellationToken ct = default)
+    public async Task<OpResult<CalendarItemDto>> SetPromptAsync(Guid principalId, Guid id, ItemPrompt prompt, DateTimeOffset? occurredAt = null, Guid? commandId = null, CancellationToken ct = default)
     {
+        if (await idempotency.SeenAsync(commandId, ct) is not null) return await ReplayedAsync(id, ct);
         var stream = await session.Events.FetchForWriting<CalendarItem>(id, ct);
         var item = stream.Aggregate;
         if (item is null || item.DeletedAt is not null) return OpResult<CalendarItemDto>.NotFound();
         if (!await CanWriteItemAsync(principalId, item, ct)) return OpResult<CalendarItemDto>.Forbidden("No write access to this item.");
         if (item.Action is not null) return OpResult<CalendarItemDto>.Conflict("Item already carries an action; clear it first.");
 
-        stream.AppendOne(new ItemPromptSet(id, prompt));
-        await session.SaveChangesAsync(ct);
+        stream.AppendOne(new ItemPromptSet(id, prompt, occurredAt, commandId));
+        await SaveGuardedAsync(commandId, id, (int)(stream.CurrentVersion ?? 0) + 1, ct);
         var updated = await session.LoadAsync<CalendarItem>(id, ct);
         return OpResult<CalendarItemDto>.Ok(await ToDtoAsync(updated!, ct));
     }
 
-    public async Task<OpResult<CalendarItemDto>> SetActionAsync(Guid principalId, Guid id, ItemAction action, CancellationToken ct = default)
+    public async Task<OpResult<CalendarItemDto>> SetActionAsync(Guid principalId, Guid id, ItemAction action, DateTimeOffset? occurredAt = null, Guid? commandId = null, CancellationToken ct = default)
     {
+        if (await idempotency.SeenAsync(commandId, ct) is not null) return await ReplayedAsync(id, ct);
         var stream = await session.Events.FetchForWriting<CalendarItem>(id, ct);
         var item = stream.Aggregate;
         if (item is null || item.DeletedAt is not null) return OpResult<CalendarItemDto>.NotFound();
         if (!await CanWriteItemAsync(principalId, item, ct)) return OpResult<CalendarItemDto>.Forbidden("No write access to this item.");
         if (item.Prompt is not null) return OpResult<CalendarItemDto>.Conflict("Item already carries a prompt; clear it first.");
 
-        stream.AppendOne(new ItemActionSet(id, action));
-        await session.SaveChangesAsync(ct);
+        stream.AppendOne(new ItemActionSet(id, action, occurredAt, commandId));
+        await SaveGuardedAsync(commandId, id, (int)(stream.CurrentVersion ?? 0) + 1, ct);
         var updated = await session.LoadAsync<CalendarItem>(id, ct);
         return OpResult<CalendarItemDto>.Ok(await ToDtoAsync(updated!, ct));
     }
 
-    public async Task<OpResult> ClearPromptAsync(Guid principalId, Guid id, CancellationToken ct = default)
+    public async Task<OpResult> ClearPromptAsync(Guid principalId, Guid id, DateTimeOffset? occurredAt = null, Guid? commandId = null, CancellationToken ct = default)
     {
+        if (await idempotency.SeenAsync(commandId, ct) is not null) return OpResult.Ok();
         var stream = await session.Events.FetchForWriting<CalendarItem>(id, ct);
         var item = stream.Aggregate;
         if (item is null || item.DeletedAt is not null) return OpResult.NotFound();
         if (!await CanWriteItemAsync(principalId, item, ct)) return OpResult.Forbidden("No write access to this item.");
         if (item.Prompt is null) return OpResult.Ok();   // no-op; don't append a meaningless event
 
-        stream.AppendOne(new ItemPromptCleared(id));
-        await session.SaveChangesAsync(ct);
+        stream.AppendOne(new ItemPromptCleared(id, occurredAt, commandId));
+        await SaveGuardedAsync(commandId, id, (int)(stream.CurrentVersion ?? 0) + 1, ct);
         return OpResult.Ok();
     }
 
-    public async Task<OpResult> ClearActionAsync(Guid principalId, Guid id, CancellationToken ct = default)
+    public async Task<OpResult> ClearActionAsync(Guid principalId, Guid id, DateTimeOffset? occurredAt = null, Guid? commandId = null, CancellationToken ct = default)
     {
+        if (await idempotency.SeenAsync(commandId, ct) is not null) return OpResult.Ok();
         var stream = await session.Events.FetchForWriting<CalendarItem>(id, ct);
         var item = stream.Aggregate;
         if (item is null || item.DeletedAt is not null) return OpResult.NotFound();
         if (!await CanWriteItemAsync(principalId, item, ct)) return OpResult.Forbidden("No write access to this item.");
         if (item.Action is null) return OpResult.Ok();
 
-        stream.AppendOne(new ItemActionCleared(id));
-        await session.SaveChangesAsync(ct);
+        stream.AppendOne(new ItemActionCleared(id, occurredAt, commandId));
+        await SaveGuardedAsync(commandId, id, (int)(stream.CurrentVersion ?? 0) + 1, ct);
         return OpResult.Ok();
     }
 

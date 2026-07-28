@@ -37,6 +37,7 @@ builder.Services.AddScoped<CalendarItemsHandler>();
 builder.Services.AddScoped<RelationsHandler>();
 builder.Services.AddScoped<CurationHandler>();
 builder.Services.AddScoped<ParticipationHandler>();
+builder.Services.AddScoped<SyncHandler>();
 builder.Services.AddScoped<DavBackendHandler>();
 
 // --- Gazetteer: LupiraGeoApi owns place resolution/geocoding (Geo:BaseUrl). When configured, free-text locations
@@ -188,6 +189,17 @@ if (args.Contains("--apply-schema"))
     return;
 }
 
+// One-shot item projection rebuild (deploy step after the sync-surface release: pre-existing item documents
+// carry no UpdatedSequence watermark until their snapshots are recomputed from the event log).
+if (args.Contains("--rebuild-items"))
+{
+    var store = app.Services.GetRequiredService<IDocumentStore>();
+    using var daemon = await store.BuildProjectionDaemonAsync();
+    await daemon.RebuildProjectionAsync<CalendarItem>(CancellationToken.None);
+    Console.WriteLine("CalendarItem projection rebuilt.");
+    return;
+}
+
 // Behind the Cloudflare Tunnel the public host differs from the container, so honor forwarded headers.
 var forwarded = new ForwardedHeadersOptions
 {
@@ -226,6 +238,7 @@ app.MapCalendarItems();
 app.MapRelations();
 app.MapCuration();
 app.MapParticipation();
+app.MapSync();
 
 // The internal DAV-backend seam (LAN-only) the LupiraDavApi gateway consumes.
 app.MapDavBackend();

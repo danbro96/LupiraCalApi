@@ -15,21 +15,21 @@ public sealed class CurationHandler(CurrentUser user, CurationService curation)
         return OpResultMap.OkProblem(await curation.ListProposedAsync(u.Id, calendarId, ct));
     }
 
-    public async Task<Results<Ok<CalendarItemDto>, NotFound, ProblemHttpResult, UnauthorizedHttpResult>> AcceptAsync(Guid itemId, Guid calendarId, CancellationToken ct)
+    public async Task<Results<Ok<CalendarItemDto>, NotFound, ProblemHttpResult, UnauthorizedHttpResult>> AcceptAsync(Guid itemId, Guid calendarId, DateTimeOffset? occurredAt, Guid? idempotencyKey, CancellationToken ct)
     {
         var u = await user.GetAsync(ct);
-        return OpResultMap.OkNotFoundProblem(await curation.AcceptAsync(u.Id, itemId, calendarId, ct));
+        return OpResultMap.OkNotFoundProblem(await curation.AcceptAsync(u.Id, itemId, calendarId, occurredAt, idempotencyKey, ct));
     }
 
-    public async Task<Results<Ok<CalendarItemDto>, NotFound, ProblemHttpResult, UnauthorizedHttpResult>> RejectAsync(Guid itemId, Guid calendarId, CancellationToken ct)
+    public async Task<Results<Ok<CalendarItemDto>, NotFound, ProblemHttpResult, UnauthorizedHttpResult>> RejectAsync(Guid itemId, Guid calendarId, DateTimeOffset? occurredAt, Guid? idempotencyKey, CancellationToken ct)
     {
         var u = await user.GetAsync(ct);
-        return OpResultMap.OkNotFoundProblem(await curation.RejectAsync(u.Id, itemId, calendarId, ct));
+        return OpResultMap.OkNotFoundProblem(await curation.RejectAsync(u.Id, itemId, calendarId, occurredAt, idempotencyKey, ct));
     }
 
-    public async Task<Results<Ok<CalendarItemDto>, NotFound, ProblemHttpResult, UnauthorizedHttpResult>> AddToCalendarAsync(Guid itemId, Guid calendarId, string? status, CancellationToken ct)
+    public async Task<Results<Ok<CalendarItemDto>, NotFound, ProblemHttpResult, UnauthorizedHttpResult>> AddToCalendarAsync(Guid itemId, Guid calendarId, string? status, DateTimeOffset? occurredAt, Guid? idempotencyKey, CancellationToken ct)
     {
         var u = await user.GetAsync(ct);
-        return OpResultMap.OkNotFoundProblem(await curation.AddToCalendarAsync(u.Id, itemId, calendarId, status, ct));
+        return OpResultMap.OkNotFoundProblem(await curation.AddToCalendarAsync(u.Id, itemId, calendarId, status, occurredAt, idempotencyKey, ct));
     }
 }

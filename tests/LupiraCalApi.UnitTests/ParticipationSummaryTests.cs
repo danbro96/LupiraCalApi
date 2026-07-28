@@ -1,5 +1,6 @@
 using LupiraCalApi.Application;
 using LupiraCalApi.Domain;
+using static LupiraCalApi.UnitTests.TestEvents;
 using Xunit;
 
 namespace LupiraCalApi.UnitTests;
@@ -19,10 +20,10 @@ public class ParticipationSummaryTests
     {
         var id = Guid.NewGuid();
         var i = new CalendarItem();
-        i.Apply(new ItemScheduled(id, $"{id:N}@x", Fields(start), null));
-        i.Apply(new AddedToCalendar(id, calendarId, CalendarEntryStatus.Accepted, DateTimeOffset.UtcNow));
+        i.Apply(Ev(new ItemScheduled(id, $"{id:N}@x", Fields(start), null)));
+        i.Apply(Ev(new AddedToCalendar(id, calendarId, CalendarEntryStatus.Accepted, DateTimeOffset.UtcNow)));
         foreach (var c in contactIds)
-            i.Apply(new AttendeeInvited(id, Guid.NewGuid(), c, ParticipationRole.RequiredParticipant, start));
+            i.Apply(Ev(new AttendeeInvited(id, Guid.NewGuid(), c, ParticipationRole.RequiredParticipant, start)));
         return i;
     }
 
@@ -67,7 +68,7 @@ public class ParticipationSummaryTests
     {
         var anna = Guid.NewGuid();
         var item = Item(ReadableCal, T1, anna);
-        item.Apply(new ParticipantLeft(item.Id, item.Attendees[0].ParticipationId, T1));
+        item.Apply(Ev(new ParticipantLeft(item.Id, item.Attendees[0].ParticipationId, T1)));
 
         Assert.Empty(ParticipationService.Summarize([item], [ReadableCal], null, null));
     }
@@ -90,10 +91,10 @@ public class ParticipationSummaryTests
         var anna = Guid.NewGuid();
         var i = new CalendarItem();
         var id = Guid.NewGuid();
-        i.Apply(new ItemScheduled(id, $"{id:N}@x", new CalendarItemFields(
-            "Sometime", null, null, false, null, null, null, null, null, null, null, null, null, null, null, null, null, null), null));
-        i.Apply(new AddedToCalendar(id, ReadableCal, CalendarEntryStatus.Accepted, DateTimeOffset.UtcNow));
-        i.Apply(new AttendeeInvited(id, Guid.NewGuid(), anna, ParticipationRole.RequiredParticipant, T1));
+        i.Apply(Ev(new ItemScheduled(id, $"{id:N}@x", new CalendarItemFields(
+            "Sometime", null, null, false, null, null, null, null, null, null, null, null, null, null, null, null, null, null), null)));
+        i.Apply(Ev(new AddedToCalendar(id, ReadableCal, CalendarEntryStatus.Accepted, DateTimeOffset.UtcNow)));
+        i.Apply(Ev(new AttendeeInvited(id, Guid.NewGuid(), anna, ParticipationRole.RequiredParticipant, T1)));
 
         Assert.Single(ParticipationService.Summarize([i], [ReadableCal], null, null));
         Assert.Empty(ParticipationService.Summarize([i], [ReadableCal], T1, null));

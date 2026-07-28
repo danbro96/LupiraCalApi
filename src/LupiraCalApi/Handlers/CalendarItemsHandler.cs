@@ -48,45 +48,45 @@ public sealed class CalendarItemsHandler(CurrentUser user, CalendarItemService i
         return OpResultMap.OkNotFoundProblem(await items.GetAsync(u.Id, id, ct));
     }
 
-    public async Task<Results<Ok<CalendarItemDto>, NotFound, ProblemHttpResult, UnauthorizedHttpResult>> UpdateAsync(Guid id, UpdateCalendarItemRequest body, CancellationToken ct)
+    public async Task<Results<Ok<CalendarItemDto>, NotFound, ProblemHttpResult, UnauthorizedHttpResult>> UpdateAsync(Guid id, UpdateCalendarItemRequest body, Guid? idempotencyKey, CancellationToken ct)
     {
         var u = await user.GetAsync(ct);
-        return OpResultMap.OkNotFoundProblem(await items.UpdateAsync(u.Id, id, body, ct));
+        return OpResultMap.OkNotFoundProblem(await items.UpdateAsync(u.Id, id, body, idempotencyKey, ct));
     }
 
-    public async Task<Results<NoContent, NotFound, ProblemHttpResult, UnauthorizedHttpResult>> DeleteAsync(Guid id, CancellationToken ct)
+    public async Task<Results<NoContent, NotFound, ProblemHttpResult, UnauthorizedHttpResult>> DeleteAsync(Guid id, Guid? idempotencyKey, CancellationToken ct)
     {
         var u = await user.GetAsync(ct);
-        return OpResultMap.NoContentNotFoundProblem(await items.DeleteAsync(u.Id, id, ct));
+        return OpResultMap.NoContentNotFoundProblem(await items.DeleteAsync(u.Id, id, idempotencyKey, ct));
     }
 
-    public async Task<Results<Ok<CalendarItemDto>, NotFound, ProblemHttpResult, UnauthorizedHttpResult>> AttachMetadataAsync(Guid id, JsonNode patch, CancellationToken ct)
+    public async Task<Results<Ok<CalendarItemDto>, NotFound, ProblemHttpResult, UnauthorizedHttpResult>> AttachMetadataAsync(Guid id, JsonNode patch, DateTimeOffset? occurredAt, Guid? idempotencyKey, CancellationToken ct)
     {
         var u = await user.GetAsync(ct);
-        return OpResultMap.OkNotFoundProblem(await items.AttachMetadataAsync(u.Id, id, patch, ct));
+        return OpResultMap.OkNotFoundProblem(await items.AttachMetadataAsync(u.Id, id, patch, occurredAt, idempotencyKey, ct));
     }
 
-    public async Task<Results<Ok<CalendarItemDto>, NotFound, ProblemHttpResult, UnauthorizedHttpResult>> SetPromptAsync(Guid id, SetItemPromptRequest body, CancellationToken ct)
+    public async Task<Results<Ok<CalendarItemDto>, NotFound, ProblemHttpResult, UnauthorizedHttpResult>> SetPromptAsync(Guid id, SetItemPromptRequest body, Guid? idempotencyKey, CancellationToken ct)
     {
         var u = await user.GetAsync(ct);
-        return OpResultMap.OkNotFoundProblem(await items.SetPromptAsync(u.Id, id, body.ToDomain(), ct));
+        return OpResultMap.OkNotFoundProblem(await items.SetPromptAsync(u.Id, id, body.ToDomain(), body.OccurredAt, idempotencyKey, ct));
     }
 
-    public async Task<Results<NoContent, NotFound, ProblemHttpResult, UnauthorizedHttpResult>> ClearPromptAsync(Guid id, CancellationToken ct)
+    public async Task<Results<NoContent, NotFound, ProblemHttpResult, UnauthorizedHttpResult>> ClearPromptAsync(Guid id, DateTimeOffset? occurredAt, Guid? idempotencyKey, CancellationToken ct)
     {
         var u = await user.GetAsync(ct);
-        return OpResultMap.NoContentNotFoundProblem(await items.ClearPromptAsync(u.Id, id, ct));
+        return OpResultMap.NoContentNotFoundProblem(await items.ClearPromptAsync(u.Id, id, occurredAt, idempotencyKey, ct));
     }
 
-    public async Task<Results<Ok<CalendarItemDto>, NotFound, ProblemHttpResult, UnauthorizedHttpResult>> SetActionAsync(Guid id, SetItemActionRequest body, CancellationToken ct)
+    public async Task<Results<Ok<CalendarItemDto>, NotFound, ProblemHttpResult, UnauthorizedHttpResult>> SetActionAsync(Guid id, SetItemActionRequest body, Guid? idempotencyKey, CancellationToken ct)
     {
         var u = await user.GetAsync(ct);
-        return OpResultMap.OkNotFoundProblem(await items.SetActionAsync(u.Id, id, body.ToDomain(), ct));
+        return OpResultMap.OkNotFoundProblem(await items.SetActionAsync(u.Id, id, body.ToDomain(), body.OccurredAt, idempotencyKey, ct));
     }
 
-    public async Task<Results<NoContent, NotFound, ProblemHttpResult, UnauthorizedHttpResult>> ClearActionAsync(Guid id, CancellationToken ct)
+    public async Task<Results<NoContent, NotFound, ProblemHttpResult, UnauthorizedHttpResult>> ClearActionAsync(Guid id, DateTimeOffset? occurredAt, Guid? idempotencyKey, CancellationToken ct)
     {
         var u = await user.GetAsync(ct);
-        return OpResultMap.NoContentNotFoundProblem(await items.ClearActionAsync(u.Id, id, ct));
+        return OpResultMap.NoContentNotFoundProblem(await items.ClearActionAsync(u.Id, id, occurredAt, idempotencyKey, ct));
     }
 }

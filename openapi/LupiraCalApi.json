@@ -624,13 +624,21 @@
         "tags": [
           "CalendarItems"
         ],
-        "summary": "Update a calendar item (only provided fields change).",
+        "summary": "Update a calendar item. Plain fields: omitted = kept; fields paired with a *Provided sentinel are written verbatim when it is true (enables clearing recurrence, switching all-day, editing timezones). Offline clients send Idempotency-Key (their command id) + body OccurredAt for replay-safe, last-writer-wins updates.",
         "operationId": "UpdateItem",
         "parameters": [
           {
             "name": "id",
             "in": "path",
             "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
             "schema": {
               "type": "string",
               "format": "uuid"
@@ -675,13 +683,21 @@
         "tags": [
           "CalendarItems"
         ],
-        "summary": "Delete a calendar item (soft delete + tombstone).",
+        "summary": "Delete a calendar item (soft delete + tombstone). A replay bearing the same Idempotency-Key succeeds instead of 404ing.",
         "operationId": "DeleteItem",
         "parameters": [
           {
             "name": "id",
             "in": "path",
             "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
             "schema": {
               "type": "string",
               "format": "uuid"
@@ -847,13 +863,29 @@
         "tags": [
           "CalendarItems"
         ],
-        "summary": "Merge arbitrary JSON metadata into a calendar item.",
+        "summary": "Merge arbitrary JSON metadata into a calendar item. Offline clients pass ?occurredAt= + Idempotency-Key for replay-safe, last-writer-wins merges.",
         "operationId": "MergeItemMetadata",
         "parameters": [
           {
             "name": "id",
             "in": "path",
             "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "occurredAt",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "format": "date-time"
+            }
+          },
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
             "schema": {
               "type": "string",
               "format": "uuid"
@@ -900,13 +932,21 @@
         "tags": [
           "CalendarItems"
         ],
-        "summary": "Set the LLM-interpreted payload on an item (server-side only; never in ICS). 409 if the item carries an action.",
+        "summary": "Set the LLM-interpreted payload on an item (server-side only; never in the export). 409 if the item carries an action.",
         "operationId": "SetItemPrompt",
         "parameters": [
           {
             "name": "id",
             "in": "path",
             "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
             "schema": {
               "type": "string",
               "format": "uuid"
@@ -972,6 +1012,22 @@
               "type": "string",
               "format": "uuid"
             }
+          },
+          {
+            "name": "occurredAt",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "format": "date-time"
+            }
+          },
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
           }
         ],
         "responses": {
@@ -997,13 +1053,21 @@
         "tags": [
           "CalendarItems"
         ],
-        "summary": "Set the deterministic payload on an item (server-side only; never in ICS). 409 if the item carries a prompt.",
+        "summary": "Set the deterministic payload on an item (server-side only; never in the export). 409 if the item carries a prompt.",
         "operationId": "SetItemAction",
         "parameters": [
           {
             "name": "id",
             "in": "path",
             "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
             "schema": {
               "type": "string",
               "format": "uuid"
@@ -1065,6 +1129,22 @@
             "name": "id",
             "in": "path",
             "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "occurredAt",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "format": "date-time"
+            }
+          },
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
             "schema": {
               "type": "string",
               "format": "uuid"
@@ -1291,7 +1371,7 @@
         "tags": [
           "Curation"
         ],
-        "summary": "Accept a proposed item into a calendar (then visible over DAV).",
+        "summary": "Accept a proposed item into a calendar. Offline clients pass ?occurredAt= + Idempotency-Key for replay-safe, last-writer-wins filing.",
         "operationId": "AcceptItemIntoCalendar",
         "parameters": [
           {
@@ -1307,6 +1387,22 @@
             "name": "calendarId",
             "in": "path",
             "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "occurredAt",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "format": "date-time"
+            }
+          },
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
             "schema": {
               "type": "string",
               "format": "uuid"
@@ -1340,7 +1436,7 @@
         "tags": [
           "Curation"
         ],
-        "summary": "File an existing item into a calendar (status=proposed|accepted, default proposed).",
+        "summary": "File an existing item into a calendar (status=proposed|accepted, default proposed). Offline clients pass ?occurredAt= + Idempotency-Key.",
         "operationId": "FileItemToCalendar",
         "parameters": [
           {
@@ -1366,6 +1462,22 @@
             "in": "query",
             "schema": {
               "type": "string"
+            }
+          },
+          {
+            "name": "occurredAt",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "format": "date-time"
+            }
+          },
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
             }
           }
         ],
@@ -1394,7 +1506,7 @@
         "tags": [
           "Curation"
         ],
-        "summary": "Remove an item from a calendar (reject / unfile).",
+        "summary": "Remove an item from a calendar (reject / unfile). Offline clients pass ?occurredAt= + Idempotency-Key.",
         "operationId": "RemoveItemFromCalendar",
         "parameters": [
           {
@@ -1410,6 +1522,22 @@
             "name": "calendarId",
             "in": "path",
             "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "occurredAt",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "format": "date-time"
+            }
+          },
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
             "schema": {
               "type": "string",
               "format": "uuid"
@@ -1754,6 +1882,95 @@
           }
         ]
       }
+    },
+    "/sync/changes": {
+      "get": {
+        "tags": [
+          "Sync"
+        ],
+        "summary": "Delta feed for offline mirrors: everything the caller can read that changed past the cursor, plus tombstone ids for items deleted or no longer visible. Omit since for a full sync (tombstones suppressed — replace the mirror wholesale); loop while hasMore, persisting cursor between calls.",
+        "operationId": "GetChanges",
+        "parameters": [
+          {
+            "name": "since",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "schema": {
+              "pattern": "^-?(?:0|[1-9]\\d*)$",
+              "type": [
+                "integer",
+                "string"
+              ],
+              "format": "int32"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SyncChangesResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized"
+          }
+        },
+        "security": [
+          {
+            "Bearer": [ ]
+          }
+        ]
+      }
+    },
+    "/sync/containers": {
+      "get": {
+        "tags": [
+          "Sync"
+        ],
+        "summary": "Snapshot of the caller's calendars for mirror reconciliation. Containers are plain documents with no event history (no cursor) — fetch once per sync cycle and diff locally.",
+        "operationId": "GetSyncContainers",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SyncContainersResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized"
+          }
+        },
+        "security": [
+          {
+            "Bearer": [ ]
+          }
+        ]
+      }
     }
   },
   "components": {
@@ -1869,7 +2086,10 @@
           "isAllDay",
           "attendees",
           "calendars",
-          "etag"
+          "etag",
+          "createdAt",
+          "updatedAt",
+          "version"
         ],
         "type": "object",
         "properties": {
@@ -2062,6 +2282,22 @@
           },
           "etag": {
             "type": "string"
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "updatedAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "version": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int32"
           }
         }
       },
@@ -3249,6 +3485,49 @@
           }
         }
       },
+      "SectionGuardDto": {
+        "required": [
+          "ts",
+          "cmd"
+        ],
+        "type": "object",
+        "properties": {
+          "ts": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "cmd": {
+            "type": "string",
+            "format": "uuid"
+          }
+        }
+      },
+      "SectionGuardsDto": {
+        "required": [
+          "core",
+          "metadata",
+          "payload",
+          "filing"
+        ],
+        "type": "object",
+        "properties": {
+          "core": {
+            "$ref": "#/components/schemas/SectionGuardDto"
+          },
+          "metadata": {
+            "$ref": "#/components/schemas/SectionGuardDto"
+          },
+          "payload": {
+            "$ref": "#/components/schemas/SectionGuardDto"
+          },
+          "filing": {
+            "type": "object",
+            "additionalProperties": {
+              "$ref": "#/components/schemas/SectionGuardDto"
+            }
+          }
+        }
+      },
       "SetItemActionRequest": {
         "required": [
           "kind",
@@ -3278,6 +3557,13 @@
           },
           "enabled": {
             "type": "boolean"
+          },
+          "occurredAt": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "date-time"
           }
         }
       },
@@ -3336,6 +3622,13 @@
           },
           "enabled": {
             "type": "boolean"
+          },
+          "occurredAt": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "date-time"
           }
         }
       },
@@ -3382,6 +3675,65 @@
               "string"
             ],
             "format": "int32"
+          }
+        }
+      },
+      "SyncChangeDto": {
+        "required": [
+          "item",
+          "guards"
+        ],
+        "type": "object",
+        "properties": {
+          "item": {
+            "$ref": "#/components/schemas/CalendarItemDto"
+          },
+          "guards": {
+            "$ref": "#/components/schemas/SectionGuardsDto"
+          }
+        }
+      },
+      "SyncChangesResponse": {
+        "required": [
+          "cursor",
+          "hasMore",
+          "changed",
+          "deleted"
+        ],
+        "type": "object",
+        "properties": {
+          "cursor": {
+            "type": "string"
+          },
+          "hasMore": {
+            "type": "boolean"
+          },
+          "changed": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/SyncChangeDto"
+            }
+          },
+          "deleted": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        }
+      },
+      "SyncContainersResponse": {
+        "required": [
+          "calendars"
+        ],
+        "type": "object",
+        "properties": {
+          "calendars": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ContainerDto"
+            }
           }
         }
       },
@@ -3617,6 +3969,9 @@
             ],
             "format": "date-time"
           },
+          "startsAtProvided": {
+            "type": "boolean"
+          },
           "endsAt": {
             "type": [
               "null",
@@ -3624,11 +3979,61 @@
             ],
             "format": "date-time"
           },
+          "endsAtProvided": {
+            "type": "boolean"
+          },
+          "isAllDay": {
+            "type": [
+              "null",
+              "boolean"
+            ]
+          },
+          "startDate": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "date"
+          },
+          "startDateProvided": {
+            "type": "boolean"
+          },
+          "endDate": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "date"
+          },
+          "endDateProvided": {
+            "type": "boolean"
+          },
+          "startTimezone": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "startTimezoneProvided": {
+            "type": "boolean"
+          },
+          "endTimezone": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "endTimezoneProvided": {
+            "type": "boolean"
+          },
           "recurrenceRule": {
             "type": [
               "null",
               "string"
             ]
+          },
+          "recurrenceRuleProvided": {
+            "type": "boolean"
           },
           "startPrecision": {
             "oneOf": [
@@ -3691,6 +4096,13 @@
                 "$ref": "#/components/schemas/ItemDetailsRequest"
               }
             ]
+          },
+          "occurredAt": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "date-time"
           }
         }
       }
@@ -3725,6 +4137,9 @@
     },
     {
       "name": "Curation"
+    },
+    {
+      "name": "Sync"
     }
   ]
 }

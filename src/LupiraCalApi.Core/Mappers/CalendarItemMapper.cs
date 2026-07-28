@@ -36,5 +36,8 @@ internal static class CalendarItemMapper
         Attendees = i.Attendees,
         Calendars = i.Calendars.Select(m => new CalendarMembershipDto { CalendarId = m.CalendarId, Status = m.Status }).ToList(),
         Etag = i.ContentHash,
+        CreatedAt = i.CreatedAt,
+        UpdatedAt = i.UpdatedAt,
+        Version = i.Version,
     };
 }

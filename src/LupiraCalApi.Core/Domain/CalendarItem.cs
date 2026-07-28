@@ -1,3 +1,4 @@
+using JasperFx.Events;
 using LupiraCalApi.Serialization;
 
 namespace LupiraCalApi.Domain;
@@ -69,88 +70,198 @@ public sealed class CalendarItem
     public List<CalendarMembership> Calendars { get; set; } = new();
     public DateTimeOffset? DeletedAt { get; set; }
 
+    // ---- projection stamps (server timeline; feed the sync cursor + DTO timestamps) ----
+
+    public DateTimeOffset CreatedAt { get; set; }
+    public DateTimeOffset UpdatedAt { get; set; }
+
+    /// <summary>Global event sequence of the last event applied — the per-item watermark the sync changes feed
+    /// queries by (indexed). Bumped on every event, even one whose section guard rejects it.</summary>
+    public long UpdatedSequence { get; set; }
+
+    /// <summary>Stream version, populated by Marten's aggregate versioning.</summary>
+    public int Version { get; set; }
+
+    // ---- per-section LWW guards (see SectionLww): the (occurredAt, commandId) of each section's last winner ----
+
+    public DateTimeOffset CoreTs { get; set; }
+    public Guid CoreCmd { get; set; }
+    public DateTimeOffset MetadataTs { get; set; }
+    public Guid MetadataCmd { get; set; }
+    public DateTimeOffset PayloadTs { get; set; }
+    public Guid PayloadCmd { get; set; }
+    public Dictionary<Guid, DateTimeOffset> FilingTs { get; set; } = new();
+    public Dictionary<Guid, Guid> FilingCmd { get; set; } = new();
+
     /// <summary>Live in calendar <paramref name="calendarId"/> = an accepted membership and not soft-deleted.</summary>
     public bool IsAcceptedIn(Guid calendarId) =>
         DeletedAt is null && Calendars.Any(m => m.CalendarId == calendarId && m.Status == CalendarEntryStatus.Accepted);
 
     // ---- apply (create + mutate) ----
 
-    public void Apply(ItemScheduled e)
+    public void Apply(IEvent<ItemScheduled> e)
     {
-        Id = e.ItemId;
-        ExternalId = e.ExternalId;
-        SetFields(e.Fields);
-        Details = e.Details;
+        Touch(e);
+        Id = e.Data.ItemId;
+        ExternalId = e.Data.ExternalId;
+        SetFields(e.Data.Fields);
+        Details = e.Data.Details;
         DeletedAt = null;
+        // Creation seeds the core guard from the server stamp: a stale offline edit predating the create loses.
+        (CoreTs, CoreCmd) = SectionLww.Stamp(e, null, null);
         RecomputeHash();
     }
 
-    public void Apply(ItemImported e)
+    public void Apply(IEvent<ItemImported> e)
     {
-        Id = e.ItemId;
-        ExternalId = e.ExternalId;
-        SetFields(e.Parsed);
+        Touch(e);
+        Id = e.Data.ItemId;
+        ExternalId = e.Data.ExternalId;
+        SetFields(e.Data.Parsed);
         DeletedAt = null;
+        (CoreTs, CoreCmd) = SectionLww.Stamp(e, null, null);
         RecomputeHash();
     }
 
-    public void Apply(ItemRevised e)
+    public void Apply(IEvent<ItemRevised> e)
     {
-        SetFields(e.Fields);
-        if (e.Details is not null) Details = e.Details;
+        Touch(e);
+        var (ts, cmd) = SectionLww.Stamp(e, e.Data.OccurredAt, e.Data.CommandId);
+        if (DeletedAt is not null || !SectionLww.Wins(ts, cmd, CoreTs, CoreCmd)) return;
+        SetFields(e.Data.Fields);
+        if (e.Data.Details is not null) Details = e.Data.Details;
+        (CoreTs, CoreCmd) = (ts, cmd);
         RecomputeHash();
     }
 
-    public void Apply(ItemCancelled _)
+    public void Apply(IEvent<ItemCancelled> e)
     {
+        Touch(e);
+        var (ts, cmd) = SectionLww.Stamp(e, e.Data.OccurredAt, e.Data.CommandId);
+        if (DeletedAt is not null || !SectionLww.Wins(ts, cmd, CoreTs, CoreCmd)) return;
         Status = ItemStatus.Cancelled;
+        (CoreTs, CoreCmd) = (ts, cmd);
         RecomputeHash();
     }
 
-    public void Apply(ItemDeleted e) => DeletedAt = e.At;
+    // Delete is absorbing (gates every section apply above/below); restore is the explicit inverse.
+    public void Apply(IEvent<ItemDeleted> e) { Touch(e); DeletedAt = e.Data.At; }
 
-    public void Apply(ItemRestored _) => DeletedAt = null;
+    public void Apply(IEvent<ItemRestored> e) { Touch(e); DeletedAt = null; }
 
     /// <summary>The ETag is a pure function of the canonical ICS — recomputed here (in the snapshot projection) whenever
     /// a canonical field changes, never stored on the event, so a serializer fix heals every item on rebuild.</summary>
     private void RecomputeHash() => ContentHash = ICalSerializer.HashOf(this, LocationLabel);
 
-    public void Apply(ItemMetadataAttached e) => Metadata = e.MetadataJson;
-
-    // XOR: setting one payload clears the other so the snapshot is always single-payload.
-    public void Apply(ItemPromptSet e) { Prompt = e.Prompt; Action = null; }
-    public void Apply(ItemPromptCleared _) => Prompt = null;
-    public void Apply(ItemActionSet e) { Action = e.Action; Prompt = null; }
-    public void Apply(ItemActionCleared _) => Action = null;
-
-    public void Apply(AttendeeInvited e) => Attendees.Add(new ItemAttendee
+    public void Apply(IEvent<ItemMetadataAttached> e)
     {
-        ParticipationId = e.ParticipationId,
-        ContactId = e.ContactId,
-        Role = e.Role,
-        InvitedAt = e.At,
-    });
-
-    public void Apply(InvitationResponded e)
-    {
-        if (Find(e.ParticipationId) is { } a) { a.Status = e.Status; a.RespondedAt = e.At; }
+        Touch(e);
+        var (ts, cmd) = SectionLww.Stamp(e, e.Data.OccurredAt, e.Data.CommandId);
+        if (DeletedAt is not null || !SectionLww.Wins(ts, cmd, MetadataTs, MetadataCmd)) return;
+        Metadata = e.Data.MetadataJson;
+        (MetadataTs, MetadataCmd) = (ts, cmd);
     }
 
-    public void Apply(AttendanceConfirmed e)
+    // XOR: setting one payload clears the other so the snapshot is always single-payload. One shared guard —
+    // prompt and action compete for the same slot, so they must also resolve against each other.
+    public void Apply(IEvent<ItemPromptSet> e)
     {
-        if (Find(e.ParticipationId) is { } a) a.AttendedAt = e.At;
+        Touch(e);
+        var (ts, cmd) = SectionLww.Stamp(e, e.Data.OccurredAt, e.Data.CommandId);
+        if (DeletedAt is not null || !SectionLww.Wins(ts, cmd, PayloadTs, PayloadCmd)) return;
+        Prompt = e.Data.Prompt;
+        Action = null;
+        (PayloadTs, PayloadCmd) = (ts, cmd);
     }
 
-    public void Apply(ParticipantLeft e)
+    public void Apply(IEvent<ItemPromptCleared> e)
     {
-        if (Find(e.ParticipationId) is { } a) a.LeftAt = e.At;
+        Touch(e);
+        var (ts, cmd) = SectionLww.Stamp(e, e.Data.OccurredAt, e.Data.CommandId);
+        if (DeletedAt is not null || !SectionLww.Wins(ts, cmd, PayloadTs, PayloadCmd)) return;
+        Prompt = null;
+        (PayloadTs, PayloadCmd) = (ts, cmd);
     }
 
-    public void Apply(AttendeeRemoved e) => Attendees.RemoveAll(a => a.ParticipationId == e.ParticipationId);
+    public void Apply(IEvent<ItemActionSet> e)
+    {
+        Touch(e);
+        var (ts, cmd) = SectionLww.Stamp(e, e.Data.OccurredAt, e.Data.CommandId);
+        if (DeletedAt is not null || !SectionLww.Wins(ts, cmd, PayloadTs, PayloadCmd)) return;
+        Action = e.Data.Action;
+        Prompt = null;
+        (PayloadTs, PayloadCmd) = (ts, cmd);
+    }
 
-    public void Apply(AddedToCalendar e) => SetMembership(e.CalendarId, e.Status);
-    public void Apply(CalendarEntryStatusChanged e) => SetMembership(e.CalendarId, e.Status);
-    public void Apply(RemovedFromCalendar e) => SetMembership(e.CalendarId, CalendarEntryStatus.Removed);
+    public void Apply(IEvent<ItemActionCleared> e)
+    {
+        Touch(e);
+        var (ts, cmd) = SectionLww.Stamp(e, e.Data.OccurredAt, e.Data.CommandId);
+        if (DeletedAt is not null || !SectionLww.Wins(ts, cmd, PayloadTs, PayloadCmd)) return;
+        Action = null;
+        (PayloadTs, PayloadCmd) = (ts, cmd);
+    }
+
+    // Participation stays append-ordered (no section guard): edits are per-participation-id and rare enough that
+    // cross-device conflicts resolve acceptably by append order; Idempotency-Key still dedups replays.
+    public void Apply(IEvent<AttendeeInvited> e)
+    {
+        Touch(e);
+        Attendees.Add(new ItemAttendee
+        {
+            ParticipationId = e.Data.ParticipationId,
+            ContactId = e.Data.ContactId,
+            Role = e.Data.Role,
+            InvitedAt = e.Data.At,
+        });
+    }
+
+    public void Apply(IEvent<InvitationResponded> e)
+    {
+        Touch(e);
+        if (Find(e.Data.ParticipationId) is { } a) { a.Status = e.Data.Status; a.RespondedAt = e.Data.At; }
+    }
+
+    public void Apply(IEvent<AttendanceConfirmed> e)
+    {
+        Touch(e);
+        if (Find(e.Data.ParticipationId) is { } a) a.AttendedAt = e.Data.At;
+    }
+
+    public void Apply(IEvent<ParticipantLeft> e)
+    {
+        Touch(e);
+        if (Find(e.Data.ParticipationId) is { } a) a.LeftAt = e.Data.At;
+    }
+
+    public void Apply(IEvent<AttendeeRemoved> e)
+    {
+        Touch(e);
+        Attendees.RemoveAll(a => a.ParticipationId == e.Data.ParticipationId);
+    }
+
+    // Filing guards are per calendar (like tags in the tasks LWW): unfiling from one calendar never races a
+    // concurrent filing into another. At doubles as the stamp timestamp.
+    public void Apply(IEvent<AddedToCalendar> e) => ApplyMembership(e, e.Data.CalendarId, e.Data.Status, e.Data.At, e.Data.CommandId);
+    public void Apply(IEvent<CalendarEntryStatusChanged> e) => ApplyMembership(e, e.Data.CalendarId, e.Data.Status, e.Data.At, e.Data.CommandId);
+    public void Apply(IEvent<RemovedFromCalendar> e) => ApplyMembership(e, e.Data.CalendarId, CalendarEntryStatus.Removed, e.Data.At, e.Data.CommandId);
+
+    private void ApplyMembership<T>(IEvent<T> e, Guid calendarId, CalendarEntryStatus status, DateTimeOffset at, Guid? commandId) where T : class
+    {
+        Touch(e);
+        var (ts, cmd) = SectionLww.Stamp(e, at, commandId);
+        if (!SectionLww.Wins(ts, cmd, FilingTs.GetValueOrDefault(calendarId), FilingCmd.GetValueOrDefault(calendarId))) return;
+        SetMembership(calendarId, status);
+        FilingTs[calendarId] = ts;
+        FilingCmd[calendarId] = cmd;
+    }
+
+    private void Touch<T>(IEvent<T> e) where T : class
+    {
+        if (CreatedAt == default) CreatedAt = e.Timestamp;
+        if (e.Timestamp > UpdatedAt) UpdatedAt = e.Timestamp;
+        UpdatedSequence = e.Sequence;
+    }
 
     private ItemAttendee? Find(Guid participationId) => Attendees.FirstOrDefault(a => a.ParticipationId == participationId);
 

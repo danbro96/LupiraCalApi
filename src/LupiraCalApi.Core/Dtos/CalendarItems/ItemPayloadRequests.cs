@@ -15,6 +15,9 @@ public sealed class SetItemPromptRequest
     public required PromptFire Fire { get; set; }
     public bool Enabled { get; set; } = true;
 
+    /// <summary>Client wall-clock of the edit (LWW for the payload section). Omitted ⇒ server receive time.</summary>
+    public DateTimeOffset? OccurredAt { get; set; }
+
     public ItemPrompt ToDomain() => new(Intent, Target, Instruction, Output, Tools, Tier, OnMiss, Fire, Enabled);
 }
 
@@ -26,6 +29,9 @@ public sealed class SetItemActionRequest
     public required string ParamsJson { get; set; }
     public required PromptFire Fire { get; set; }
     public bool Enabled { get; set; } = true;
+
+    /// <summary>Client wall-clock of the edit (LWW for the payload section). Omitted ⇒ server receive time.</summary>
+    public DateTimeOffset? OccurredAt { get; set; }
 
     public ItemAction ToDomain() => new(Kind, Target, ParamsJson, Fire, Enabled);
 }

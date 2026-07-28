@@ -51,6 +51,7 @@ public static class CoreServiceCollectionExtensions
         services.TryAddSingleton<IGeoResolver, NullGeoResolver>();
         // Same pattern for contacts: LupiraContactApi owns them; unconfigured -> fail-open null resolver.
         services.TryAddSingleton<IContactResolver, NullContactResolver>();
+        services.AddScoped<LupiraCalApi.Data.Idempotency>();
         services.AddScoped<CalendarService>();
         services.AddScoped<CalendarItemService>();
         services.AddScoped<CurationService>();
@@ -58,6 +59,7 @@ public static class CoreServiceCollectionExtensions
         services.AddScoped<RelationService>();
         services.AddSingleton<TimeRangeFilter>();
         services.AddScoped<DavChangeFeed>();
+        services.AddScoped<SyncFeed>();
         return services;
     }
 }
