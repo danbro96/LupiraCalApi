@@ -1,0 +1,15 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net10.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <!-- Manual dev tool (not in the .slnx): emits recurrence/LWW parity fixtures for the mobile domain package. -->
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\src\LupiraCalApi.Core\LupiraCalApi.Core.csproj" />
+  </ItemGroup>
+
+</Project>
