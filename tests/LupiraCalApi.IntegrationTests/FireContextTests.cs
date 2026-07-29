@@ -106,8 +106,6 @@ public sealed class FireContextTests(CalApiTestFactory factory) : IntegrationTes
         Assert.Equal(TimeSpan.FromHours(6), row.ExpireAfter);  // LlmPrompts expiry, from the SAME calendar
     }
 
-    // ---- helpers ----
-
     /// <summary>Append the item events directly (create + optional membership + prompt) — states REST refuses to author.</summary>
     private async Task<Guid> AppendItemAsync(Guid? calendarId, CalendarEntryStatus status)
     {

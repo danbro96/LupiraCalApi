@@ -20,8 +20,6 @@ public abstract class IntegrationTest(CalApiTestFactory factory) : IAsyncLifetim
     public async Task InitializeAsync() => await Factory.ResetAsync();
     public Task DisposeAsync() => Task.CompletedTask;
 
-    // ---- REST fixture helpers ----
-
     protected static async Task<Guid> GetMyIdAsync(HttpClient api)
     {
         var me = await api.GetFromJsonAsync<MeDto>("/me");
@@ -62,8 +60,6 @@ public abstract class IntegrationTest(CalApiTestFactory factory) : IAsyncLifetim
         var body = await resp.Content.ReadFromJsonAsync<DavResourcesDto>();
         return [.. body!.Resources.Select(r => r.Uid)];
     }
-
-    // ---- payload builders ----
 
     protected static string MinimalIcs(string uid, string summary, DateTimeOffset startUtc, string? rrule = null)
     {

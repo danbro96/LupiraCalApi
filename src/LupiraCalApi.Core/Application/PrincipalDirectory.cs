@@ -6,18 +6,18 @@ using Npgsql;
 namespace LupiraCalApi.Application;
 
 /// <summary>
-/// Resolves an authenticated principal (OIDC <c>sub</c> + email, or a DAV email) to a local <see cref="Principal"/>
-/// document, JIT-provisioning on first sight. Resolves by <c>sub</c> first, then email, so the OIDC and DAV logins
-/// converge on one row. The host's <c>CurrentUser</c> supplies the claims; this never sees the request.
+/// Resolves an authenticated principal (OIDC <c>sub</c> + email, or a DAV email) to a local
+/// <see cref="Principal"/>, JIT-provisioning on first sight. Resolves by <c>sub</c> first then email, so the
+/// OIDC and DAV logins converge on one row. The host's <c>CurrentUser</c> supplies the claims; this never
+/// sees the request.
 ///
-/// Provisioning is a check-then-insert, so two concurrent first-sight logins can both reach the insert. A unique
-/// index on <c>AuthentikSub</c> lets only one win; the loser catches the violation and adopts the winner's row.
-/// Without both halves the same login forks into two principals and calendar access resolves to whichever row
-/// Postgres happens to return.
+/// Provisioning is a check-then-insert, so two concurrent first-sight logins both reach it: a unique index on
+/// <c>AuthentikSub</c> lets one win and the loser adopts the winner's row. Without both halves one login forks
+/// into two principals and access resolves to whichever row Postgres returns.
 ///
-/// Resolution is side-effect-free: provenance is stamped by <see cref="EventActor"/> at the caller's own
-/// resolution site, never here — this method is also used to resolve *third parties* (a calendar-grant target),
-/// where stamping would attribute the write to the wrong person.
+/// Resolution is side-effect-free — provenance is stamped by <see cref="EventActor"/> at the caller's own
+/// site, never here, because this also resolves *third parties* (a calendar-grant target) where stamping
+/// would attribute the write to the wrong person.
 /// </summary>
 public sealed class PrincipalDirectory(IDocumentSession session)
 {

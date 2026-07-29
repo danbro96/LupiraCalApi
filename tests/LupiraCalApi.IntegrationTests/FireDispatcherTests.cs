@@ -26,8 +26,6 @@ public sealed class FireDispatcherTests(CalApiTestFactory factory) : Integration
 
     public void Dispose() => _db.Dispose();
 
-    // ---- harness ----
-
     private sealed class StubAssistant : HttpMessageHandler
     {
         public List<string> Bodies { get; } = [];
@@ -89,8 +87,6 @@ public sealed class FireDispatcherTests(CalApiTestFactory factory) : Integration
         await ExecAsync("update cal.scheduled_fire set occurrence_at = now() - interval '1 minute' where item_id = @id", item.Id);
         return item.Id;
     }
-
-    // ---- tests ----
 
     [Fact]
     public async Task Due_fire_is_delivered_and_marked_done()
@@ -216,8 +212,6 @@ public sealed class FireDispatcherTests(CalApiTestFactory factory) : Integration
         Assert.Equal("expired", row.Status);
         Assert.Equal("payload cleared or disabled", row.LastError);
     }
-
-    // ---- SQL helpers ----
 
     private async Task InsertRowAsync(Guid itemId, DateTimeOffset occurrenceAt)
     {

@@ -78,8 +78,6 @@ public sealed class SchedulingMaterializerTests(CalApiTestFactory factory) : Int
         Assert.Equal(0, await CountFuturePendingByItemAsync(item.Id));
     }
 
-    // ---- helpers ----
-
     private async Task InsertRowAsync(ScheduledFireRow r)
     {
         await using var s = Factory.Store.LightweightSession();

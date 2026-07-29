@@ -5,15 +5,15 @@ using System.Diagnostics;
 namespace LupiraCalApi.Domain;
 
 /// <summary>
-/// Stamps event provenance onto the write session before its commit, so every event and document written in
-/// this unit of work carries it: the acting principal (Marten <c>LastModifiedBy</c>), their email
-/// (<c>actor.email</c>), the writing surface (<c>source</c>), and the ambient OTel trace/span as
-/// correlation/causation. All of it is unbackfillable, which is why it is stamped on every request.
+/// Stamps event provenance onto the write session before its commit, so every event and document in this unit of
+/// work carries it: the acting principal (Marten <c>LastModifiedBy</c>), their email (<c>actor.email</c>), the
+/// writing surface (<c>source</c>), and the ambient OTel trace/span as correlation/causation. All unbackfillable,
+/// hence stamped on every request.
 ///
 /// Deliberately separate from <c>PrincipalDirectory</c>: resolving an identity must not mutate session state.
 /// Stamping inside the lookup misattributed writes whenever a *third party* was resolved — granting calendar
-/// access recorded the grantee as the actor, and tagged the write <c>source=dav</c> because a target lookup
-/// carries no OIDC sub. Only the caller's own resolution site stamps.
+/// access recorded the grantee as the actor, and tagged the write <c>source=dav</c> because a target lookup carries
+/// no OIDC sub. Only the caller's own resolution site stamps.
 /// </summary>
 public static class EventActor
 {

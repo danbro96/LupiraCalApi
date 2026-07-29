@@ -13,8 +13,6 @@ public class SectionLwwTests
     static readonly DateTimeOffset T1 = new(2026, 7, 10, 10, 0, 0, TimeSpan.Zero);
     static readonly DateTimeOffset T2 = new(2026, 7, 10, 11, 0, 0, TimeSpan.Zero);
 
-    // ---- wins predicate ----
-
     [Fact]
     public void Later_occurredAt_wins_regardless_of_commandId()
     {
@@ -47,8 +45,6 @@ public class SectionLwwTests
         for (var i = 1; i < seqs.Length; i++)
             Assert.True(SectionLww.CompareCommandId(SectionLww.FromSequence(seqs[i]), SectionLww.FromSequence(seqs[i - 1])) > 0);
     }
-
-    // ---- aggregate guards ----
 
     static CalendarItemFields Fields(string title) => new(
         title, null, ItemStatus.Confirmed, false,
