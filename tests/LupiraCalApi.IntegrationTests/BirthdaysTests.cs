@@ -48,6 +48,29 @@ public sealed class BirthdaysTests(CalApiTestFactory factory) : IntegrationTest(
     }
 
     [Fact]
+    public async Task Stored_items_cannot_be_created_in_or_filed_into_the_birthdays_calendar()
+    {
+        var api = ClientWith(new StubContacts());
+        var bdays = await BirthdaysCalendarAsync(api);
+        var start = new DateTimeOffset(2026, 8, 1, 9, 0, 0, TimeSpan.Zero);
+
+        var create = await api.PostAsJsonAsync("/items", new CreateCalendarItemRequest
+        {
+            CalendarId = bdays, Title = "Shadow", IsAllDay = false, StartsAt = start, EndsAt = start.AddHours(1), StartTimezone = "UTC",
+        });
+        Assert.Equal(System.Net.HttpStatusCode.BadRequest, create.StatusCode);
+
+        var elsewhere = await api.PostAsJsonAsync("/items", new CreateCalendarItemRequest
+        {
+            Title = "Loose", IsAllDay = false, StartsAt = start, EndsAt = start.AddHours(1), StartTimezone = "UTC",
+        });
+        elsewhere.EnsureSuccessStatusCode();
+        var item = (await elsewhere.Content.ReadFromJsonAsync<CalendarItemDto>())!;
+        var file = await api.PostAsync($"/items/{item.Id}/calendars/{bdays}?status=accepted", null);
+        Assert.Equal(System.Net.HttpStatusCode.BadRequest, file.StatusCode);
+    }
+
+    [Fact]
     public async Task Synthesizes_yearly_all_day_birthday_occurrences_from_contacts()
     {
         var ada = new ContactBirthday(Guid.NewGuid(), "Ada Byron", 1990, 3, 15);

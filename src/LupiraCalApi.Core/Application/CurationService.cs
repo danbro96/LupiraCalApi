@@ -27,8 +27,14 @@ public sealed class CurationService(IDocumentSession session, AccessResolver acc
     public Task<OpResult<CalendarItemDto>> RejectAsync(Guid principalId, Guid itemId, Guid calendarId, DateTimeOffset? occurredAt = null, Guid? commandId = null, CancellationToken ct = default) =>
         MutateAsync(principalId, itemId, calendarId, new RemovedFromCalendar(itemId, calendarId, occurredAt ?? DateTimeOffset.UtcNow, commandId), commandId, ct);
 
-    public Task<OpResult<CalendarItemDto>> AddToCalendarAsync(Guid principalId, Guid itemId, Guid calendarId, string? status, DateTimeOffset? occurredAt = null, Guid? commandId = null, CancellationToken ct = default) =>
-        MutateAsync(principalId, itemId, calendarId, new AddedToCalendar(itemId, calendarId, ParseEntryStatus(status), occurredAt ?? DateTimeOffset.UtcNow, commandId), commandId, ct);
+    public async Task<OpResult<CalendarItemDto>> AddToCalendarAsync(Guid principalId, Guid itemId, Guid calendarId, string? status, DateTimeOffset? occurredAt = null, Guid? commandId = null, CancellationToken ct = default)
+    {
+        // Birthdays content is synthesized from contacts at read time — stored items filed there would
+        // shadow it. Removal stays allowed (cleanup of anything that slipped in historically).
+        if (await session.LoadAsync<Calendar>(calendarId, ct) is { Kind: CalendarKind.Birthdays })
+            return OpResult<CalendarItemDto>.Invalid("Items cannot be filed into the Birthdays calendar — it is synthesized from contact birthdays.");
+        return await MutateAsync(principalId, itemId, calendarId, new AddedToCalendar(itemId, calendarId, ParseEntryStatus(status), occurredAt ?? DateTimeOffset.UtcNow, commandId), commandId, ct);
+    }
 
     /// <summary>File many existing items into calendars in one call. Each entry runs through <see cref="AddToCalendarAsync"/>
     /// so it carries the same per-calendar authorization and opaque-404 IDOR guard. Never aborts the whole batch — returns a

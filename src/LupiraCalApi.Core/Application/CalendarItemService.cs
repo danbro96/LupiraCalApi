@@ -48,6 +48,9 @@ public sealed class CalendarItemService(IDocumentSession session, AccessResolver
     {
         if (r.CalendarId is { } pre && !await access.CanWriteCalendarAsync(principalId, pre, ct))
             return OpResult<CalendarItemDto>.Forbidden("No write access to this calendar.");
+        // Birthdays content is synthesized from contacts at read time — stored items filed there would shadow it.
+        if (r.CalendarId is { } target && await session.LoadAsync<Calendar>(target, ct) is { Kind: CalendarKind.Birthdays })
+            return OpResult<CalendarItemDto>.Invalid("Items cannot be created in the Birthdays calendar — it is synthesized from contact birthdays.");
 
         // A client SourceKey pins the stream id + external UID (idempotent import replay); else a random uid.
         var hasKey = !string.IsNullOrWhiteSpace(r.SourceKey);
