@@ -22,7 +22,7 @@
 
   <ItemGroup>
     <ProjectReference Include="..\..\src\LupiraCalApi\LupiraCalApi.csproj" />
-    <ProjectReference Include="..\..\src\LupiraCalApi.Worker\LupiraCalApi.Worker.csproj" />
+    <ProjectReference Include="..\..\src\LupiraCalApi.Dispatcher\LupiraCalApi.Dispatcher.csproj" />
   </ItemGroup>
 
 </Project>

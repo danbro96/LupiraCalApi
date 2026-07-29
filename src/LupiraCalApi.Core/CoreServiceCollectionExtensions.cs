@@ -19,11 +19,17 @@ public static class CoreServiceCollectionExtensions
     public const string DefaultConnectionString =
         "Host=localhost;Port=5432;Database=lupira_cal;Username=lupira_cal_user;Password=devpassword";
 
-    public static IServiceCollection AddCalCore(this IServiceCollection services)
+    /// <summary>
+    /// The service graph every cal host shares. Registers no hosted services and opens no connection, so a host
+    /// that only serves requests never touches Postgres at startup. Returns the Marten builder so a background
+    /// host can chain <see cref="AddCalScheduling"/> — <c>AddAsyncDaemon</c> and <c>AddProjectionWithServices</c>
+    /// exist only on that builder.
+    /// </summary>
+    public static MartenServiceCollectionExtensions.MartenConfigurationExpression AddCalCore(this IServiceCollection services)
     {
         // Resolve the connection string lazily from IConfiguration so test hosts (WebApplicationFactory) can
         // override ConnectionStrings:Postgres before the store is built.
-        services.AddMarten(sp =>
+        var marten = services.AddMarten(sp =>
         {
             var connectionString = sp.GetRequiredService<IConfiguration>().GetConnectionString("Postgres") ?? DefaultConnectionString;
             var opts = new StoreOptions();
@@ -34,12 +40,11 @@ public static class CoreServiceCollectionExtensions
                 opts.AutoCreateSchemaObjects = AutoCreate.CreateOrUpdate;
             return opts;
         }).UseLightweightSessions()
-          // Solo for the single-instance personal deployment; tests disable the hosted daemon and drive the projection on demand.
-          .AddAsyncDaemon(Environment.GetEnvironmentVariable("CAL_ASYNC_DAEMON")?.ToLowerInvariant() == "disabled" ? DaemonMode.Disabled : DaemonMode.Solo)
+          // Declared in every host so all stores share one configuration — `--apply-schema` and `--rebuild-items`
+          // run from the API container and must see it. Declaring is not running: with no daemon it stays inert.
           .AddProjectionWithServices<ScheduledFireProjection>(ProjectionLifecycle.Async, ServiceLifetime.Singleton, "scheduled_fire");
 
         services.AddSingleton<IFireMaterializer, FireMaterializer>();
-        services.AddHostedService<HorizonSweep>();
         services.AddSingleton<RecurrenceExpander>();
         services.AddScoped<CompletenessResolver>();
         services.AddScoped<AccessResolver>();
@@ -58,6 +63,18 @@ public static class CoreServiceCollectionExtensions
         services.AddSingleton<TimeRangeFilter>();
         services.AddScoped<DavChangeFeed>();
         services.AddScoped<SyncFeed>();
-        return services;
+        return marten;
+    }
+
+    /// <summary>
+    /// Runs materialization: the Solo async daemon that advances the <c>scheduled_fire</c> projection, plus the
+    /// nightly horizon sweep. Solo claims exclusive ownership, so exactly one host may call this — the
+    /// materializer, never the API or the dispatcher (which scales on SKIP LOCKED claims).
+    /// </summary>
+    public static MartenServiceCollectionExtensions.MartenConfigurationExpression AddCalScheduling(
+        this MartenServiceCollectionExtensions.MartenConfigurationExpression marten)
+    {
+        marten.Services.AddHostedService<HorizonSweep>();
+        return marten.AddAsyncDaemon(DaemonMode.Solo);
     }
 }

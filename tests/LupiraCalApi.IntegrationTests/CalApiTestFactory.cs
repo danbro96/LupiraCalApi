@@ -23,15 +23,14 @@ public sealed class CalApiTestFactory : WebApplicationFactory<Program>
 
     public CalApiTestFactory()
     {
-        // Tests drive the scheduled_fire projection on demand (RebuildProjectionAsync) — a hosted daemon racing with the
-        // per-test ResetAllData makes projection waits flaky. Set before the host builds so AddCalCore reads it.
-        Environment.SetEnvironmentVariable("CAL_ASYNC_DAEMON", "disabled");
         _postgres.StartAsync().GetAwaiter().GetResult();
     }
 
     protected override void ConfigureWebHost(IWebHostBuilder builder)
     {
         builder.UseEnvironment("Development");
+        // The API host declares the scheduled_fire projection but runs no daemon, so tests can drive it with
+        // RebuildProjectionAsync without one racing their per-test ResetAllData.
         builder.ConfigureAppConfiguration(cfg =>
             cfg.AddInMemoryCollection(new Dictionary<string, string?>
             {

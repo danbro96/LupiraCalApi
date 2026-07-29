@@ -1,9 +1,9 @@
 using LupiraCalApi.Scheduling;
-using LupiraCalApi.Worker.Dispatch;
+using LupiraCalApi.Dispatcher.Dispatch;
 using Microsoft.Extensions.Options;
 using System.Diagnostics;
 
-namespace LupiraCalApi.Worker;
+namespace LupiraCalApi.Dispatcher;
 
 /// <summary>
 /// The claim loop: one <see cref="FireDispatchService.RunTickAsync"/> per tick, each in its own DI scope and span.
@@ -15,7 +15,7 @@ public sealed class FireDispatchWorker(
     IOptions<DispatcherOptions> options,
     ILogger<FireDispatchWorker> logger) : BackgroundService
 {
-    public static readonly ActivitySource Activity = new("LupiraCalApi.Worker");
+    public static readonly ActivitySource Activity = new("LupiraCalApi.Dispatcher");
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {

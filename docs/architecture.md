@@ -54,8 +54,10 @@ when configured); the DAV protocol itself (the LupiraDavApi gateway — this ser
 `/dav-backend` contract, see [dav-backend-contract.md](dav-backend-contract.md)); tasks/portfolio/activity
 (owned by other services, referenced only through `Relation`); interpreting the fired payload
 (assistant-api's job); and invitation delivery (iTIP/iMIP). **Fire
-delivery/dispatch** lives in this repo as the separate `lupira-cal-worker` host (`src/LupiraCalApi.Worker`,
-image `danbro96/lupira-cal-worker`): it claims due rows and pushes them to assistant-api.
+materialization and delivery** live in this repo as two separate hosts: `lupira-cal-materializer`
+(`src/LupiraCalApi.Materializer`, Solo async daemon, exactly one replica) advances the `scheduled_fire`
+projection, and `lupira-cal-dispatcher` (`src/LupiraCalApi.Dispatcher`, scalable on SKIP LOCKED claims)
+claims due rows and pushes them to assistant-api.
 
 ## Domain model
 
@@ -318,8 +320,8 @@ expands the fired payload + `RecurrenceRule` into rows over a rolling 35-day hor
 `dedupe_key` (`item_id + occurrence_at`); a nightly hosted sweep advances the far edge (and picks up one-shots
 beyond the window at set-time). `expire_after` keys off the `PromptFire` timing and the calendar kind. Each row
 is stamped from one resolved `FireContext` — fire calendar id, kind→`expire_after`, owning `principal_id` — so
-the three can never disagree. The **dispatcher** is the separate `lupira-cal-worker` host
-(`src/LupiraCalApi.Worker`): every 15 s it expires over-age rows, claims a due batch (`FOR UPDATE SKIP LOCKED`
+the three can never disagree. The **dispatcher** is the separate `lupira-cal-dispatcher` host
+(`src/LupiraCalApi.Dispatcher`): every 15 s it expires over-age rows, claims a due batch (`FOR UPDATE SKIP LOCKED`
 + a 60 s lease), re-reads the item aggregate, and pushes the fire to assistant-api `POST /fires`
 (accept-then-own: 202 → `done`; transient failure → `pending` with 30 s→30 m backoff, max 5 attempts →
 `failed`; a gone/cleared payload → `expired`). The API host owns *what is due*; the worker owns delivery.

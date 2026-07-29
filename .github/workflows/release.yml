@@ -32,8 +32,10 @@ jobs:
         include:
           - image: danbro96/lupira-cal-api
             dockerfile: Dockerfile
-          - image: danbro96/lupira-cal-worker
-            dockerfile: src/LupiraCalApi.Worker/Dockerfile
+          - image: danbro96/lupira-cal-materializer
+            dockerfile: src/LupiraCalApi.Materializer/Dockerfile
+          - image: danbro96/lupira-cal-dispatcher
+            dockerfile: src/LupiraCalApi.Dispatcher/Dockerfile
     steps:
       - uses: actions/checkout@v6
       - uses: docker/setup-buildx-action@v4

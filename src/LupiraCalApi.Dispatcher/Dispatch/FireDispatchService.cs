@@ -1,13 +1,13 @@
 using LupiraCalApi.Domain.Identity;
 using LupiraCalApi.Domain;
 using LupiraCalApi.Scheduling;
-using LupiraCalApi.Worker.Clients;
-using LupiraCalApi.Worker.Dtos;
+using LupiraCalApi.Dispatcher.Clients;
+using LupiraCalApi.Dispatcher.Dtos;
 using Marten;
 using Microsoft.Extensions.Options;
 using Npgsql;
 
-namespace LupiraCalApi.Worker.Dispatch;
+namespace LupiraCalApi.Dispatcher.Dispatch;
 
 /// <summary>
 /// One dispatcher tick: expire over-age rows, claim a due batch, deliver each fire. The row is only the clock —

@@ -10,9 +10,16 @@ A self-hosted **calendar** service that is the source of truth in Postgres:
 
 Calendars are **multi-owner**, so they can be shared.
 
-A second host in this repo, **`lupira-cal-worker`** (`src/LupiraCalApi.Worker`, image
-`danbro96/lupira-cal-worker`), dispatches due `cal.scheduled_fire` rows to assistant-api `POST /fires` with
-claim leases, retry/backoff, and per-kind expiry.
+Two background hosts in this repo split the scheduling work, because their scaling constraints are opposite:
+
+- **`lupira-cal-materializer`** (`src/LupiraCalApi.Materializer`, image `danbro96/lupira-cal-materializer`)
+  runs the Marten async daemon that keeps `cal.scheduled_fire` in step with item events, plus the nightly
+  horizon sweep. `DaemonMode.Solo` claims exclusive ownership, so **exactly one replica** may run.
+- **`lupira-cal-dispatcher`** (`src/LupiraCalApi.Dispatcher`, image `danbro96/lupira-cal-dispatcher`)
+  dispatches due rows to assistant-api `POST /fires` with claim leases, retry/backoff, and per-kind expiry.
+  Claims use lease-based `SKIP LOCKED`, so it is safe to scale.
+
+The API host itself registers no hosted services and opens no connection at startup.
 
 Interactive API docs: **`/scalar/v1`** (Scalar UI) over the OpenAPI document at **`/openapi/v1.json`**.
 

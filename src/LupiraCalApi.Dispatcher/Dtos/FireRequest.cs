@@ -1,6 +1,6 @@
 using LupiraCalApi.Domain;
 
-namespace LupiraCalApi.Worker.Dtos;
+namespace LupiraCalApi.Dispatcher.Dtos;
 
 /// <summary>The <c>POST /fires</c> wire body. assistant-api mirrors <see cref="ItemPrompt"/>/<see cref="ItemAction"/>
 /// verbatim, so the Domain records serialize straight through; enums go as strings. Exactly one of

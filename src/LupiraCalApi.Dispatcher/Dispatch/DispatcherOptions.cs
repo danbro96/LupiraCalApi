@@ -1,6 +1,6 @@
 using LupiraCalApi.Scheduling;
 
-namespace LupiraCalApi.Worker.Dispatch;
+namespace LupiraCalApi.Dispatcher.Dispatch;
 
 /// <summary>Binds <c>Dispatcher</c>; defaults come from the design doc via <see cref="SchedulingDefaults"/>.</summary>
 public sealed class DispatcherOptions

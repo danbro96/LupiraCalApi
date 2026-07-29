@@ -1,4 +1,4 @@
-namespace LupiraCalApi.Worker.Dtos;
+namespace LupiraCalApi.Dispatcher.Dtos;
 
 /// <summary>assistant-api's 202 body. <c>Duplicate</c> = the dedupe key was already recorded (a lost-ack re-push).</summary>
 public sealed class FireAcceptedResponse

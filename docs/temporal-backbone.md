@@ -190,7 +190,7 @@ The schedule **intent** is event-worthy and lives on the item as its fired paylo
 flowchart LR
   ITEM["CalendarItem + payload"] -->|"ItemPromptSet / ItemActionSet"| MAT["Materializer<br/>cal-api · Marten daemon"]
   MAT -->|"expand RRULE into rows"| Q[("cal.scheduled_fire")]
-  Q -->|"claim due · SKIP LOCKED"| W["lupira-cal-worker<br/>dispatcher"]
+  Q -->|"claim due · SKIP LOCKED"| W["lupira-cal-dispatcher"]
   W -->|"deliver fire"| AA["assistant-api<br/>runs prompt / executes action"]
   W -. "retry · backoff · catch-up" .-> Q
 ```
@@ -208,7 +208,7 @@ This buys exactly what a raw calendar lacks:
 **Ownership:** cal-api owns "what's due" (it has the items, payloads, RRULE); assistant-api runs the fired payload. The same queue is the clock for LlmPrompts (Elicit, research, follow-ups), DevOps routines, *and* ordinary reminders/leave-by — built once.
 
 ### Dispatcher options (dispatch lives outside the cal-api host)
-- **A — dedicated `lupira-cal-worker` + the Postgres `scheduled_fire` queue (recommended).** SKIP-LOCKED claim loop; zero new infrastructure; full control of catch-up/expiry; the florence/gpt host+worker pattern.
+- **A — dedicated dispatcher host + the Postgres `scheduled_fire` queue (recommended).** SKIP-LOCKED claim loop; zero new infrastructure; full control of catch-up/expiry; the florence/gpt host+worker pattern.
 - **B — Quartz.NET in the worker (Postgres ADO job store).** Cron + retry + misfire (catch-up) handling out of the box; less hand-rolling, one dependency.
 - **C — RabbitMQ delayed messages.** cal-api publishes a delayed message per fire; the worker consumes. Adds a broker; worth it only if a general event bus is wanted anyway.
 
@@ -243,7 +243,7 @@ Personal-scale starting values (tune later):
 The 30-min bucket keys off the fire **timing** (`Offset` fires = reminders/leave-by — there is no reminder calendar kind); `LlmPrompts` (6 h) and `DevOps` (3 d) key off the calendar kind; anything else falls back to 24 h (also enforced at expiry via `coalesce`).
 
 ## Open decisions — resolved
-1. ✅ Dispatcher: **dedicated `lupira-cal-worker` + Postgres `scheduled_fire` queue (A)**.
+1. ✅ Dispatcher: **dedicated `lupira-cal-dispatcher` + Postgres `scheduled_fire` queue (A)**.
 2. ✅ Fire delivery: **push** (cal-worker → assistant-api intake, accept-then-own + dedupe).
 3. ✅ Calendar kind name: **`LlmPrompts`** — it holds LLM-instruction prompts, which commonly spawn further prompts after research/aggregation.
 4. ✅ Materializer + dispatcher defaults: see Defaults above.

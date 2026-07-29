@@ -4,12 +4,14 @@
     <TargetFramework>net10.0</TargetFramework>
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
-    <RootNamespace>LupiraCalApi.Worker</RootNamespace>
+    <RootNamespace>LupiraCalApi.Materializer</RootNamespace>
   </PropertyGroup>
 
   <ItemGroup>
-    <!-- The dispatcher host (lupira-cal-worker): claims due cal.scheduled_fire rows and pushes them to
-         assistant-api POST /fires. Ships as its own image; the API host stays free of outbound calls. -->
+    <!-- The materializer host (lupira-cal-materializer): runs the Solo async daemon that keeps
+         cal.scheduled_fire in step with item events, plus the nightly horizon sweep. Exactly one replica —
+         DaemonMode.Solo claims exclusive ownership. Separate from the dispatcher, which scales on
+         SKIP LOCKED claims and depends on assistant-api. -->
     <ProjectReference Include="..\LupiraCalApi.Core\LupiraCalApi.Core.csproj" />
   </ItemGroup>
 

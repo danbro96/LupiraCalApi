@@ -1,10 +1,10 @@
-using LupiraCalApi.Worker.Dtos;
+using LupiraCalApi.Dispatcher.Dtos;
 using System.Net.Http.Json;
 using System.Net;
 using System.Text.Json.Serialization;
 using System.Text.Json;
 
-namespace LupiraCalApi.Worker.Clients;
+namespace LupiraCalApi.Dispatcher.Clients;
 
 /// <summary>Outcome of one push. Retryable = transient (assistant down, 5xx, timeout); non-retryable = the request
 /// itself is bad (400) and re-sending the same body can never succeed.</summary>

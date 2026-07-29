@@ -1,8 +1,8 @@
 using LupiraCalApi.Domain;
 using LupiraCalApi.Dtos.CalendarItems;
 using LupiraCalApi.Scheduling;
-using LupiraCalApi.Worker.Clients;
-using LupiraCalApi.Worker.Dispatch;
+using LupiraCalApi.Dispatcher.Clients;
+using LupiraCalApi.Dispatcher.Dispatch;
 using Marten;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;

@@ -1,4 +1,4 @@
-namespace LupiraCalApi.Worker.Clients;
+namespace LupiraCalApi.Dispatcher.Clients;
 
 /// <summary>
 /// Binds <c>Assistant</c> — the worker → assistant hop (fire push to <c>POST /fires</c>). Service-authed:

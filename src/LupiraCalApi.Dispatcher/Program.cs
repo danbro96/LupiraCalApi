@@ -1,8 +1,8 @@
 using JasperFx;
 using LupiraCalApi.Data;
 using LupiraCalApi.Domain;
-using LupiraCalApi.Worker.Clients;
-using LupiraCalApi.Worker.Dispatch;
+using LupiraCalApi.Dispatcher.Clients;
+using LupiraCalApi.Dispatcher.Dispatch;
 using Marten;
 using Npgsql;
 using OpenTelemetry.Logs;
@@ -10,7 +10,7 @@ using OpenTelemetry.Metrics;
 using OpenTelemetry.Resources;
 using OpenTelemetry.Trace;
 
-namespace LupiraCalApi.Worker;
+namespace LupiraCalApi.Dispatcher;
 
 // An explicit Program class (not top-level statements) so the global-namespace Program stays unique to the API
 // host — the integration test project references both hosts.
@@ -23,18 +23,9 @@ public static class Program
         builder.Services.Configure<DispatcherOptions>(builder.Configuration.GetSection(DispatcherOptions.SectionName));
         builder.Services.Configure<AssistantOptions>(builder.Configuration.GetSection(AssistantOptions.SectionName));
 
-        // Same store shape as cal-api (read side only): no async daemon, no projections, no schema ownership —
-        // cal-api owns the Marten schema; the worker's startup only ensures the raw scheduled_fire table.
-        builder.Services.AddMarten(sp =>
-        {
-            var connectionString = sp.GetRequiredService<IConfiguration>().GetConnectionString("Postgres")
-                ?? CoreServiceCollectionExtensions.DefaultConnectionString;
-            var opts = new StoreOptions();
-            opts.Connection(connectionString);
-            opts.UseLupiraCal();
-            opts.AutoCreateSchemaObjects = AutoCreate.None;
-            return opts;
-        }).UseLightweightSessions();
+        // Shared service graph and store config. No AddCalScheduling: materialization is the materializer's job,
+        // and DaemonMode.Solo tolerates exactly one host — this one is free to scale on SKIP LOCKED claims.
+        builder.Services.AddCalCore();
 
         // Raw Npgsql for the claim/transition SQL (the location/health-api split: Marten docs + a plain relational table).
         builder.Services.AddSingleton(sp => NpgsqlDataSource.Create(
@@ -61,10 +52,10 @@ public static class Program
         {
             builder.Services.AddOpenTelemetry()
                 .ConfigureResource(r => r.AddService(
-                    serviceName: "lupira-cal-worker",
+                    serviceName: "lupira-cal-dispatcher",
                     serviceVersion: typeof(Program).Assembly.GetName().Version?.ToString() ?? "0.0.0"))
                 .WithTracing(t => t
-                    .AddSource("LupiraCalApi.Worker")
+                    .AddSource("LupiraCalApi.Dispatcher")
                     .AddAspNetCoreInstrumentation(o => o.RecordException = true)
                     .AddHttpClientInstrumentation()
                     .AddOtlpExporter())

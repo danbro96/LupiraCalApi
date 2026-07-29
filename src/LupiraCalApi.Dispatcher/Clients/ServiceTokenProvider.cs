@@ -2,7 +2,7 @@ using Microsoft.Extensions.Options;
 using System.Net.Http.Json;
 using System.Text.Json.Serialization;
 
-namespace LupiraCalApi.Worker.Clients;
+namespace LupiraCalApi.Dispatcher.Clients;
 
 /// <summary>
 /// Resolves the service-auth headers for the assistant hop: a cached Authentik client-credentials bearer in prod
