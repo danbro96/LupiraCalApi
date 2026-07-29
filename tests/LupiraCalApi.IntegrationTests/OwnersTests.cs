@@ -1,6 +1,8 @@
+using LupiraCalApi.Application;
 using LupiraCalApi.Domain;
 using LupiraCalApi.Dtos.CalendarItems;
 using LupiraCalApi.Dtos.Calendars;
+using Marten;
 using System.Net;
 using System.Net.Http.Json;
 using Xunit;
@@ -33,6 +35,46 @@ public sealed class OwnersTests(CalApiTestFactory factory) : IntegrationTest(fac
         var bobCals = await bob.GetFromJsonAsync<List<ContainerDto>>("/calendars");
         Assert.Contains(bobCals!, c => c.Id == calId);
         Assert.Equal(HttpStatusCode.OK, (await bob.GetAsync($"/items/{item.Id}")).StatusCode);
+    }
+
+    /// <summary>
+    /// Resolving a principal must not touch session provenance. Stamping used to live inside
+    /// <c>ResolveOrProvisionAsync</c>, so resolving a *third party* — which the calendar-grant path does for its
+    /// target — overwrote the acting principal and forced <c>source=dav</c> (a target lookup carries no OIDC sub).
+    /// Any event appended in that same unit of work would have been attributed to the grantee.
+    /// </summary>
+    [Fact]
+    public async Task Resolving_a_third_party_does_not_restamp_the_session()
+    {
+        await using var session = Factory.Store.LightweightSession();
+        var directory = new PrincipalDirectory(session);
+
+        var caller = await directory.ResolveOrProvisionAsync("sub-granter", "granter@x.test", "Granter");
+        EventActor.Stamp(session, caller, EventActor.SourceApi);
+
+        // The grant path resolves its target by email only — exactly the shape that used to hijack the stamp.
+        await directory.ResolveOrProvisionAsync(null, "grantee@x.test", null);
+
+        Assert.Equal(caller.Id.ToString(), session.LastModifiedBy);
+        Assert.Equal(caller.Email, session.GetHeader(EventActor.EmailHeaderKey));
+        Assert.Equal(EventActor.SourceApi, session.GetHeader(EventActor.SourceHeaderKey));
+    }
+
+    /// <summary>Provenance still reaches the event store after the stamp moved out of the directory.</summary>
+    [Fact]
+    public async Task Item_events_carry_the_calling_principal_as_actor()
+    {
+        var alice = Factory.ApiClient("alice@x.test");
+        var calId = await CreateCalendarAsync(alice, "fam", "Family");
+        var create = await alice.PostAsJsonAsync("/items",
+            new CreateCalendarItemRequest { CalendarId = calId, Title = "Dinner", IsAllDay = false, StartsAt = Start, EndsAt = Start.AddHours(1), StartTimezone = "UTC" });
+        var item = (await create.Content.ReadFromJsonAsync<CalendarItemDto>())!;
+
+        await using var q = Factory.Store.QuerySession();
+        var events = await q.Events.FetchStreamAsync(item.Id);
+        var first = events[0];
+        Assert.Equal("alice@x.test", first.Headers?[EventActor.EmailHeaderKey]);
+        Assert.Equal(EventActor.SourceApi, first.Headers?[EventActor.SourceHeaderKey]);
     }
 
     [Fact]

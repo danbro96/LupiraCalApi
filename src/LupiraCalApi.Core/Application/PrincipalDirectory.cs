@@ -1,7 +1,6 @@
 using LupiraCalApi.Domain;
 using Marten;
 using Npgsql;
-using System.Diagnostics;
 
 namespace LupiraCalApi.Application;
 
@@ -14,6 +13,10 @@ namespace LupiraCalApi.Application;
 /// index on <c>AuthentikSub</c> lets only one win; the loser catches the violation and adopts the winner's row.
 /// Without both halves the same login forks into two principals and calendar access resolves to whichever row
 /// Postgres happens to return.
+///
+/// Resolution is side-effect-free: provenance is stamped by <see cref="EventActor"/> at the caller's own
+/// resolution site, never here — this method is also used to resolve *third parties* (a calendar-grant target),
+/// where stamping would attribute the write to the wrong person.
 /// </summary>
 public sealed class PrincipalDirectory(IDocumentSession session)
 {
@@ -21,21 +24,20 @@ public sealed class PrincipalDirectory(IDocumentSession session)
     /// is a "not found" (e.g. revoking a grant), not a reason to create a placeholder.</summary>
     public async Task<Principal?> FindByEmailAsync(string email, CancellationToken ct = default)
     {
-        email = email.Trim().ToLowerInvariant();
+        email = Normalize(email);
         if (email.Length == 0) return null;
         return await session.Query<Principal>().Where(x => x.Email == email).OrderBy(x => x.Id).FirstOrDefaultAsync(ct);
     }
 
     public async Task<Principal> ResolveOrProvisionAsync(string? sub, string email, string? name, CancellationToken ct = default)
     {
-        email = email.Trim().ToLowerInvariant();
+        email = Normalize(email);
 
         var p = await FindAsync(sub, email, ct);
 
         if (p is null)
         {
             p = new Principal { Id = Guid.NewGuid(), AuthentikSub = sub ?? $"email|{email}", Email = email, DisplayName = name };
-            StampSession(p, sub);
             session.Store(p);
             try
             {
@@ -52,7 +54,6 @@ public sealed class PrincipalDirectory(IDocumentSession session)
             }
         }
 
-        StampSession(p, sub);
         var changed = false;
         if (sub is not null && p.AuthentikSub != sub && p.AuthentikSub.StartsWith("email|", StringComparison.Ordinal)) { p.AuthentikSub = sub; changed = true; }
         if (email.Length > 0 && p.Email != email) { p.Email = email; changed = true; }
@@ -80,18 +81,7 @@ public sealed class PrincipalDirectory(IDocumentSession session)
         return false;
     }
 
-    /// <summary>Stamps the acting principal + live trace ids onto the write session so every event appended later in
-    /// this request carries provenance (actor / correlation / causation / source). Runs before any append — this is
-    /// the one point every surface (REST, MCP, DAV) funnels through — because provenance is unbackfillable.</summary>
-    private void StampSession(Principal principal, string? sub)
-    {
-        session.LastModifiedBy = principal.Id.ToString();
-        if (Activity.Current is { } a)
-        {
-            session.CorrelationId = a.TraceId.ToString();
-            session.CausationId = a.SpanId.ToString();
-        }
-        session.SetHeader("actor.email", principal.Email);
-        session.SetHeader("source", sub is null ? "dav" : "api");   // DAV resolves by email only (no OIDC sub)
-    }
+    /// <summary>The single normalization point for a login email. Lookup only matches if every read and
+    /// write normalizes identically — a missed lowercase silently provisions a second principal.</summary>
+    private static string Normalize(string email) => email.Trim().ToLowerInvariant();
 }

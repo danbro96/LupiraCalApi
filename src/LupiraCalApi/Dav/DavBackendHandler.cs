@@ -17,6 +17,7 @@ namespace LupiraCalApi.Dav;
 /// </summary>
 public sealed class DavBackendHandler(
     IQuerySession session,
+    IDocumentSession writeSession,
     AccessResolver access,
     PrincipalDirectory principals,
     CalendarService calendars,
@@ -24,9 +25,18 @@ public sealed class DavBackendHandler(
     DavChangeFeed feed,
     TimeRangeFilter timeRange)
 {
-    public async Task<IResult> CollectionsAsync(string email, CancellationToken ct)
+    /// <summary>Resolve the principal this DAV request acts for and stamp it onto the write session. DAV
+    /// carries no OIDC sub, so every write in this request is <see cref="EventActor.SourceDav"/>.</summary>
+    private async Task<Principal> ActingPrincipalAsync(string email, CancellationToken ct)
     {
         var principal = await principals.ResolveOrProvisionAsync(null, email, null, ct);
+        EventActor.Stamp(writeSession, principal, EventActor.SourceDav);
+        return principal;
+    }
+
+    public async Task<IResult> CollectionsAsync(string email, CancellationToken ct)
+    {
+        var principal = await ActingPrincipalAsync(email, ct);
         // A DAV-only principal has no containers yet — seed the standard set on first contact.
         if ((await access.AccessibleCalendarIdsAsync(principal.Id, ct)).Count == 0)
             await calendars.BootstrapPersonalAsync(principal.Id, ct);
@@ -51,7 +61,7 @@ public sealed class DavBackendHandler(
 
     public async Task<IResult> QueryAsync(string email, Guid collectionId, DavQueryRequest body, CancellationToken ct)
     {
-        var principal = await principals.ResolveOrProvisionAsync(null, email, null, ct);
+        var principal = await ActingPrincipalAsync(email, ct);
         if (!await IsReadableAgendaAsync(principal.Id, collectionId, ct)) return TypedResults.NotFound();
 
         var live = await feed.AcceptedItemsAsync(collectionId, ct);
@@ -77,7 +87,7 @@ public sealed class DavBackendHandler(
 
     public async Task<IResult> GetResourceAsync(string email, Guid collectionId, string uid, HttpContext ctx, CancellationToken ct)
     {
-        var principal = await principals.ResolveOrProvisionAsync(null, email, null, ct);
+        var principal = await ActingPrincipalAsync(email, ct);
         if (!await IsReadableAgendaAsync(principal.Id, collectionId, ct)) return TypedResults.NotFound();
 
         var item = await session.LoadAsync<CalendarItem>(DeterministicGuid.From(uid), ct);
@@ -89,7 +99,7 @@ public sealed class DavBackendHandler(
 
     public async Task<IResult> PutResourceAsync(string email, Guid collectionId, string uid, HttpContext ctx, CancellationToken ct)
     {
-        var principal = await principals.ResolveOrProvisionAsync(null, email, null, ct);
+        var principal = await ActingPrincipalAsync(email, ct);
         using var reader = new StreamReader(ctx.Request.Body);
         var raw = await reader.ReadToEndAsync(ct);
         var (ifMatch, ifNoneMatchStar) = ParsePreconditions(ctx.Request.Headers.IfMatch, ctx.Request.Headers.IfNoneMatch);
@@ -105,7 +115,7 @@ public sealed class DavBackendHandler(
 
     public async Task<IResult> DeleteResourceAsync(string email, Guid collectionId, string uid, HttpContext ctx, CancellationToken ct)
     {
-        var principal = await principals.ResolveOrProvisionAsync(null, email, null, ct);
+        var principal = await ActingPrincipalAsync(email, ct);
         var (ifMatch, _) = ParsePreconditions(ctx.Request.Headers.IfMatch, ctx.Request.Headers.IfNoneMatch);
         var result = await items.DeleteByUidAsync(principal.Id, collectionId, uid, ifMatch, ct);
         return TypedResults.StatusCode(DavStatus(result.Status));
@@ -113,7 +123,7 @@ public sealed class DavBackendHandler(
 
     public async Task<IResult> ChangesAsync(string email, Guid collectionId, string? since, CancellationToken ct)
     {
-        var principal = await principals.ResolveOrProvisionAsync(null, email, null, ct);
+        var principal = await ActingPrincipalAsync(email, ct);
         if (!await IsReadableAgendaAsync(principal.Id, collectionId, ct)) return TypedResults.NotFound();
 
         // An unparsable/absent token degrades to the full live listing — self-healing resync.
