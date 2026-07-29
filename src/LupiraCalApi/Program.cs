@@ -131,7 +131,11 @@ builder.Services.AddHealthChecks()
     .AddCheck<DatabaseReadyCheck>("postgres", tags: ["ready"]);
 
 // Emit/accept enums as their names across the REST surface (not integers).
-builder.Services.ConfigureHttpJsonOptions(o => o.SerializerOptions.Converters.Add(new JsonStringEnumConverter()));
+builder.Services.ConfigureHttpJsonOptions(o =>
+{
+    o.SerializerOptions.Converters.Add(new JsonStringEnumConverter());
+    o.SerializerOptions.Converters.Add(new LupiraCalApi.Serialization.UtcDateTimeOffsetConverter());
+});
 
 builder.Services.AddOpenApi("v1", options =>
 {
