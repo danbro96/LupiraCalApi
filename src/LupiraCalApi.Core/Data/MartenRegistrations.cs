@@ -66,10 +66,8 @@ public static class MartenRegistrations
 
         // Plain documents (collections, identity, cross-API edges) + the indexes the services query by. Places are
         // owned by LupiraGeoApi and contacts by LupiraContactApi — items/legs reference them by bare Guid (no local doc).
-        // The Authentik sub is the resolution anchor and is unique — without the constraint, concurrent
-        // first-sight logins each insert their own row and the caller silently resolves to whichever one
-        // Postgres returns first. Email stays non-unique: it is mutable, and a DAV-first `email|{email}`
-        // placeholder row legitimately shares an email with its real-sub counterpart until the upgrade lands.
+        // Unique sub: without it, concurrent first-sight logins fork one login into two principals.
+        // Email stays non-unique — mutable, and a placeholder row shares it until the sub upgrade lands.
         opts.Schema.For<Principal>().Index(x => x.AuthentikSub, i => i.IsUnique = true).Index(x => x.Email);
         opts.Schema.For<Calendar>();
         opts.Schema.For<CalendarOwner>().Index(x => x.PrincipalId).Index(x => x.CalendarId);

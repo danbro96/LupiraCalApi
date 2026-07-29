@@ -10,4 +10,10 @@ public sealed class Principal
     public string AuthentikSub { get; set; } = "";
     public string Email { get; set; } = "";
     public string? DisplayName { get; set; }
+
+    /// <summary>First provisioned. Pre-existing rows carry a reconstructed estimate.</summary>
+    public DateTimeOffset CreatedAt { get; set; }
+
+    public DateTimeOffset LastSeenAt { get; set; }
+
 }
