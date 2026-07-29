@@ -1,3 +1,4 @@
+using LupiraCalApi.Domain.Identity;
 using LupiraCalApi.Domain;
 using LupiraCalApi.Scheduling;
 using LupiraCalApi.Worker.Clients;

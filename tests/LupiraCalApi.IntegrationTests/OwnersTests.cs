@@ -3,8 +3,8 @@ using LupiraCalApi.Domain;
 using LupiraCalApi.Dtos.CalendarItems;
 using LupiraCalApi.Dtos.Calendars;
 using Marten;
-using System.Net;
 using System.Net.Http.Json;
+using System.Net;
 using Xunit;
 
 namespace LupiraCalApi.IntegrationTests;
@@ -46,7 +46,7 @@ public sealed class OwnersTests(CalApiTestFactory factory) : IntegrationTest(fac
     [Fact]
     public async Task Resolving_a_third_party_does_not_restamp_the_session()
     {
-        await using var session = Factory.Store.LightweightSession();
+        await using var session = Store.LightweightSession();
         var directory = new PrincipalDirectory(session);
 
         var caller = await directory.ResolveOrProvisionAsync("sub-granter", "granter@x.test", "Granter");
@@ -70,7 +70,7 @@ public sealed class OwnersTests(CalApiTestFactory factory) : IntegrationTest(fac
             new CreateCalendarItemRequest { CalendarId = calId, Title = "Dinner", IsAllDay = false, StartsAt = Start, EndsAt = Start.AddHours(1), StartTimezone = "UTC" });
         var item = (await create.Content.ReadFromJsonAsync<CalendarItemDto>())!;
 
-        await using var q = Factory.Store.QuerySession();
+        await using var q = Store.QuerySession();
         var events = await q.Events.FetchStreamAsync(item.Id);
         var first = events[0];
         Assert.Equal("alice@x.test", first.Headers?[EventActor.EmailHeaderKey]);

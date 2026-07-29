@@ -1,4 +1,5 @@
 using JasperFx;
+using LupiraCalApi.Data;
 using LupiraCalApi.Domain;
 using LupiraCalApi.Worker.Clients;
 using LupiraCalApi.Worker.Dispatch;

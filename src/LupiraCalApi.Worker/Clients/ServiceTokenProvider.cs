@@ -1,6 +1,6 @@
+using Microsoft.Extensions.Options;
 using System.Net.Http.Json;
 using System.Text.Json.Serialization;
-using Microsoft.Extensions.Options;
 
 namespace LupiraCalApi.Worker.Clients;
 

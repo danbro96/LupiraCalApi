@@ -1,4 +1,5 @@
 using LupiraCalApi.Application;
+using LupiraCalApi.Domain.Identity;
 using LupiraCalApi.Domain;
 using Marten;
 using Xunit;
@@ -21,13 +22,13 @@ public sealed class PrincipalIdentityTests(CalApiTestFactory factory) : Integrat
         // serialize the writes and never exercise the race.
         var resolved = await Task.WhenAll(Enumerable.Range(0, 20).Select(async _ =>
         {
-            await using var s = Factory.Store.LightweightSession();
+            await using var s = Store.LightweightSession();
             return (await new PrincipalDirectory(s).ResolveOrProvisionAsync(sub, "racer@x.test", "Racer")).Id;
         }));
 
         Assert.Single(resolved.Distinct());
 
-        await using var q = Factory.Store.QuerySession();
+        await using var q = Store.QuerySession();
         var rows = await q.Query<Principal>().Where(x => x.AuthentikSub == sub).ToListAsync();
         Assert.Single(rows);
         Assert.Equal(rows[0].Id, resolved[0]);
@@ -38,7 +39,7 @@ public sealed class PrincipalIdentityTests(CalApiTestFactory factory) : Integrat
     [Fact]
     public async Task Repeated_resolution_is_stable()
     {
-        await using var s = Factory.Store.LightweightSession();
+        await using var s = Store.LightweightSession();
         var directory = new PrincipalDirectory(s);
 
         var first = await directory.ResolveOrProvisionAsync("authentik-sub-stable", "stable@x.test", "Stable");

@@ -1,6 +1,6 @@
-using Xunit;
-using System.Text.Json;
 using LupiraCalApi.Serialization;
+using System.Text.Json;
+using Xunit;
 
 namespace LupiraCalApi.UnitTests;
 

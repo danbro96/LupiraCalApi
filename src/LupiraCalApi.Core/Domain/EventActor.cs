@@ -1,3 +1,4 @@
+using LupiraCalApi.Domain.Identity;
 using Marten;
 using System.Diagnostics;
 

@@ -1,10 +1,11 @@
 using JasperFx.Events.Daemon;
 using JasperFx.Events.Projections;
+using JasperFx;
 using LupiraCalApi.Application;
 using LupiraCalApi.Auth;
+using LupiraCalApi.Data;
 using LupiraCalApi.Domain;
 using LupiraCalApi.Scheduling;
-using JasperFx;
 using Marten;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection.Extensions;

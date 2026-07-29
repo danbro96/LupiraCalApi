@@ -1,7 +1,7 @@
 using JasperFx.Events;
 using LupiraCalApi.Domain;
-using Marten;
 using Marten.Events.Projections;
+using Marten;
 
 namespace LupiraCalApi.Scheduling;
 

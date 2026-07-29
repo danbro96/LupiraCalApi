@@ -1,3 +1,4 @@
+using Marten;
 using LupiraCalApi.Dav;
 using LupiraCalApi.Dtos.Calendars;
 using LupiraCalApi.Dtos.Me;
@@ -13,6 +14,8 @@ namespace LupiraCalApi.IntegrationTests;
 public abstract class IntegrationTest(CalApiTestFactory factory) : IAsyncLifetime
 {
     protected readonly CalApiTestFactory Factory = factory;
+
+    protected IDocumentStore Store => Factory.Store;
 
     public async Task InitializeAsync() => await Factory.ResetAsync();
     public Task DisposeAsync() => Task.CompletedTask;

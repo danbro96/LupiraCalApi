@@ -1,9 +1,11 @@
-using JasperFx;
 using JasperFx.Events.Projections;
+using JasperFx;
+using LupiraCalApi.Domain.Identity;
+using LupiraCalApi.Domain;
 using Marten;
 using Weasel.Core;
 
-namespace LupiraCalApi.Domain;
+namespace LupiraCalApi.Data;
 
 /// <summary>Configures the single Marten store for the Calendar API: event-sourced aggregates (inline
 /// snapshots) + plain documents, in the <c>cal</c> schema. Enums serialize as strings. Mirrors LupiraWeb's pattern.</summary>

@@ -1,9 +1,9 @@
-using System.Net;
-using System.Net.Http.Json;
-using System.Text.Json.Nodes;
 using LupiraCalApi.Domain;
 using LupiraCalApi.Dtos.CalendarItems;
 using LupiraCalApi.Dtos.Calendars;
+using System.Net.Http.Json;
+using System.Net;
+using System.Text.Json.Nodes;
 using Xunit;
 
 namespace LupiraCalApi.IntegrationTests;

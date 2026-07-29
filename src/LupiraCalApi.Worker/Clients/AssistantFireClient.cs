@@ -1,8 +1,8 @@
-using System.Net;
-using System.Net.Http.Json;
-using System.Text.Json;
-using System.Text.Json.Serialization;
 using LupiraCalApi.Worker.Dtos;
+using System.Net.Http.Json;
+using System.Net;
+using System.Text.Json.Serialization;
+using System.Text.Json;
 
 namespace LupiraCalApi.Worker.Clients;
 

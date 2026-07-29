@@ -1,5 +1,6 @@
 using LupiraCalApi.Application;
 using LupiraCalApi.Auth;
+using LupiraCalApi.Domain.Identity;
 using LupiraCalApi.Domain;
 using LupiraCalApi.Serialization;
 using Marten;

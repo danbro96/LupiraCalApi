@@ -1,7 +1,7 @@
 using LupiraCalApi.Application;
 using LupiraCalApi.Domain;
-using LupiraCalApi.Dtos.Calendars;
 using LupiraCalApi.Dtos.CalendarItems;
+using LupiraCalApi.Dtos.Calendars;
 using Microsoft.AspNetCore.TestHost;
 using Microsoft.Extensions.DependencyInjection;
 using System.Net.Http.Json;

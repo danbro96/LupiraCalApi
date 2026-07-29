@@ -1,9 +1,9 @@
-using System.Net;
-using System.Net.Http.Json;
 using LupiraCalApi.Application;
 using LupiraCalApi.Dtos.CalendarItems;
 using Microsoft.AspNetCore.TestHost;
 using Microsoft.Extensions.DependencyInjection;
+using System.Net.Http.Json;
+using System.Net;
 using Xunit;
 
 namespace LupiraCalApi.IntegrationTests;

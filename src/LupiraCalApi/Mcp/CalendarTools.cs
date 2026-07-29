@@ -4,8 +4,8 @@ using LupiraCalApi.Domain;
 using LupiraCalApi.Dtos.CalendarItems;
 using LupiraCalApi.Dtos.Calendars;
 using LupiraCalApi.Dtos.Relations;
-using ModelContextProtocol;
 using ModelContextProtocol.Server;
+using ModelContextProtocol;
 using System.ComponentModel;
 using System.Text.Json.Nodes;
 

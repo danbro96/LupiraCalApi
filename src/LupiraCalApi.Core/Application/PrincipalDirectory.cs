@@ -1,3 +1,4 @@
+using LupiraCalApi.Domain.Identity;
 using LupiraCalApi.Domain;
 using Marten;
 using Npgsql;
