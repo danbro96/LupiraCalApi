@@ -79,7 +79,10 @@
             "name": "from",
             "in": "query",
             "schema": {
-              "type": "string",
+              "type": [
+                "null",
+                "string"
+              ],
               "format": "date-time"
             }
           },
@@ -87,7 +90,10 @@
             "name": "to",
             "in": "query",
             "schema": {
-              "type": "string",
+              "type": [
+                "null",
+                "string"
+              ],
               "format": "date-time"
             }
           }
@@ -334,7 +340,10 @@
             "name": "from",
             "in": "query",
             "schema": {
-              "type": "string",
+              "type": [
+                "null",
+                "string"
+              ],
               "format": "date-time"
             }
           },
@@ -342,7 +351,10 @@
             "name": "to",
             "in": "query",
             "schema": {
-              "type": "string",
+              "type": [
+                "null",
+                "string"
+              ],
               "format": "date-time"
             }
           },
@@ -879,7 +891,10 @@
             "name": "occurredAt",
             "in": "query",
             "schema": {
-              "type": "string",
+              "type": [
+                "null",
+                "string"
+              ],
               "format": "date-time"
             }
           },
@@ -1017,7 +1032,10 @@
             "name": "occurredAt",
             "in": "query",
             "schema": {
-              "type": "string",
+              "type": [
+                "null",
+                "string"
+              ],
               "format": "date-time"
             }
           },
@@ -1138,7 +1156,10 @@
             "name": "occurredAt",
             "in": "query",
             "schema": {
-              "type": "string",
+              "type": [
+                "null",
+                "string"
+              ],
               "format": "date-time"
             }
           },
@@ -1396,7 +1417,10 @@
             "name": "occurredAt",
             "in": "query",
             "schema": {
-              "type": "string",
+              "type": [
+                "null",
+                "string"
+              ],
               "format": "date-time"
             }
           },
@@ -1468,7 +1492,10 @@
             "name": "occurredAt",
             "in": "query",
             "schema": {
-              "type": "string",
+              "type": [
+                "null",
+                "string"
+              ],
               "format": "date-time"
             }
           },
@@ -1531,7 +1558,10 @@
             "name": "occurredAt",
             "in": "query",
             "schema": {
-              "type": "string",
+              "type": [
+                "null",
+                "string"
+              ],
               "format": "date-time"
             }
           },

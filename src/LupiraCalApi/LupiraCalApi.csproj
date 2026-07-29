@@ -15,7 +15,8 @@
   -->
   <PropertyGroup>
     <OpenApiDocumentsDirectory>$(MSBuildThisFileDirectory)..\..\openapi</OpenApiDocumentsDirectory>
-    <OpenApiGenerateDocuments Condition="'$(CI)' == 'true'">false</OpenApiGenerateDocuments>
+    <OpenApiGenerateDocuments>true</OpenApiGenerateDocuments>
+    <OpenApiGenerateDocumentsOnBuild>true</OpenApiGenerateDocumentsOnBuild>
   </PropertyGroup>
 
   <ItemGroup>

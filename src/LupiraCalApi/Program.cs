@@ -160,6 +160,20 @@ builder.Services.AddOpenApi("v1", options =>
         };
         return Task.CompletedTask;
     });
+    // The UtcDateTimeOffsetConverter hides the underlying CLR type from schema inference, which would
+    // otherwise emit `format: date-time` with no `type` at all.
+    options.AddSchemaTransformer((schema, context, _) =>
+    {
+        var t = context.JsonTypeInfo.Type;
+        if (t == typeof(DateTimeOffset) || t == typeof(DateTimeOffset?))
+        {
+            schema.Type = t == typeof(DateTimeOffset?)
+                ? JsonSchemaType.String | JsonSchemaType.Null
+                : JsonSchemaType.String;
+            schema.Format = "date-time";
+        }
+        return Task.CompletedTask;
+    });
     options.AddOperationTransformer((operation, context, _) =>
     {
         var endpointMetadata = context.Description.ActionDescriptor.EndpointMetadata;

@@ -21,9 +21,6 @@ public static class CoreServiceCollectionExtensions
 
     public static IServiceCollection AddCalCore(this IServiceCollection services)
     {
-        // Registered before Marten so its StartAsync (create cal.scheduled_fire) completes before the async daemon starts.
-        services.AddHostedService<ScheduledFireTableInitializer>();
-
         // Resolve the connection string lazily from IConfiguration so test hosts (WebApplicationFactory) can
         // override ConnectionStrings:Postgres before the store is built.
         services.AddMarten(sp =>

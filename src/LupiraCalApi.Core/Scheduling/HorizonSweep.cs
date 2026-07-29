@@ -7,17 +7,6 @@ using Microsoft.Extensions.Logging;
 
 namespace LupiraCalApi.Scheduling;
 
-/// <summary>Ensures <c>cal.scheduled_fire</c> exists before the async daemon starts (the deploy step runs <c>--apply-schema</c>;
-/// this covers a plain <c>dotnet run</c>). Registered first so its StartAsync completes before the daemon's.</summary>
-public sealed class ScheduledFireTableInitializer(IConfiguration config) : IHostedService
-{
-    public Task StartAsync(CancellationToken ct) =>
-        ScheduledFireSchema.EnsureExistsAsync(
-            config.GetConnectionString("Postgres") ?? CoreServiceCollectionExtensions.DefaultConnectionString, ct);
-
-    public Task StopAsync(CancellationToken ct) => Task.CompletedTask;
-}
-
 /// <summary>Nightly horizon-extend: re-materializes payload-bearing items (recurring AND one-shots beyond the window at
 /// set-time) so the rolling 35-day window keeps its far edge as days pass. Insert-only (idempotent on dedupe_key);
 /// event-driven (re)materialization is the projection's job.</summary>
