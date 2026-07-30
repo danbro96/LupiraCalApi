@@ -135,6 +135,7 @@ builder.Services.AddHealthChecks()
 // Emit/accept enums as their names across the REST surface (not integers).
 builder.Services.ConfigureHttpJsonOptions(o =>
 {
+    o.SerializerOptions.NumberHandling = JsonNumberHandling.Strict;
     o.SerializerOptions.Converters.Add(new JsonStringEnumConverter());
     o.SerializerOptions.Converters.Add(new LupiraCalApi.Serialization.UtcDateTimeOffsetConverter());
 });
