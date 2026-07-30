@@ -1,7 +1,7 @@
-using JasperFx.Events.Projections;
 using JasperFx;
-using LupiraCalApi.Domain.Identity;
+using JasperFx.Events.Projections;
 using LupiraCalApi.Domain;
+using LupiraCalApi.Domain.Identity;
 using Marten;
 using Weasel.Core;
 

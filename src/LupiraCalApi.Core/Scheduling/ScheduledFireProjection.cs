@@ -1,7 +1,7 @@
 using JasperFx.Events;
 using LupiraCalApi.Domain;
-using Marten.Events.Projections;
 using Marten;
+using Marten.Events.Projections;
 
 namespace LupiraCalApi.Scheduling;
 
@@ -30,8 +30,8 @@ public sealed partial class ScheduledFireProjection(IFireMaterializer materializ
         var context = await SchedulingQueries.FireContextAsync(ops, item, ct);
         foreach (var r in materializer.Materialize(item, context, DateTimeOffset.UtcNow, SchedulingDefaults.Horizon))
             ops.QueueSqlCommand(ScheduledFireSchema.InsertSql,
-                r.Id, r.ItemId, r.CalendarId, (object?)r.PrincipalId ?? DBNull.Value, r.OccurrenceAt,
-                (object?)r.PromptRef ?? DBNull.Value, (object?)r.ExpireAfter ?? DBNull.Value, r.DedupeKey);
+                r.Id, r.ItemId, r.CalendarId, (object?) r.PrincipalId ?? DBNull.Value, r.OccurrenceAt,
+                (object?) r.PromptRef ?? DBNull.Value, (object?) r.ExpireAfter ?? DBNull.Value, r.DedupeKey);
     }
 
     private static void DropFuturePending(Guid itemId, IDocumentOperations ops) =>

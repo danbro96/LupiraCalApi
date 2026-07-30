@@ -1,6 +1,6 @@
 using LupiraCalApi.Domain;
-using static LupiraCalApi.UnitTests.TestEvents;
 using Xunit;
+using static LupiraCalApi.UnitTests.TestEvents;
 
 namespace LupiraCalApi.UnitTests;
 

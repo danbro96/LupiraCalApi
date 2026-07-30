@@ -7,9 +7,9 @@ public sealed class DispatcherOptions
 {
     public const string SectionName = "Dispatcher";
 
-    public int TickSeconds { get; set; } = (int)SchedulingDefaults.Tick.TotalSeconds;
+    public int TickSeconds { get; set; } = (int) SchedulingDefaults.Tick.TotalSeconds;
     public int BatchSize { get; set; } = SchedulingDefaults.ClaimBatch;
-    public int LeaseSeconds { get; set; } = (int)SchedulingDefaults.Lease.TotalSeconds;
+    public int LeaseSeconds { get; set; } = (int) SchedulingDefaults.Lease.TotalSeconds;
     public int MaxAttempts { get; set; } = SchedulingDefaults.MaxAttempts;
 
     public TimeSpan Tick => TimeSpan.FromSeconds(TickSeconds);

@@ -1,9 +1,5 @@
-using JasperFx;
-using LupiraCalApi.Data;
-using LupiraCalApi.Domain;
 using LupiraCalApi.Dispatcher.Clients;
 using LupiraCalApi.Dispatcher.Dispatch;
-using Marten;
 using Npgsql;
 using OpenTelemetry.Logs;
 using OpenTelemetry.Metrics;

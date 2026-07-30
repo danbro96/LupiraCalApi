@@ -24,6 +24,7 @@ internal static class ItemDetailsMapper
             if (!string.IsNullOrWhiteSpace(t.FromPlace) && t.FromPlaceId is null)
                 return "Travel origin must be a resolved place id (FromPlaceId) when an origin is given.";
         }
+
         return null;
     }
 

@@ -19,8 +19,6 @@ public sealed class CompletenessResolver(IQuerySession session)
             i, AcceptedIds(i).Any(exempt.Contains), parents.Contains(i.Id), inherited.GetValueOrDefault(i.Id)));
     }
 
-
-
     // Attendance often lives on the parent (a trip's shared list covers its legs), so a child in an
     // attendee-scoring category inherits the parent's attendee presence instead of being asked again.
     private async Task<Dictionary<Guid, double>> InheritedAttendeesAsync(IReadOnlyCollection<CalendarItem> items, CancellationToken ct)
@@ -38,6 +36,7 @@ public sealed class CompletenessResolver(IQuerySession session)
             var loaded = await session.Query<CalendarItem>().Where(c => missing.Contains(c.Id) && c.DeletedAt == null).ToListAsync(ct);
             foreach (var p in loaded) byId[p.Id] = p;
         }
+
         return children
             .Where(i => byId.ContainsKey(i.ParentItemId!.Value))
             .ToDictionary(i => i.Id, i => CompletenessScorer.AttendeePresence(byId[i.ParentItemId!.Value]));

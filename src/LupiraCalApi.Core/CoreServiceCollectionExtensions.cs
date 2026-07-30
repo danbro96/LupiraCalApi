@@ -1,6 +1,6 @@
+using JasperFx;
 using JasperFx.Events.Daemon;
 using JasperFx.Events.Projections;
-using JasperFx;
 using LupiraCalApi.Application;
 using LupiraCalApi.Auth;
 using LupiraCalApi.Data;

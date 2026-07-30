@@ -50,6 +50,7 @@ public sealed class CurationService(IDocumentSession session, AccessResolver acc
             var res = await AddToCalendarAsync(principalId, e.ItemId, e.CalendarId, e.Status, ct: ct);
             results.Add(new FileItemResult(e.ItemId, e.CalendarId, StatusName(res.Status), res.Error));
         }
+
         return OpResult<List<FileItemResult>>.Ok(results);
     }
 
@@ -79,9 +80,10 @@ public sealed class CurationService(IDocumentSession session, AccessResolver acc
             || await access.CanReadItemAsync(principalId, item, ct);
         if (!mayCurate) return OpResult<CalendarItemDto>.NotFound();
         stream.AppendOne(@event);
-        idempotency.Record(commandId, itemId, (int)(stream.CurrentVersion ?? 0) + 1);
+        idempotency.Record(commandId, itemId, (int) (stream.CurrentVersion ?? 0) + 1);
         try { await session.SaveChangesAsync(ct); }
         catch (Exception ex) when (Idempotency.IsDuplicate(ex)) { /* replayed concurrently — current state is authoritative */ }
+
         var updated = await session.LoadAsync<CalendarItem>(itemId, ct);
         return OpResult<CalendarItemDto>.Ok(updated!.ToResponse(await completeness.ScoreItemAsync(updated!, ct)));
     }

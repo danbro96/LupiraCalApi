@@ -1,7 +1,7 @@
+using System.Text.Json.Nodes;
 using LupiraCalApi.Dtos.CalendarItems;
 using LupiraCalApi.Handlers;
 using Microsoft.AspNetCore.Mvc;
-using System.Text.Json.Nodes;
 
 namespace LupiraCalApi.Endpoints;
 

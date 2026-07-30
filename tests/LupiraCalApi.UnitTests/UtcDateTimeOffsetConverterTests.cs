@@ -1,5 +1,5 @@
-using LupiraCalApi.Serialization;
 using System.Text.Json;
+using LupiraCalApi.Serialization;
 using Xunit;
 
 namespace LupiraCalApi.UnitTests;
@@ -25,7 +25,7 @@ public class UtcDateTimeOffsetConverterTests
     [Fact]
     public void Nullable_and_read_round_trip()
     {
-        Assert.Equal("null", JsonSerializer.Serialize((DateTimeOffset?)null, Options));
+        Assert.Equal("null", JsonSerializer.Serialize((DateTimeOffset?) null, Options));
         var read = JsonSerializer.Deserialize<DateTimeOffset>("\"2022-04-18T16:50:00+02:00\"", Options);
         Assert.Equal(DateTimeOffset.Parse("2022-04-18T14:50:00Z"), read);   // same instant; offsets accepted on read
     }

@@ -1,8 +1,8 @@
+using System.Text.RegularExpressions;
 using Ical.Net.CalendarComponents;
 using Ical.Net.DataTypes;
 using Ical.Net.Serialization;
 using LupiraCalApi.Domain;
-using System.Text.RegularExpressions;
 using IcalCalendar = Ical.Net.Calendar;
 
 namespace LupiraCalApi.Serialization;
@@ -61,11 +61,13 @@ public static class ICalSerializer
             var end = ics.IndexOf("END:VEVENT", StringComparison.Ordinal);
             if (end >= 0) ics = ics.Insert(end, NormalizeCrlf(recurrenceExceptions) + "\r\n");
         }
+
         if (!string.IsNullOrWhiteSpace(recurrenceOverrides))
         {
             var end = ics.LastIndexOf("END:VCALENDAR", StringComparison.Ordinal);
             if (end >= 0) ics = ics.Insert(end, NormalizeCrlf(recurrenceOverrides) + "\r\n");
         }
+
         return ics;
     }
 
@@ -86,6 +88,7 @@ public static class ICalSerializer
         IcalCalendar? calendar;
         try { calendar = IcalCalendar.Load(raw); }
         catch (Exception ex) { throw new FormatException("Invalid iCalendar payload.", ex); }
+
         if (calendar is null) throw new FormatException("Invalid iCalendar payload.");
 
         // The master is the VEVENT without a RECURRENCE-ID; its structured fields are parsed below. Per-instance
@@ -103,6 +106,7 @@ public static class ICalSerializer
             if (allDay) startDate = DateOnly.FromDateTime(s.Value);
             else startsAt = new DateTimeOffset(s.AsUtc, TimeSpan.Zero);
         }
+
         if (ev.End is { } e2)
         {
             if (allDay) endDate = DateOnly.FromDateTime(e2.Value);
@@ -125,6 +129,7 @@ public static class ICalSerializer
             var ex = Regex.Matches(masterBlock, @"^(?:EXDATE|RDATE)[;:].*(?:\r?\n[ \t].*)*", RegexOptions.Multiline).Select(x => x.Value).ToList();
             if (ex.Count > 0) exceptions = string.Join("\n", ex);
         }
+
         var overrides = overrideBlocks.Count > 0 ? string.Join("\n", overrideBlocks) : null;
 
         return new ParsedEvent(ev.Summary, ev.Description, ev.Location, allDay,

@@ -1,6 +1,6 @@
+using System.Text.Json;
 using System.Text.Json.Nodes;
 using System.Text.Json.Serialization;
-using System.Text.Json;
 
 namespace LupiraCalApi.Domain;
 
@@ -60,6 +60,7 @@ public static class CompletenessScorer
                     if (leg.Mode == TransportMode.Car)
                         fields.Add(("driver", 1, Has(leg.DriverContactId)));
                 }
+
                 fields.Add(("booking", 1, Booking(d)));
                 break;
 
@@ -113,7 +114,6 @@ public static class CompletenessScorer
 
         return Build(fields);
     }
-
 
     private static CompletenessScore Build(List<(string Field, double Weight, double Presence)> fields)
     {

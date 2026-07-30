@@ -1,8 +1,7 @@
+using System.Text.Json;
+using System.Text.Json.Serialization;
 using LupiraCalApi.Application;
 using Microsoft.Extensions.Options;
-using System.Net.Http.Json;
-using System.Text.Json.Serialization;
-using System.Text.Json;
 
 namespace LupiraCalApi.Clients;
 
@@ -36,9 +35,10 @@ public sealed class ContactApiClient(HttpClient http, IOptions<ContactApiOptions
             using var resp = await http.SendAsync(req, ct);
             if (!resp.IsSuccessStatusCode)
             {
-                logger.LogWarning("Contact resolve returned {Status} for {Count} ids.", (int)resp.StatusCode, contactIds.Count);
+                logger.LogWarning("Contact resolve returned {Status} for {Count} ids.", (int) resp.StatusCode, contactIds.Count);
                 return null;
             }
+
             var body = await resp.Content.ReadFromJsonAsync<ResolveResponse>(Json, ct);
             return body is null ? null : [.. body.Contacts.Select(c => new ContactSummary(c.ContactId, c.DisplayName))];
         }
@@ -60,9 +60,10 @@ public sealed class ContactApiClient(HttpClient http, IOptions<ContactApiOptions
             using var resp = await http.SendAsync(req, ct);
             if (!resp.IsSuccessStatusCode)
             {
-                logger.LogWarning("Contact birthdays returned {Status}.", (int)resp.StatusCode);
+                logger.LogWarning("Contact birthdays returned {Status}.", (int) resp.StatusCode);
                 return null;
             }
+
             var body = await resp.Content.ReadFromJsonAsync<BirthdaysResponse>(Json, ct);
             return body is null ? null : [.. body.Contacts.Select(c => new ContactBirthday(c.ContactId, c.DisplayName, c.Year, c.Month, c.Day))];
         }

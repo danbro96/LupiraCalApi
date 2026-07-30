@@ -51,6 +51,7 @@ public sealed class DavChangeFeed(IQuerySession session)
                 ? new DavChange(i.ExternalId, null, Deleted: true)
                 : new DavChange(i.ExternalId, i.ContentHash, Deleted: false));
         }
+
         return (newToken, changes);
     }
 }

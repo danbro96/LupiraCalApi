@@ -1,4 +1,3 @@
-using LupiraCalApi.Domain.Identity;
 using System.Text.Json.Serialization;
 
 namespace LupiraCalApi.Dav;

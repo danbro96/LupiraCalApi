@@ -73,14 +73,17 @@ public sealed class ParticipationService(IDocumentSession session, AccessResolve
             {
                 alreadyPresent++;
                 if (attended && a.AttendedAt is null) { stream.AppendOne(new AttendanceConfirmed(itemId, a.ParticipationId, now)); appended = true; }
+
                 continue;
             }
+
             var pid = Guid.NewGuid();
             stream.AppendOne(new AttendeeInvited(itemId, pid, cid, ParticipationRole.RequiredParticipant, now));
             if (attended) stream.AppendOne(new AttendanceConfirmed(itemId, pid, now));
             appended = true;
             added.Add(new ParticipationRef(cid, pid));
         }
+
         if (appended) await session.SaveChangesAsync(ct);
         return OpResult<SetParticipantsResult>.Ok(new SetParticipantsResult(itemId, added, alreadyPresent));
     }
@@ -111,6 +114,7 @@ public sealed class ParticipationService(IDocumentSession session, AccessResolve
                 perContact[a.ContactId] = (prev.Count + 1, at > prev.LastAt || prev.LastAt is null ? at : prev.LastAt);
             }
         }
+
         return [.. perContact
             .Select(kv => new ParticipationSummaryEntry(kv.Key, kv.Value.Count, kv.Value.LastAt))
             .OrderByDescending(e => e.Count).ThenByDescending(e => e.LastAt ?? DateTimeOffset.MinValue).ThenBy(e => e.ContactId)];
@@ -127,6 +131,7 @@ public sealed class ParticipationService(IDocumentSession session, AccessResolve
             stream.AppendOne(evt);
             await session.SaveChangesAsync(ct);
         }
+
         var updated = await session.LoadAsync<CalendarItem>(itemId, ct);
         return OpResult<CalendarItemDto>.Ok(updated!.ToResponse(await completeness.ScoreItemAsync(updated!, ct)));
     }

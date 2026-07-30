@@ -1,6 +1,6 @@
-using LupiraCalApi.Domain;
 using System.Text.Json.Nodes;
 using System.Text.Json.Serialization;
+using LupiraCalApi.Domain;
 
 namespace LupiraCalApi.Dtos.CalendarItems;
 

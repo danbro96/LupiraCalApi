@@ -32,6 +32,7 @@ public sealed class FireMaterializer(RecurrenceExpander expander) : IFireMateria
             var dedupe = $"{item.Id:N}:{at.UtcDateTime:O}";
             rows.Add(new ScheduledFireRow(DeterministicGuid.From(dedupe), item.Id, context.CalendarId, context.PrincipalId, at, promptRef, expireAfter, dedupe));
         }
+
         return rows;
     }
 

@@ -1,8 +1,7 @@
-using LupiraCalApi.Dispatcher.Dtos;
-using System.Net.Http.Json;
 using System.Net;
-using System.Text.Json.Serialization;
 using System.Text.Json;
+using System.Text.Json.Serialization;
+using LupiraCalApi.Dispatcher.Dtos;
 
 namespace LupiraCalApi.Dispatcher.Clients;
 
@@ -37,7 +36,7 @@ public sealed class AssistantFireClient(HttpClient http, ServiceTokenProvider to
                 return new PushResult(true, false, null, body?.Duplicate ?? false);
             }
 
-            var error = $"assistant /fires returned {(int)resp.StatusCode}: {await resp.Content.ReadAsStringAsync(ct)}";
+            var error = $"assistant /fires returned {(int) resp.StatusCode}: {await resp.Content.ReadAsStringAsync(ct)}";
             return new PushResult(false, Retryable: resp.StatusCode != HttpStatusCode.BadRequest, error);
         }
         catch (Exception ex) when (ex is HttpRequestException or TaskCanceledException && !ct.IsCancellationRequested)

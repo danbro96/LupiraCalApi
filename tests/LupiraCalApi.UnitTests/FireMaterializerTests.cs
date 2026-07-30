@@ -1,6 +1,5 @@
 using LupiraCalApi.Domain;
 using LupiraCalApi.Scheduling;
-using LupiraCalApi.Serialization;
 using Xunit;
 
 namespace LupiraCalApi.UnitTests;
@@ -95,8 +94,11 @@ public class FireMaterializerTests
     {
         var item = new CalendarItem
         {
-            Id = Guid.NewGuid(), IsAllDay = true,
-            StartDate = new DateOnly(2026, 7, 1), EndDate = new DateOnly(2026, 7, 2), StartTimezone = "UTC",
+            Id = Guid.NewGuid(),
+            IsAllDay = true,
+            StartDate = new DateOnly(2026, 7, 1),
+            EndDate = new DateOnly(2026, 7, 2),
+            StartTimezone = "UTC",
             Calendars = [new CalendarMembership { CalendarId = Guid.NewGuid(), Status = CalendarEntryStatus.Accepted }],
             Prompt = Prompt(new PromptFire(PromptFireKind.AllDayAt, null, new TimeOnly(9, 0))),
         };
@@ -128,7 +130,10 @@ public class FireMaterializerTests
         var item = new CalendarItem
         {
             Id = Guid.NewGuid(),
-            StartsAt = start, EndsAt = start.AddHours(1), StartTimezone = "UTC", RecurrenceRule = "FREQ=WEEKLY",
+            StartsAt = start,
+            EndsAt = start.AddHours(1),
+            StartTimezone = "UTC",
+            RecurrenceRule = "FREQ=WEEKLY",
             Calendars = [new CalendarMembership { CalendarId = Guid.NewGuid(), Status = CalendarEntryStatus.Accepted }],
             Prompt = Prompt(OnStart),
         };

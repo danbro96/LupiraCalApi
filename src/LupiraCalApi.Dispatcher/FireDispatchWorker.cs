@@ -1,7 +1,7 @@
-using LupiraCalApi.Scheduling;
-using LupiraCalApi.Dispatcher.Dispatch;
-using Microsoft.Extensions.Options;
 using System.Diagnostics;
+using LupiraCalApi.Dispatcher.Dispatch;
+using LupiraCalApi.Scheduling;
+using Microsoft.Extensions.Options;
 
 namespace LupiraCalApi.Dispatcher;
 

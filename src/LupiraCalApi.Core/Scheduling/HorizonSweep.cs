@@ -1,7 +1,5 @@
 using LupiraCalApi.Domain;
 using Marten;
-using Microsoft.Extensions.Configuration;
-using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 
@@ -35,9 +33,10 @@ public sealed class HorizonSweep(IDocumentStore store, IFireMaterializer materia
             var context = await SchedulingQueries.FireContextAsync(session, item, ct);
             foreach (var r in materializer.Materialize(item, context, now, SchedulingDefaults.Horizon))
                 session.QueueSqlCommand(ScheduledFireSchema.InsertSql,
-                    r.Id, r.ItemId, r.CalendarId, (object?)r.PrincipalId ?? DBNull.Value, r.OccurrenceAt,
-                    (object?)r.PromptRef ?? DBNull.Value, (object?)r.ExpireAfter ?? DBNull.Value, r.DedupeKey);
+                    r.Id, r.ItemId, r.CalendarId, (object?) r.PrincipalId ?? DBNull.Value, r.OccurrenceAt,
+                    (object?) r.PromptRef ?? DBNull.Value, (object?) r.ExpireAfter ?? DBNull.Value, r.DedupeKey);
         }
+
         await session.SaveChangesAsync(ct);
     }
 }

@@ -1,4 +1,5 @@
-﻿using LupiraCalApi.Application;
+using System.Text.Json.Serialization;
+using LupiraCalApi.Application;
 using LupiraCalApi.Auth;
 using LupiraCalApi.Clients;
 using LupiraCalApi.Dav;
@@ -9,8 +10,8 @@ using LupiraCalApi.Health;
 using LupiraCalApi.Mcp;
 using LupiraCalApi.Scheduling;
 using Marten;
-using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Authentication;
+using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Diagnostics.HealthChecks;
 using Microsoft.AspNetCore.HttpOverrides;
@@ -20,7 +21,6 @@ using OpenTelemetry.Metrics;
 using OpenTelemetry.Resources;
 using OpenTelemetry.Trace;
 using Scalar.AspNetCore;
-using System.Text.Json.Serialization;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -175,6 +175,7 @@ builder.Services.AddOpenApi("v1", options =>
                 : JsonSchemaType.String;
             schema.Format = "date-time";
         }
+
         return Task.CompletedTask;
     });
     options.AddOperationTransformer((operation, context, _) =>
@@ -190,6 +191,7 @@ builder.Services.AddOpenApi("v1", options =>
                 [new OpenApiSecuritySchemeReference("Bearer", context.Document)] = new List<string>(),
             });
         }
+
         return Task.CompletedTask;
     });
 });

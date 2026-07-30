@@ -1,8 +1,8 @@
-using LupiraCalApi.Domain.Identity;
-using LupiraCalApi.Domain;
-using LupiraCalApi.Scheduling;
 using LupiraCalApi.Dispatcher.Clients;
 using LupiraCalApi.Dispatcher.Dtos;
+using LupiraCalApi.Domain;
+using LupiraCalApi.Domain.Identity;
+using LupiraCalApi.Scheduling;
 using Marten;
 using Microsoft.Extensions.Options;
 using Npgsql;
@@ -39,6 +39,7 @@ public sealed class FireDispatchService(
                 logger.LogError(ex, "Dispatch failed for fire {FireId} (item {ItemId}).", fire.Id, fire.ItemId);
             }
         }
+
         return claimed.Count;
     }
 
@@ -93,6 +94,7 @@ public sealed class FireDispatchService(
             await TransitionAsync(ScheduledFireDispatchSql.FailSql, fire.Id, error: "no calendar membership at materialisation", ct: ct);
             return;
         }
+
         var calendar = await session.LoadAsync<Calendar>(fire.CalendarId, ct);
         if (calendar is null)
         {
@@ -154,6 +156,7 @@ public sealed class FireDispatchService(
                 .ToListAsync(ct);
             principalId = owners.OrderBy(o => o.PrincipalId).FirstOrDefault()?.PrincipalId;
         }
+
         if (principalId is null) return null;
 
         var principal = await session.LoadAsync<Principal>(principalId.Value, ct);
@@ -164,7 +167,7 @@ public sealed class FireDispatchService(
     {
         await using var cmd = db.CreateCommand(sql);
         cmd.Parameters.AddWithValue("id", id);
-        if (sql.Contains("@error")) cmd.Parameters.AddWithValue("error", (object?)error ?? DBNull.Value);
+        if (sql.Contains("@error")) cmd.Parameters.AddWithValue("error", (object?) error ?? DBNull.Value);
         if (sql.Contains("@backoff")) cmd.Parameters.AddWithValue("backoff", backoff ?? TimeSpan.Zero);
         await cmd.ExecuteNonQueryAsync(ct);
     }

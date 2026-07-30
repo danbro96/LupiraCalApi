@@ -1,8 +1,7 @@
+using System.Text.Json;
+using System.Text.Json.Serialization;
 using LupiraCalApi.Application;
 using Microsoft.Extensions.Options;
-using System.Net.Http.Json;
-using System.Text.Json.Serialization;
-using System.Text.Json;
 
 namespace LupiraCalApi.Clients;
 
@@ -35,9 +34,10 @@ public sealed class GeoApiClient(HttpClient http, IOptions<GeoApiOptions> option
             using var resp = await http.SendAsync(req, ct);
             if (!resp.IsSuccessStatusCode)
             {
-                logger.LogWarning("Geo resolve returned {Status} for '{Text}'.", (int)resp.StatusCode, text);
+                logger.LogWarning("Geo resolve returned {Status} for '{Text}'.", (int) resp.StatusCode, text);
                 return null;
             }
+
             var body = await resp.Content.ReadFromJsonAsync<ResolveResponse>(Json, ct);
             // PlaceId is null on GeocodeUnavailable (geocoder unreachable) — a retryable no-resolution, not a place.
             return body?.PlaceId is { } pid && pid != Guid.Empty

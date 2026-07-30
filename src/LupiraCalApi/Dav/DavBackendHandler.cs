@@ -1,7 +1,7 @@
 using LupiraCalApi.Application;
 using LupiraCalApi.Auth;
-using LupiraCalApi.Domain.Identity;
 using LupiraCalApi.Domain;
+using LupiraCalApi.Domain.Identity;
 using LupiraCalApi.Serialization;
 using Marten;
 using DavCalendar = LupiraCalApi.Domain.Calendar;   // disambiguate from System.Globalization.Calendar
@@ -72,6 +72,7 @@ public sealed class DavBackendHandler(
             var set = uids.ToHashSet(StringComparer.Ordinal);
             selected = selected.Where(i => set.Contains(i.ExternalId));
         }
+
         if (body is { Start: { } start, End: { } end })
             selected = selected.Where(i => timeRange.Overlaps(i, start, end));   // recurrence expansion stays in this domain
 
@@ -111,6 +112,7 @@ public sealed class DavBackendHandler(
             ctx.Response.Headers.ETag = $"\"{w.Etag}\"";
             return TypedResults.StatusCode(w.Created ? StatusCodes.Status201Created : StatusCodes.Status204NoContent);
         }
+
         return TypedResults.StatusCode(DavStatus(result.Status));
     }
 
