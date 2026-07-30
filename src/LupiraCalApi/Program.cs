@@ -103,7 +103,9 @@ builder.Services.AddOpenTelemetry()
     .ConfigureResource(r => r.AddService("lupira-cal-api"))
     .WithTracing(t =>
     {
-        t.AddAspNetCoreInstrumentation();
+        // Health probes are polled constantly by docker + devops-monitor; their spans add nothing.
+        t.AddAspNetCoreInstrumentation(o => o.Filter = ctx =>
+            ctx.Request.Path != "/livez" && ctx.Request.Path != "/readyz");
         t.AddHttpClientInstrumentation();
         t.AddSource(Telemetry.ActivitySourceName);
         if (!string.IsNullOrWhiteSpace(otlpEndpoint)) t.AddOtlpExporter();
@@ -244,7 +246,8 @@ app.MapGet("/", () => TypedResults.Redirect("/scalar"))
    .AllowAnonymous();
 
 // Health probes: /livez = liveness (no dependency checks); /readyz = readiness (Postgres reachable).
-app.MapHealthChecks("/livez", new HealthCheckOptions { Predicate = _ => false });
+app.MapHealthChecks("/livez", new HealthCheckOptions { Predicate = _ => false })
+    .DisableHttpMetrics();
 app.MapHealthChecks("/readyz", new HealthCheckOptions { Predicate = c => c.Tags.Contains("ready") })
     .DisableHttpMetrics();
 
