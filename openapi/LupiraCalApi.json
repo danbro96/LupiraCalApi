@@ -6,6 +6,35 @@
     "version": "v1"
   },
   "paths": {
+    "/pingz": {
+      "get": {
+        "tags": [
+          "Ping"
+        ],
+        "summary": "Authenticated claims echo for dependency probes; resolves nothing, writes nothing.",
+        "operationId": "Ping",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PingDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized"
+          }
+        },
+        "security": [
+          {
+            "Bearer": [ ]
+          }
+        ]
+      }
+    },
     "/me": {
       "get": {
         "tags": [
@@ -3294,6 +3323,30 @@
           }
         }
       },
+      "PingDto": {
+        "required": [
+          "subject",
+          "audiences"
+        ],
+        "type": "object",
+        "properties": {
+          "subject": {
+            "type": "string"
+          },
+          "audiences": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "email": {
+            "type": [
+              "null",
+              "string"
+            ]
+          }
+        }
+      },
       "PresenceDetail": {
         "required": [
           "status"
@@ -4091,6 +4144,9 @@
     }
   },
   "tags": [
+    {
+      "name": "Ping"
+    },
     {
       "name": "Me"
     },

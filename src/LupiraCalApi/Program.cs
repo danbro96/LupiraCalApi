@@ -3,6 +3,7 @@ using LupiraCalApi.Application;
 using LupiraCalApi.Auth;
 using LupiraCalApi.Clients;
 using LupiraCalApi.Dav;
+using LupiraCalApi.Dependencies;
 using LupiraCalApi.Domain;
 using LupiraCalApi.Endpoints;
 using LupiraCalApi.Handlers;
@@ -56,6 +57,16 @@ if (contactOptions.IsConfigured)
     builder.Services.AddHttpClient<IContactResolver, ContactApiClient>(c =>
         c.BaseAddress = new Uri(contactOptions.BaseUrl.EndsWith('/') ? contactOptions.BaseUrl : contactOptions.BaseUrl + "/"));
 
+// Non-gating dependency probe (/depz): edges derive from the options above, probed on a dedicated client.
+builder.Services.Configure<DepzOptions>(builder.Configuration.GetSection(DepzOptions.SectionName));
+var depzOptions = builder.Configuration.GetSection(DepzOptions.SectionName).Get<DepzOptions>() ?? new DepzOptions();
+builder.Services.AddSingleton(DependencyTargets.From(geoOptions, contactOptions));
+builder.Services.AddSingleton<DependencyReportCache>();
+builder.Services.AddSingleton<DependencyProbe>();
+builder.Services.AddHttpClient(DependencyProbe.ProbeClientName, c => c.Timeout = depzOptions.ProbeTimeout);
+if (depzOptions.Enabled)
+    builder.Services.AddHostedService<DependencyPollWorker>();
+
 // --- Auth: OIDC JWT for the REST/MCP surface (the agent obtains a member-scoped token via Authentik
 //           token-exchange); the /dav-backend seam additionally requires the DAV gateway's client identity (azp).
 //           One identity authority (Authentik). ---
@@ -105,13 +116,15 @@ builder.Services.AddOpenTelemetry()
     {
         // Health probes are polled constantly by docker + devops-monitor; their spans add nothing.
         t.AddAspNetCoreInstrumentation(o => o.Filter = ctx =>
-            ctx.Request.Path != "/livez" && ctx.Request.Path != "/readyz");
+            ctx.Request.Path != "/livez" && ctx.Request.Path != "/readyz" && ctx.Request.Path != "/pingz"
+            && ctx.Request.Path != "/depz");
         t.AddHttpClientInstrumentation();
         t.AddSource(Telemetry.ActivitySourceName);
         if (!string.IsNullOrWhiteSpace(otlpEndpoint)) t.AddOtlpExporter();
     })
     .WithMetrics(m =>
     {
+        m.AddMeter("LupiraCalApi.*");
         m.AddAspNetCoreInstrumentation();
         m.AddHttpClientInstrumentation();
         m.AddRuntimeInstrumentation();
@@ -129,8 +142,7 @@ builder.Logging.AddOpenTelemetry(o =>
     if (!string.IsNullOrWhiteSpace(otlpEndpoint)) o.AddOtlpExporter();
 });
 
-builder.Services.AddHealthChecks()
-    .AddCheck<DatabaseReadyCheck>("postgres", tags: ["ready"]);
+builder.Services.AddAppHealthChecks();
 
 // Emit/accept enums as their names across the REST surface (not integers).
 builder.Services.ConfigureHttpJsonOptions(o =>
@@ -248,13 +260,11 @@ app.MapGet("/", () => TypedResults.Redirect("/scalar"))
    .ExcludeFromDescription()
    .AllowAnonymous();
 
-// Health probes: /livez = liveness (no dependency checks); /readyz = readiness (Postgres reachable).
-app.MapHealthChecks("/livez", new HealthCheckOptions { Predicate = _ => false })
-    .DisableHttpMetrics();
-app.MapHealthChecks("/readyz", new HealthCheckOptions { Predicate = c => c.Tags.Contains("ready") })
-    .DisableHttpMetrics();
+app.MapAppHealthChecks(app.Environment);
+app.MapDepz();
 
 // REST surface (at root), one MapXxx per resource.
+app.MapPing();
 app.MapMe();
 app.MapCalendars();
 app.MapOwners();

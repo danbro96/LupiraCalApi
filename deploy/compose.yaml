@@ -14,6 +14,8 @@ services:
     image: danbro96/lupira-cal-api:${IMAGE_TAG:-latest}
     container_name: lupira-cal-api
     environment:
+      # /depz gate (X-Probe-Key from devops-monitor); empty = /depz off.
+      Depz__ProbeKey: ${DEPZ_PROBE_KEY:-}
       # Postgres — the Marten event store + documents (one schema).
       ConnectionStrings__Postgres: "Host=postgres;Port=5432;Database=lupira_cal;Username=lupira_cal_user;Password=${LUPIRA_CAL_DB_PASSWORD:?required}"
 
