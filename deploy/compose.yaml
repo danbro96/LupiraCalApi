@@ -21,8 +21,8 @@ services:
 
       # REST auth — OIDC (JWT). The service only validates tokens (issuer + audience); no client secret
       # lives here. Any OIDC provider works — the default is just a sample issuer URL.
-      Auth__Authority: ${AUTH_AUTHORITY:-https://auth.lupira.com/application/o/lupira-cal/}
-      Auth__Audience: ${AUTH_AUDIENCE:-lupira-cal}
+      Auth__Oidc__Authority: ${AUTH_AUTHORITY:-https://auth.lupira.com/application/o/lupira-cal/}
+      Auth__Oidc__Audience: ${AUTH_AUDIENCE:-lupira-cal}
 
       # /dav-backend auth — a valid token for this API additionally minted by the DAV gateway's
       # client-credentials identity (azp). LAN-only surface; not routed through the tunnel.

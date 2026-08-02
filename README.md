@@ -78,8 +78,8 @@ vars). Nothing host-specific is baked in.
 | Variable | Purpose | Example |
 |---|---|---|
 | `ConnectionStrings__Postgres` | PostgreSQL connection (Marten store) — **required** | `Host=localhost;Port=5432;Database=lupira_cal;Username=lupira_cal_user;Password=…` |
-| `Auth__Authority` | OIDC issuer/authority for `/api` JWT validation | `https://idp.example.com/application/o/lupira-cal/` |
-| `Auth__Audience` | Expected JWT `aud` | `lupira-cal` |
+| `Auth__Oidc__Authority` | OIDC issuer/authority for `/api` JWT validation | `https://idp.example.com/application/o/lupira-cal/` |
+| `Auth__Oidc__Audience` | Expected JWT `aud` | `lupira-cal` |
 | `DavGateway__ClientId` | The DAV gateway's client id (`azp`) accepted on `/dav-backend` | `lupira-dav-svc` |
 | `Contacts__BaseUrl` | LupiraContactApi base URL (unset ⇒ contact refs unvalidated) | `http://lupira-contact-api:8080/` |
 | `Contacts__TokenUrl` / `__ClientId` / `__ClientSecret` / `__Scope` | Client-credentials for the contact hop (aud `lupira-contact`) | — |
