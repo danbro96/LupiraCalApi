@@ -1,6 +1,6 @@
 # Temporal backbone — calendar classes, event-bound prompts, scheduling
 
-**Status:** design record — the **intended final state** + rationale; it does not track build status. As-built structure: [architecture.md](architecture.md); implementation status + remaining work: `LupiraAssistantMobile/docs/roadmap.md`.
+**Status:** design record — the **intended final state** + rationale; it does not track build status. As-built structure: [architecture.md](architecture.md); implementation status + remaining work: `LupiraAssistantWeb/docs/roadmap.md`.
 **Primacy:** REST + the `cal` Marten store are primary. **CalDAV/CardDAV is secondary and bears on nothing here** — system calendars and prompts are never projected to DAV.
 
 **Implementation notes** (where the build refined the sketch below):
