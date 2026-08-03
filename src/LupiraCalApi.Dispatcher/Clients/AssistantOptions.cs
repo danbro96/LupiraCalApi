@@ -12,8 +12,15 @@ public sealed class AssistantOptions
     public string BaseUrl { get; set; } = "";
 
     public string? TokenUrl { get; set; }
+
+    /// <summary>The assistant service provider's slug, not its audience.</summary>
     public string? ClientId { get; set; }
     public string? ClientSecret { get; set; }
+
+    /// <summary>Scope to request — the Authentik mapping that injects <c>aud=lupira-assistant-internal</c>.
+    /// Binding it on the provider alone is not enough; assistant rejects a token without that aud.</summary>
+    public string? Scope { get; set; }
+
     public string? DevServiceId { get; set; }
 
     public bool IsConfigured => !string.IsNullOrWhiteSpace(BaseUrl);

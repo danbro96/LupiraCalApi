@@ -106,6 +106,7 @@ services:
       Assistant__BaseUrl: ${ASSISTANT_BASE_URL:-https://assistant-api.lupira.com/}
       Assistant__TokenUrl: ${ASSISTANT_TOKEN_URL:-https://auth.lupira.com/application/o/token/}
       Assistant__ClientId: ${ASSISTANT_CLIENT_ID:?required}
+      Assistant__Scope: ${ASSISTANT_SCOPE:?required}
       Assistant__ClientSecret: ${ASSISTANT_CLIENT_SECRET:?required}
 
       # OTEL — optional OTLP export. Unset endpoint = silent no-op.

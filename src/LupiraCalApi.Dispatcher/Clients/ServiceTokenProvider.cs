@@ -37,13 +37,16 @@ public sealed class ServiceTokenProvider(IHttpClientFactory httpFactory, IOption
         {
             if (_token is { } fresh && DateTimeOffset.UtcNow < _expiresAt) return fresh;
 
-            using var http = httpFactory.CreateClient(nameof(ServiceTokenProvider));
-            using var resp = await http.PostAsync(_opts.TokenUrl, new FormUrlEncodedContent(new Dictionary<string, string>
+            var form = new Dictionary<string, string>
             {
                 ["grant_type"] = "client_credentials",
                 ["client_id"] = _opts.ClientId!,
                 ["client_secret"] = _opts.ClientSecret!,
-            }), ct);
+            };
+            if (!string.IsNullOrWhiteSpace(_opts.Scope)) form["scope"] = _opts.Scope!;
+
+            using var http = httpFactory.CreateClient(nameof(ServiceTokenProvider));
+            using var resp = await http.PostAsync(_opts.TokenUrl, new FormUrlEncodedContent(form), ct);
             resp.EnsureSuccessStatusCode();
             var token = await resp.Content.ReadFromJsonAsync<TokenResponse>(ct)
                 ?? throw new InvalidOperationException("Client-credentials token response was empty.");
