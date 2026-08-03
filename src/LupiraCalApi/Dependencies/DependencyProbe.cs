@@ -82,14 +82,20 @@ public sealed class DependencyProbe(IHttpClientFactory httpFactory)
         if (!string.IsNullOrWhiteSpace(target.Scope)) form["scope"] = target.Scope!;
 
         using var response = await client.PostAsync(target.TokenUrl, new FormUrlEncodedContent(form), ct);
-        response.EnsureSuccessStatusCode();
-        using var payload = JsonDocument.Parse(await response.Content.ReadAsStringAsync(ct));
+        var raw = await response.Content.ReadAsStringAsync(ct);
+        // The IdP's error body (invalid_client / invalid_scope / unauthorized_client) is the whole
+        // diagnostic — a bare status code says nothing about which side is misconfigured.
+        if (!response.IsSuccessStatusCode)
+            throw new InvalidOperationException($"HTTP {(int) response.StatusCode}: {Truncate(raw)}");
+        using var payload = JsonDocument.Parse(raw);
         var token = payload.RootElement.GetProperty("access_token").GetString()
             ?? throw new InvalidOperationException("token response had no access_token");
         var expiresIn = payload.RootElement.TryGetProperty("expires_in", out var e) ? e.GetInt32() : 300;
         _tokens[target.Name] = (token, DateTimeOffset.UtcNow.AddSeconds(expiresIn - 30));
         return token;
     }
+
+    private static string Truncate(string s) => s.Length <= 300 ? s : s[..300];
 
     private static DependencyDto Result(DependencyTarget target, DependencyStatus status, double? latencyMs = null, string? error = null)
     {
