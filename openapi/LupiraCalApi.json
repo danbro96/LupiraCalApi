@@ -3989,6 +3989,16 @@
               "string"
             ]
           },
+          "placeId": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "uuid"
+          },
+          "placeIdProvided": {
+            "type": "boolean"
+          },
           "startsAt": {
             "type": [
               "null",

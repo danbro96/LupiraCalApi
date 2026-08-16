@@ -116,4 +116,75 @@ public sealed class GeoResolutionTests(CalApiTestFactory factory) : IntegrationT
         get.EnsureSuccessStatusCode();
         Assert.Contains("LOCATION:Cafe Central", await get.Content.ReadAsStringAsync());
     }
+
+    // ---- Update-path place semantics (PlaceId + PlaceIdProvided sentinel) ----
+
+    private async Task<CalendarItemDto> CreateWithPlaceAsync(HttpClient api, Guid calId, Guid placeId, string label = "Cafe Central")
+    {
+        var resp = await api.PostAsJsonAsync("/items", Coffee(calId, location: label, placeId: placeId));
+        resp.EnsureSuccessStatusCode();
+        return (await resp.Content.ReadFromJsonAsync<CalendarItemDto>())!;
+    }
+
+    [Fact]
+    public async Task Update_with_place_id_and_label_sets_both_without_geo()
+    {
+        var api = Factory.ApiClient(Email);   // geo unconfigured — a resolve attempt would label-only or fail
+        var calId = await CreateCalendarAsync(api);
+        var item = await CreateWithPlaceAsync(api, calId, Guid.NewGuid());
+
+        var newPlace = Guid.NewGuid();
+        var resp = await api.PutAsJsonAsync($"/items/{item.Id}",
+            new UpdateCalendarItemRequest { PlaceId = newPlace, Location = "Cafe Nero" });
+        resp.EnsureSuccessStatusCode();
+        var dto = (await resp.Content.ReadFromJsonAsync<CalendarItemDto>())!;
+        Assert.Equal(newPlace, dto.PlaceId);
+        Assert.Equal("Cafe Nero", dto.LocationLabel);
+    }
+
+    [Fact]
+    public async Task Update_with_provided_null_place_clears_it()
+    {
+        var api = Factory.ApiClient(Email);
+        var calId = await CreateCalendarAsync(api);
+        var item = await CreateWithPlaceAsync(api, calId, Guid.NewGuid());
+
+        var resp = await api.PutAsJsonAsync($"/items/{item.Id}",
+            new UpdateCalendarItemRequest { PlaceIdProvided = true, PlaceId = null, Location = "" });
+        resp.EnsureSuccessStatusCode();
+        var dto = (await resp.Content.ReadFromJsonAsync<CalendarItemDto>())!;
+        Assert.Null(dto.PlaceId);
+        Assert.Null(dto.LocationLabel);
+    }
+
+    [Fact]
+    public async Task Update_with_changed_free_text_only_is_rejected()
+    {
+        var api = Factory.ApiClient(Email);
+        var calId = await CreateCalendarAsync(api);
+        var item = await CreateWithPlaceAsync(api, calId, Guid.NewGuid());
+
+        var resp = await api.PutAsJsonAsync($"/items/{item.Id}",
+            new UpdateCalendarItemRequest { Location = "Somewhere Else" });
+        Assert.Equal(HttpStatusCode.BadRequest, resp.StatusCode);
+        Assert.Contains("PlaceId", await resp.Content.ReadAsStringAsync());
+    }
+
+    [Fact]
+    public async Task Update_replaying_the_same_label_keeps_the_place()
+    {
+        var api = Factory.ApiClient(Email);
+        var calId = await CreateCalendarAsync(api);
+        var placeId = Guid.NewGuid();
+        var item = await CreateWithPlaceAsync(api, calId, placeId, "Cafe Central");
+
+        // An offline client predating PlaceId replays the full core section with the unchanged label.
+        var resp = await api.PutAsJsonAsync($"/items/{item.Id}",
+            new UpdateCalendarItemRequest { Title = "Coffee v2", Location = "Cafe Central" });
+        resp.EnsureSuccessStatusCode();
+        var dto = (await resp.Content.ReadFromJsonAsync<CalendarItemDto>())!;
+        Assert.Equal(placeId, dto.PlaceId);
+        Assert.Equal("Cafe Central", dto.LocationLabel);
+        Assert.Equal("Coffee v2", dto.Title);
+    }
 }

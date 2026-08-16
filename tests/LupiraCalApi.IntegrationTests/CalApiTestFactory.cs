@@ -71,6 +71,14 @@ public sealed class CalApiTestFactory : WebApplicationFactory<Program>
     /// <summary>A client with no auth header — for asserting unauthenticated requests are rejected.</summary>
     public HttpClient AnonymousClient() => CreateClient();
 
+    /// <summary>A service-identity client carrying <c>internal:read</c> — for the /internal seams.</summary>
+    public HttpClient ServiceClient(string email = "svc@x.test")
+    {
+        var client = ApiClient(email);
+        client.DefaultRequestHeaders.Add("X-Dev-Scopes", "internal:read");
+        return client;
+    }
+
 
     protected override void Dispose(bool disposing)
     {

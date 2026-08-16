@@ -34,7 +34,8 @@ services:
       Contacts__TokenUrl: ${CONTACT_TOKEN_URL:-https://auth.lupira.com/application/o/token/}
       Contacts__ClientId: ${CONTACT_CLIENT_ID:-lupira-contact-svc}
       Contacts__ClientSecret: ${CONTACT_CLIENT_SECRET:-}
-      Contacts__Scope: ${CONTACT_SCOPE:-lupira-contact-aud}
+      # Must include internal:read — contact's /internal endpoints require the service-only scope.
+      Contacts__Scope: ${CONTACT_SCOPE:-}
 
       # Gazetteer — cal delegates free-text location resolution to LupiraGeoApi (client-credentials, aud lupira-geo)
       # storing the geo place id + a denormalized label on the item. Set GEO_CLIENT_SECRET to authenticate; clear GEO_BASE_URL to disable.

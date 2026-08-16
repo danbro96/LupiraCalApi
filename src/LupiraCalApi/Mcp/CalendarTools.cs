@@ -52,7 +52,7 @@ public sealed class CalendarTools
         return Require(await items.CreateBatchAsync(u.Id, request.Items));
     }
 
-    [McpServerTool, Description("Update a calendar item: any subset of title, description, location (free text → place), status, times, recurrence, tags, Category, and composable Details (Booking, Travel). Omitted fields are unchanged; a supplied details member replaces that member wholesale (resend the full member; Travel requires ToPlace and applies only to Category 'Trip'). Changing Category drops the previous details. The top-level Availability field sets the presence segment's status.")]
+    [McpServerTool, Description("Update a calendar item: any subset of title, description, location, status, times, recurrence, tags, Category, and composable Details (Booking, Travel). To change location pass PlaceId (a resolved LupiraGeoApi place id; resolve via lupira-geo first) with Location as the display label — a free-text-only Location change is rejected; PlaceIdProvided=true with null PlaceId clears it. Omitted fields are unchanged; a supplied details member replaces that member wholesale (resend the full member; Travel requires ToPlaceId and applies only to Category 'Trip'). Changing Category drops the previous details. The top-level Availability field sets the presence segment's status.")]
     public static async Task<CalendarItemDto> update_item(CalendarItemService items, CurrentUser user,
         [Description("Calendar item id.")] Guid itemId, UpdateCalendarItemRequest request)
     {

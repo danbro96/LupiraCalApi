@@ -356,8 +356,24 @@ public sealed class CalendarItemService(IDocumentSession session, AccessResolver
         var rrule = r.RecurrenceRuleProvided ? r.RecurrenceRule : r.RecurrenceRule ?? item.RecurrenceRule;
         var tags = r.Tags ?? item.Tags;
         if (isAllDay && startDate is null) return OpResult<CalendarItemDto>.Invalid("An all-day item needs StartDate.");
-        var (placeId, locationLabel, unresolved) = r.Location is not null ? await ResolvePlaceAsync(r.Location, ct) : (item.PlaceId, item.LocationLabel, false);
-        if (unresolved) return OpResult<CalendarItemDto>.Invalid(LocationUnresolved);
+        Guid? placeId;
+        string? locationLabel;
+        if (r.PlaceIdProvided || r.PlaceId is not null)
+        {
+            placeId = r.PlaceId;
+            locationLabel = r.Location is not null ? Trimmed(r.Location) : item.LocationLabel;
+        }
+        else if (r.Location is not null && Trimmed(r.Location) != item.LocationLabel)
+        {
+            // Same fail-closed posture as create; an unchanged label passes through so offline clients
+            // replaying the full core section (predating PlaceId) don't break.
+            return OpResult<CalendarItemDto>.Invalid(LocationNeedsPlaceId);
+        }
+        else
+        {
+            placeId = item.PlaceId;
+            locationLabel = item.LocationLabel;
+        }
 
         var category = categoryIn ?? item.Category;
         var categoryChanged = category != item.Category;
@@ -635,4 +651,6 @@ public sealed class CalendarItemService(IDocumentSession session, AccessResolver
 
     private static string UnknownEnum<TEnum>(string field, string value) where TEnum : struct, Enum =>
         $"Unknown {field} '{value}'. Valid values: {string.Join(", ", Enum.GetNames<TEnum>())}.";
+
+    private static string? Trimmed(string? s) => string.IsNullOrWhiteSpace(s) ? null : s.Trim();
 }

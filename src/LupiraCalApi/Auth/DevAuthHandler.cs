@@ -24,12 +24,14 @@ public sealed class DevAuthHandler : AuthenticationHandler<AuthenticationSchemeO
             return Task.FromResult(AuthenticateResult.NoResult());
 
         var email = value.ToString().Trim().ToLowerInvariant();
-        var claims = new[]
+        var claims = new List<Claim>
         {
-            new Claim("sub", "dev|" + email),
-            new Claim("email", email),
-            new Claim("name", email),
+            new("sub", "dev|" + email),
+            new("email", email),
+            new("name", email),
         };
+        if (Request.Headers.TryGetValue("X-Dev-Scopes", out var scopes) && !string.IsNullOrWhiteSpace(scopes))
+            claims.Add(new Claim("scope", scopes.ToString()));
         var principal = new ClaimsPrincipal(new ClaimsIdentity(claims, SchemeName));
         return Task.FromResult(AuthenticateResult.Success(new AuthenticationTicket(principal, SchemeName)));
     }

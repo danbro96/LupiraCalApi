@@ -40,6 +40,7 @@ builder.Services.AddScoped<CurationHandler>();
 builder.Services.AddScoped<ParticipationHandler>();
 builder.Services.AddScoped<SyncHandler>();
 builder.Services.AddScoped<DavBackendHandler>();
+builder.Services.AddScoped<InternalItemsHandler>();
 
 // --- Gazetteer: LupiraGeoApi owns place resolution/geocoding (Geo:BaseUrl). When configured, free-text locations
 // resolve to a geo place id + label; otherwise Core's NullGeoResolver stores just the raw-text label. ---
@@ -120,7 +121,12 @@ builder.Services.AddAuthorizationBuilder()
     .AddPolicy("DavBackendPolicy", p => p.AddAuthenticationSchemes(apiSchemes).RequireAuthenticatedUser()
         .RequireAssertion(ctx =>
             ctx.User.Identity?.AuthenticationType == DevAuthHandler.SchemeName
-            || (davGatewayClientId is not null && ctx.User.HasClaim("azp", davGatewayClientId))));
+            || (davGatewayClientId is not null && ctx.User.HasClaim("azp", davGatewayClientId))))
+    // internal:read is granted only to service clients — user tokens authenticate but never pass this.
+    .AddPolicy("InternalPolicy", p => p.AddAuthenticationSchemes(apiSchemes).RequireAuthenticatedUser()
+        .RequireAssertion(ctx => ctx.User.FindAll("scope")
+            .SelectMany(c => c.Value.Split(' ', StringSplitOptions.RemoveEmptyEntries))
+            .Contains("internal:read")));
 
 // --- Observability: OpenTelemetry -> OpenObserve. Env-gated; the OTLP exporter reads OTEL_EXPORTER_OTLP_*
 //     automatically (http/protobuf + Basic auth header set in compose). ---
@@ -291,6 +297,7 @@ app.MapSync();
 
 // The internal DAV-backend seam (LAN-only) the LupiraDavApi gateway consumes.
 app.MapDavBackend();
+app.MapInternal();
 
 // Agent MCP transport (LAN/WireGuard-only; excluded from the Cloudflare Tunnel at the edge).
 app.MapMcpResourceMetadata(app.Configuration["Auth:Oidc:Authority"]);
