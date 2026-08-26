@@ -15,14 +15,14 @@ public static class RelationsEndpoints
             .WithName("CreateItemRelation")
             .WithSummary("Link a calendar item to an external reference (e.g. a LupiraTasks item, or an Activity-API engagement/project).")
             .Produces<RelationDto>(StatusCodes.Status200OK)
-            .Produces(StatusCodes.Status404NotFound);
+            .ProducesProblem(StatusCodes.Status404NotFound);
 
         group.MapGet("/items/{id:guid}/relations", (Guid id, RelationsHandler h, CancellationToken ct) =>
                 h.ListForItemAsync(id, ct))
             .WithName("ListItemRelations")
             .WithSummary("List a calendar item's relations.")
             .Produces<List<RelationDto>>(StatusCodes.Status200OK)
-            .Produces(StatusCodes.Status404NotFound);
+            .ProducesProblem(StatusCodes.Status404NotFound);
 
         group.MapGet("/relations", (string toKind, string toRef, RelationsHandler h, CancellationToken ct) =>
                 h.FindItemsLinkedToAsync(toKind, toRef, ct))

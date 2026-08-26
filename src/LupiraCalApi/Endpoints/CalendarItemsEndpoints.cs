@@ -38,7 +38,7 @@ public static class CalendarItemsEndpoints
             .WithName("GetItem")
             .WithSummary("Get a single calendar item.")
             .Produces<CalendarItemDto>(StatusCodes.Status200OK)
-            .Produces(StatusCodes.Status404NotFound);
+            .ProducesProblem(StatusCodes.Status404NotFound);
 
         group.MapGet("/thin", (Guid? calendarId, string? category, double? maxScore, int? take, CalendarItemsHandler h, CancellationToken ct) =>
                 h.ThinAsync(calendarId, category, maxScore, take, ct))
@@ -57,45 +57,45 @@ public static class CalendarItemsEndpoints
             .WithName("UpdateItem")
             .WithSummary("Update a calendar item. Plain fields: omitted = kept; fields paired with a *Provided sentinel are written verbatim when it is true (enables clearing recurrence, switching all-day, editing timezones). Offline clients send Idempotency-Key (their command id) + body OccurredAt for replay-safe, last-writer-wins updates.")
             .Produces<CalendarItemDto>(StatusCodes.Status200OK)
-            .Produces(StatusCodes.Status404NotFound);
+            .ProducesProblem(StatusCodes.Status404NotFound);
 
         group.MapDelete("/{id:guid}", (Guid id, [FromHeader(Name = "Idempotency-Key")] Guid? idempotencyKey, CalendarItemsHandler h, CancellationToken ct) => h.DeleteAsync(id, idempotencyKey, ct))
             .WithName("DeleteItem")
             .WithSummary("Delete a calendar item (soft delete + tombstone). A replay bearing the same Idempotency-Key succeeds instead of 404ing.")
             .Produces(StatusCodes.Status204NoContent)
-            .Produces(StatusCodes.Status404NotFound);
+            .ProducesProblem(StatusCodes.Status404NotFound);
 
         group.MapPost("/{id:guid}/metadata", (Guid id, JsonNode patch, DateTimeOffset? occurredAt, [FromHeader(Name = "Idempotency-Key")] Guid? idempotencyKey, CalendarItemsHandler h, CancellationToken ct) => h.AttachMetadataAsync(id, patch, occurredAt, idempotencyKey, ct))
             .WithName("MergeItemMetadata")
             .WithSummary("Merge arbitrary JSON metadata into a calendar item. Offline clients pass ?occurredAt= + Idempotency-Key for replay-safe, last-writer-wins merges.")
             .Produces<CalendarItemDto>(StatusCodes.Status200OK)
-            .Produces(StatusCodes.Status404NotFound);
+            .ProducesProblem(StatusCodes.Status404NotFound);
 
         group.MapPut("/{id:guid}/prompt", (Guid id, SetItemPromptRequest body, [FromHeader(Name = "Idempotency-Key")] Guid? idempotencyKey, CalendarItemsHandler h, CancellationToken ct) => h.SetPromptAsync(id, body, idempotencyKey, ct))
             .WithName("SetItemPrompt")
             .WithSummary("Set the LLM-interpreted payload on an item (server-side only; never in the export). 409 if the item carries an action.")
             .Produces<CalendarItemDto>(StatusCodes.Status200OK)
-            .Produces(StatusCodes.Status404NotFound)
+            .ProducesProblem(StatusCodes.Status404NotFound)
             .ProducesProblem(StatusCodes.Status409Conflict);
 
         group.MapDelete("/{id:guid}/prompt", (Guid id, DateTimeOffset? occurredAt, [FromHeader(Name = "Idempotency-Key")] Guid? idempotencyKey, CalendarItemsHandler h, CancellationToken ct) => h.ClearPromptAsync(id, occurredAt, idempotencyKey, ct))
             .WithName("ClearItemPrompt")
             .WithSummary("Clear the item's LLM payload.")
             .Produces(StatusCodes.Status204NoContent)
-            .Produces(StatusCodes.Status404NotFound);
+            .ProducesProblem(StatusCodes.Status404NotFound);
 
         group.MapPut("/{id:guid}/action", (Guid id, SetItemActionRequest body, [FromHeader(Name = "Idempotency-Key")] Guid? idempotencyKey, CalendarItemsHandler h, CancellationToken ct) => h.SetActionAsync(id, body, idempotencyKey, ct))
             .WithName("SetItemAction")
             .WithSummary("Set the deterministic payload on an item (server-side only; never in the export). 409 if the item carries a prompt.")
             .Produces<CalendarItemDto>(StatusCodes.Status200OK)
-            .Produces(StatusCodes.Status404NotFound)
+            .ProducesProblem(StatusCodes.Status404NotFound)
             .ProducesProblem(StatusCodes.Status409Conflict);
 
         group.MapDelete("/{id:guid}/action", (Guid id, DateTimeOffset? occurredAt, [FromHeader(Name = "Idempotency-Key")] Guid? idempotencyKey, CalendarItemsHandler h, CancellationToken ct) => h.ClearActionAsync(id, occurredAt, idempotencyKey, ct))
             .WithName("ClearItemAction")
             .WithSummary("Clear the item's deterministic payload.")
             .Produces(StatusCodes.Status204NoContent)
-            .Produces(StatusCodes.Status404NotFound);
+            .ProducesProblem(StatusCodes.Status404NotFound);
 
         return app;
     }
