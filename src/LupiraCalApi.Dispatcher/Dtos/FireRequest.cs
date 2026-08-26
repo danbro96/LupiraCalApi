@@ -9,13 +9,22 @@ namespace LupiraCalApi.Dispatcher.Dtos;
 public sealed class FireRequest
 {
     public required string PrincipalId { get; set; }
+
     public required Guid ItemId { get; set; }
+
     public required Guid CalendarId { get; set; }
+
     public required CalendarClass CalendarClass { get; set; }
+
     public required CalendarKind CalendarKind { get; set; }
+
     public required DateTimeOffset OccurrenceAt { get; set; }
+
     public required string DedupeKey { get; set; }
+
     public DateTimeOffset? ExpireAfter { get; set; }
+
     public ItemPrompt? Prompt { get; set; }
+
     public ItemAction? Action { get; set; }
 }

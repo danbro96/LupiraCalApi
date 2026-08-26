@@ -20,7 +20,7 @@ public sealed class CurrentUser(IHttpContextAccessor http, PrincipalDirectory di
             ?? throw new InvalidOperationException("No HTTP context available.");
 
         var sub = principal.FindFirstValue("sub") ?? principal.FindFirstValue(ClaimTypes.NameIdentifier);
-        var email = principal.FindFirstValue("email") ?? principal.FindFirstValue(ClaimTypes.Email) ?? "";
+        var email = principal.FindFirstValue("email") ?? principal.FindFirstValue(ClaimTypes.Email) ?? string.Empty;
         var name = principal.FindFirstValue("name") ?? principal.Identity?.Name;
         if (sub is null && string.IsNullOrEmpty(email))
             throw new InvalidOperationException("Authenticated principal has no subject or email claim.");

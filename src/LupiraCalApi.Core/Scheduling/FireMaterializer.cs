@@ -70,7 +70,14 @@ public sealed class FireMaterializer(RecurrenceExpander expander) : IFireMateria
     private static TimeZoneInfo ResolveZone(string? tz)
     {
         if (string.IsNullOrWhiteSpace(tz)) return TimeZoneInfo.Utc;
-        try { return TimeZoneInfo.FindSystemTimeZoneById(tz); } catch { return TimeZoneInfo.Utc; }
+        try
+        {
+            return TimeZoneInfo.FindSystemTimeZoneById(tz);
+        }
+        catch
+        {
+            return TimeZoneInfo.Utc;
+        }
     }
 
     // expire_after keys off the fire timing (leave-by/reminder) then the calendar kind (doc Defaults; 24h fallback).

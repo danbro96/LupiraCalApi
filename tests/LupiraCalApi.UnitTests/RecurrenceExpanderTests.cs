@@ -8,9 +8,9 @@ namespace LupiraCalApi.UnitTests;
 /// Inputs are authored via <see cref="ICalSerializer.ToICalendar"/> so the recurrence rule rides on a real blob.</summary>
 public class RecurrenceExpanderTests
 {
-    static readonly RecurrenceExpander Expander = new();
+    private static readonly RecurrenceExpander Expander = new();
 
-    static string Ics(DateTimeOffset start, string? rrule, TimeSpan? duration = null) =>
+    private static string Ics(DateTimeOffset start, string? rrule, TimeSpan? duration = null) =>
         ICalSerializer.ToICalendar("uid@x", "Recurring", null, null, null, false,
             start, start + (duration ?? TimeSpan.FromHours(1)), null, null, rrule);
 
@@ -124,7 +124,7 @@ public class RecurrenceExpanderTests
 
     // A master VEVENT (weekly) plus an EXDATE (drops 07-08) and a RECURRENCE-ID override (moves 07-15 09:00 → 14:00).
     // Confirms Ical.Net resolves exceptions and per-instance overrides when the whole set is in one calendar.
-    const string MasterWithOverrideAndException = """
+    private const string MasterWithOverrideAndException = """
         BEGIN:VCALENDAR
         VERSION:2.0
         PRODID:-//test//EN
@@ -151,7 +151,8 @@ public class RecurrenceExpanderTests
     [Fact]
     public void Exdate_and_recurrence_id_override_are_honored()
     {
-        var occ = Expander.Expand(MasterWithOverrideAndException,
+        var occ = Expander.Expand(
+            MasterWithOverrideAndException,
             new DateTimeOffset(2026, 7, 1, 0, 0, 0, TimeSpan.Zero),
             new DateTimeOffset(2026, 7, 29, 0, 0, 0, TimeSpan.Zero));
 

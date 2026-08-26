@@ -5,5 +5,6 @@ namespace LupiraCalApi.Core.Dtos.CalendarItems;
 public sealed class OccurrenceOrigin
 {
     public required OriginKind Kind { get; set; }
+
     public required Guid SourceId { get; set; }
 }

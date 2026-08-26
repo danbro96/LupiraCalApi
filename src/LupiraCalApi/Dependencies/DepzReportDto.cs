@@ -4,6 +4,8 @@ namespace LupiraCalApi.Dependencies;
 public sealed class DepzReportDto
 {
     public required string Service { get; set; }
+
     public DateTimeOffset? LastPolledUtc { get; set; }
+
     public required IReadOnlyList<DependencyDto> Dependencies { get; set; }
 }

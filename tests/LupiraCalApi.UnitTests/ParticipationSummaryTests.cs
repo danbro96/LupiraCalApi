@@ -11,14 +11,14 @@ namespace LupiraCalApi.UnitTests;
 /// withdrawn-attendee exclusion, per-contact counting, recency, window filtering, and ordering.</summary>
 public class ParticipationSummaryTests
 {
-    static readonly Guid ReadableCal = Guid.NewGuid();
-    static readonly Guid ForeignCal = Guid.NewGuid();
+    private static readonly Guid ReadableCal = Guid.NewGuid();
+    private static readonly Guid ForeignCal = Guid.NewGuid();
 
-    static CalendarItemFields Fields(DateTimeOffset start) => new(
+    private static CalendarItemFields Fields(DateTimeOffset start) => new(
         "Lunch", null, ItemStatus.Confirmed, false, start, start.AddHours(1),
         "UTC", null, null, null, null, null, null, ItemCategory.General, null, null, null, null);
 
-    static CalendarItem Item(Guid calendarId, DateTimeOffset start, params Guid[] contactIds)
+    private static CalendarItem Item(Guid calendarId, DateTimeOffset start, params Guid[] contactIds)
     {
         var id = Guid.NewGuid();
         var i = new CalendarItem();
@@ -29,9 +29,9 @@ public class ParticipationSummaryTests
         return i;
     }
 
-    static readonly DateTimeOffset T1 = new(2026, 1, 10, 12, 0, 0, TimeSpan.Zero);
-    static readonly DateTimeOffset T2 = new(2026, 3, 10, 12, 0, 0, TimeSpan.Zero);
-    static readonly DateTimeOffset T3 = new(2026, 6, 10, 12, 0, 0, TimeSpan.Zero);
+    private static readonly DateTimeOffset T1 = new(2026, 1, 10, 12, 0, 0, TimeSpan.Zero);
+    private static readonly DateTimeOffset T2 = new(2026, 3, 10, 12, 0, 0, TimeSpan.Zero);
+    private static readonly DateTimeOffset T3 = new(2026, 6, 10, 12, 0, 0, TimeSpan.Zero);
 
     [Fact]
     public void Counts_per_contact_ordered_by_count_then_recency()

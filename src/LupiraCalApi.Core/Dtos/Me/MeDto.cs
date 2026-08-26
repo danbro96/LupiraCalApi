@@ -6,6 +6,8 @@ namespace LupiraCalApi.Core.Dtos.Me;
 public sealed class MeDto
 {
     public required Guid PrincipalId { get; set; }
+
     public required string Email { get; set; }
+
     public string? DisplayName { get; set; }
 }

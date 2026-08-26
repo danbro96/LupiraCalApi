@@ -13,47 +13,73 @@ namespace LupiraCalApi.Core.Domain.CalendarItems;
 public sealed class CalendarItem
 {
     public Guid Id { get; set; }
-    public string ExternalId { get; set; } = "";
+
+    public string ExternalId { get; set; } = string.Empty;
 
     public string? Title { get; set; }
+
     public string? Description { get; set; }
+
     public ItemStatus? Status { get; set; }
+
     public bool IsAllDay { get; set; }
+
     public DateTimeOffset? StartsAt { get; set; }
+
     public DateTimeOffset? EndsAt { get; set; }
+
     public string? StartTimezone { get; set; }
+
     public string? EndTimezone { get; set; }
+
     public DateOnly? StartDate { get; set; }
+
     public DateOnly? EndDate { get; set; }
+
     /// <summary>Confidence of <see cref="StartDate"/>/<see cref="StartsAt"/> (and end). REST/MCP annotation; not in ICS/ETag.</summary>
     public DatePrecision? StartPrecision { get; set; }
+
     public DatePrecision? EndPrecision { get; set; }
+
     public string? RecurrenceRule { get; set; }
+
     public string? RecurrenceExceptions { get; set; }
+
     public string? RecurrenceOverrides { get; set; }
+
     public ItemCategory? Category { get; set; }
+
     public Guid? PlaceId { get; set; }
+
     /// <summary>Denormalized display label for <see cref="PlaceId"/> (the geo place's canonical name, or the raw
     /// free-text when geo didn't resolve it) — so ICS + read need no cross-service lookup.</summary>
     public string? LocationLabel { get; set; }
+
     public Guid? ParentItemId { get; set; }
+
     public string[]? Tags { get; set; }
+
     public ItemDetails? Details { get; set; }
 
-    public string ContentHash { get; set; } = "";
+    public string ContentHash { get; set; } = string.Empty;
+
     public string Metadata { get; set; } = "{}";
 
     // Event-bound payload (server-side only, never in ICS). Exactly one of these is set (XOR), enforced in Apply.
     public ItemPrompt? Prompt { get; set; }
+
     public ItemAction? Action { get; set; }
 
     public List<ItemAttendee> Attendees { get; set; } = new();
+
     public List<CalendarMembership> Calendars { get; set; } = new();
+
     public DateTimeOffset? DeletedAt { get; set; }
 
     // ---- projection stamps (server timeline; feed the sync cursor + DTO timestamps) ----
 
     public DateTimeOffset CreatedAt { get; set; }
+
     public DateTimeOffset UpdatedAt { get; set; }
 
     /// <summary>Global event sequence of the last event applied — the per-item watermark the sync changes feed
@@ -66,12 +92,19 @@ public sealed class CalendarItem
     // ---- per-section LWW guards (see SectionLww): the (occurredAt, commandId) of each section's last winner ----
 
     public DateTimeOffset CoreTs { get; set; }
+
     public Guid CoreCmd { get; set; }
+
     public DateTimeOffset MetadataTs { get; set; }
+
     public Guid MetadataCmd { get; set; }
+
     public DateTimeOffset PayloadTs { get; set; }
+
     public Guid PayloadCmd { get; set; }
+
     public Dictionary<Guid, DateTimeOffset> FilingTs { get; set; } = new();
+
     public Dictionary<Guid, Guid> FilingCmd { get; set; } = new();
 
     /// <summary>Live in calendar <paramref name="calendarId"/> = an accepted membership and not soft-deleted.</summary>
@@ -126,9 +159,17 @@ public sealed class CalendarItem
     }
 
     // Delete is absorbing (gates every section apply above/below); restore is the explicit inverse.
-    public void Apply(IEvent<ItemDeleted> e) { Touch(e); DeletedAt = e.Data.At; }
+    public void Apply(IEvent<ItemDeleted> e)
+    {
+        Touch(e);
+        DeletedAt = e.Data.At;
+    }
 
-    public void Apply(IEvent<ItemRestored> e) { Touch(e); DeletedAt = null; }
+    public void Apply(IEvent<ItemRestored> e)
+    {
+        Touch(e);
+        DeletedAt = null;
+    }
 
     /// <summary>The ETag is a pure function of the canonical ICS — recomputed here (in the snapshot projection) whenever
     /// a canonical field changes, never stored on the event, so a serializer fix heals every item on rebuild.</summary>
@@ -200,7 +241,11 @@ public sealed class CalendarItem
     public void Apply(IEvent<InvitationResponded> e)
     {
         Touch(e);
-        if (Find(e.Data.ParticipationId) is { } a) { a.Status = e.Data.Status; a.RespondedAt = e.Data.At; }
+        if (Find(e.Data.ParticipationId) is { } a)
+        {
+            a.Status = e.Data.Status;
+            a.RespondedAt = e.Data.At;
+        }
     }
 
     public void Apply(IEvent<AttendanceConfirmed> e)
@@ -224,10 +269,13 @@ public sealed class CalendarItem
     // Filing guards are per calendar (like tags in the tasks LWW): unfiling from one calendar never races a
     // concurrent filing into another. At doubles as the stamp timestamp.
     public void Apply(IEvent<AddedToCalendar> e) => ApplyMembership(e, e.Data.CalendarId, e.Data.Status, e.Data.At, e.Data.CommandId);
+
     public void Apply(IEvent<CalendarEntryStatusChanged> e) => ApplyMembership(e, e.Data.CalendarId, e.Data.Status, e.Data.At, e.Data.CommandId);
+
     public void Apply(IEvent<RemovedFromCalendar> e) => ApplyMembership(e, e.Data.CalendarId, CalendarEntryStatus.Removed, e.Data.At, e.Data.CommandId);
 
-    private void ApplyMembership<T>(IEvent<T> e, Guid calendarId, CalendarEntryStatus status, DateTimeOffset at, Guid? commandId) where T : class
+    private void ApplyMembership<T>(IEvent<T> e, Guid calendarId, CalendarEntryStatus status, DateTimeOffset at, Guid? commandId)
+        where T : class
     {
         Touch(e);
         var (ts, cmd) = SectionLww.Stamp(e, at, commandId);
@@ -237,7 +285,8 @@ public sealed class CalendarItem
         FilingCmd[calendarId] = cmd;
     }
 
-    private void Touch<T>(IEvent<T> e) where T : class
+    private void Touch<T>(IEvent<T> e)
+        where T : class
     {
         if (CreatedAt == default) CreatedAt = e.Timestamp;
         if (e.Timestamp > UpdatedAt) UpdatedAt = e.Timestamp;

@@ -7,10 +7,16 @@ namespace LupiraCalApi.Core.Domain.Shared;
 public sealed class Relation
 {
     public Guid Id { get; set; }
-    public string FromKind { get; set; } = "";   // "item" | "contact"
+
+    public string FromKind { get; set; } = string.Empty;   // "item" | "contact"
+
     public Guid FromId { get; set; }
-    public string ToKind { get; set; } = "";      // e.g. "task" | "engagement" | "project" | "url"
-    public string ToRef { get; set; } = "";
-    public string RelationType { get; set; } = ""; // e.g. "related-to" | "derived-from" | "belongs-to"
-    public string? Metadata { get; set; }          // free-form JSON
+
+    public string ToKind { get; set; } = string.Empty;      // e.g. "task" | "engagement" | "project" | "url"
+
+    public string ToRef { get; set; } = string.Empty;
+
+    public string RelationType { get; set; } = string.Empty; // e.g. "related-to" | "derived-from" | "belongs-to"
+
+    public string? Metadata { get; set; } // free-form JSON
 }

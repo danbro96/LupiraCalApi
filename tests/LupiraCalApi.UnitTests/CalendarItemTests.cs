@@ -10,12 +10,12 @@ namespace LupiraCalApi.UnitTests;
 /// soft-delete + resurrection, status, metadata, and the attendee participation lifecycle.</summary>
 public class CalendarItemTests
 {
-    static CalendarItemFields Fields() => new(
+    private static CalendarItemFields Fields() => new(
         "Lunch", "with team", ItemStatus.Confirmed, false,
         new DateTimeOffset(2026, 7, 1, 9, 0, 0, TimeSpan.Zero), new DateTimeOffset(2026, 7, 1, 10, 0, 0, TimeSpan.Zero),
         "UTC", null, null, null, null, null, null, ItemCategory.General, null, null, null, ["work"]);
 
-    static CalendarItem Scheduled(Guid id)
+    private static CalendarItem Scheduled(Guid id)
     {
         var i = new CalendarItem();
         i.Apply(Ev(new ItemScheduled(id, "u@x", Fields(), null)));
@@ -165,11 +165,11 @@ public class CalendarItemTests
         Assert.Equal(before, i.ContentHash);   // metadata is server-side, not part of the ETag
     }
 
-    static ItemPrompt SamplePrompt() => new(
+    private static ItemPrompt SamplePrompt() => new(
         PromptIntent.EnrichRecord, null, "fill in the venue", OutputKind.RecordEdit, null, ModelTier.Small,
         FallbackMode.Retry, new PromptFire(PromptFireKind.OnStart, null, null), Enabled: true);
 
-    static ItemAction SampleAction() => new(
+    private static ItemAction SampleAction() => new(
         ActionKind.SendCheckIn, null, """{"message":"how did it go?"}""",
         new PromptFire(PromptFireKind.OnEnd, null, null), Enabled: true);
 

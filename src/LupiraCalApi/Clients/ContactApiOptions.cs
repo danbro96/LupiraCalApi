@@ -11,10 +11,12 @@ public sealed class ContactApiOptions
     public const string SectionName = "Contacts";
 
     /// <summary>The contact base address, e.g. <c>http://lupira-contact-api:8080/</c> (in-network hop).</summary>
-    public string BaseUrl { get; set; } = "";
+    public string BaseUrl { get; set; } = string.Empty;
 
     public string? TokenUrl { get; set; }
+
     public string? ClientId { get; set; }
+
     public string? ClientSecret { get; set; }
 
     /// <summary>Scope to request on the client-credentials token — the Authentik scope mapping that injects

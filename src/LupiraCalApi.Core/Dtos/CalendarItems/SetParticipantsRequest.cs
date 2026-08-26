@@ -5,5 +5,6 @@ namespace LupiraCalApi.Core.Dtos.CalendarItems;
 public sealed class SetParticipantsRequest
 {
     public required List<Guid> ContactIds { get; set; }
+
     public bool Attended { get; set; } = true;
 }

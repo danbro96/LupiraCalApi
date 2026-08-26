@@ -71,7 +71,7 @@ public class ICalSerializerTests
         Assert.Throws<FormatException>(() => ICalSerializer.ParseICalendar(ics));
     }
 
-    const string MasterWithExdateAndOverride =
+    private const string MasterWithExdateAndOverride =
         "BEGIN:VCALENDAR\r\nVERSION:2.0\r\nPRODID:-//t//EN\r\n" +
         "BEGIN:VEVENT\r\nUID:e1@x\r\nDTSTART:20260701T090000Z\r\nDTEND:20260701T100000Z\r\nSUMMARY:Master\r\nRRULE:FREQ=DAILY\r\nEXDATE:20260703T090000Z\r\nEND:VEVENT\r\n" +
         "BEGIN:VEVENT\r\nUID:e1@x\r\nRECURRENCE-ID:20260702T090000Z\r\nDTSTART:20260702T100000Z\r\nDTEND:20260702T110000Z\r\nSUMMARY:Override\r\nEND:VEVENT\r\n" +

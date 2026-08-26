@@ -7,13 +7,13 @@ namespace LupiraCalApi.UnitTests;
 
 public class FireMaterializerTests
 {
-    static readonly DateTimeOffset Now = new(2026, 6, 25, 0, 0, 0, TimeSpan.Zero);
-    static readonly TimeSpan Horizon = TimeSpan.FromDays(35);
-    static readonly IFireMaterializer Mat = new FireMaterializer(new RecurrenceExpander());
+    private static readonly DateTimeOffset Now = new(2026, 6, 25, 0, 0, 0, TimeSpan.Zero);
+    private static readonly TimeSpan Horizon = TimeSpan.FromDays(35);
+    private static readonly IFireMaterializer Mat = new FireMaterializer(new RecurrenceExpander());
 
-    static FireContext Ctx(CalendarKind? kind = null, Guid? principalId = null) => new(Guid.NewGuid(), kind, principalId);
+    private static FireContext Ctx(CalendarKind? kind = null, Guid? principalId = null) => new(Guid.NewGuid(), kind, principalId);
 
-    static CalendarItem Timed(PromptFire fire, bool enabled = true, ItemPrompt? prompt = null, ItemAction? action = null)
+    private static CalendarItem Timed(PromptFire fire, bool enabled = true, ItemPrompt? prompt = null, ItemAction? action = null)
     {
         var item = new CalendarItem
         {
@@ -28,8 +28,9 @@ public class FireMaterializerTests
         return item;
     }
 
-    static ItemPrompt Prompt(PromptFire fire) => new(PromptIntent.Monitor, null, "x", OutputKind.Summary, null, null, FallbackMode.Retry, fire, true);
-    static PromptFire OnStart => new(PromptFireKind.OnStart, null, null);
+    private static ItemPrompt Prompt(PromptFire fire) => new(PromptIntent.Monitor, null, "x", OutputKind.Summary, null, null, FallbackMode.Retry, fire, true);
+
+    private static PromptFire OnStart => new(PromptFireKind.OnStart, null, null);
 
     [Fact]
     public void No_payload_yields_no_rows()
@@ -118,7 +119,8 @@ public class FireMaterializerTests
     [Fact]
     public void Action_payload_materializes_too()
     {
-        var item = Timed(new PromptFire(PromptFireKind.OnEnd, null, null),
+        var item = Timed(
+            new PromptFire(PromptFireKind.OnEnd, null, null),
             action: new ItemAction(ActionKind.SendCheckIn, null, "{}", new PromptFire(PromptFireKind.OnEnd, null, null), true));
         var row = Assert.Single(Mat.Materialize(item, Ctx(), Now, Horizon));
         Assert.Equal(item.EndsAt, row.OccurrenceAt);

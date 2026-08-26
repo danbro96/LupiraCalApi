@@ -161,7 +161,7 @@ public sealed class DavBackendHandler(
         string? ifMatch = null;
         var im = ifMatchHeader?.Trim();
         if (!string.IsNullOrEmpty(im) && im != "*") ifMatch = im.Trim('"');
-        var inm = ifNoneMatchHeader?.Trim() ?? "";
+        var inm = ifNoneMatchHeader?.Trim() ?? string.Empty;
         return (ifMatch, inm == "*");
     }
 

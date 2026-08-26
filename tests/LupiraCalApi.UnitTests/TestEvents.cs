@@ -10,7 +10,8 @@ internal static class TestEvents
     private static long _sequence;
     public static readonly DateTimeOffset T0 = new(2026, 7, 1, 12, 0, 0, TimeSpan.Zero);
 
-    public static IEvent<T> Ev<T>(T data, DateTimeOffset? at = null) where T : class
+    public static IEvent<T> Ev<T>(T data, DateTimeOffset? at = null)
+        where T : class
     {
         var seq = Interlocked.Increment(ref _sequence);
         var e = Event.For(data);

@@ -12,6 +12,7 @@ namespace LupiraCalApi.UnitTests;
 public class ItemDetailsMapperTests
 {
     private static readonly BookingDetail SomeBooking = new(null, "CN-1", "BR-1", null, null, null, null);
+
     private static TravelLegRequest SomeTravel() => new() { Mode = TransportMode.Flight, ToPlaceId = Guid.NewGuid(), ToPlace = "Arlanda", Carrier = "SAS" };
 
     [Theory]

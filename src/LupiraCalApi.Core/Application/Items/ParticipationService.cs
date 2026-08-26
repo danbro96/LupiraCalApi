@@ -76,7 +76,11 @@ public sealed class ParticipationService(IDocumentSession session, AccessResolve
             if (existing.TryGetValue(cid, out var a))
             {
                 alreadyPresent++;
-                if (attended && a.AttendedAt is null) { stream.AppendOne(new AttendanceConfirmed(itemId, a.ParticipationId, now)); appended = true; }
+                if (attended && a.AttendedAt is null)
+                {
+                    stream.AppendOne(new AttendanceConfirmed(itemId, a.ParticipationId, now));
+                    appended = true;
+                }
 
                 continue;
             }
@@ -141,5 +145,6 @@ public sealed class ParticipationService(IDocumentSession session, AccessResolve
     }
 
     private static ParticipationRole ParseRole(string? s) => Enum.TryParse<ParticipationRole>(s, true, out var v) ? v : ParticipationRole.RequiredParticipant;
+
     private static ParticipationStatus ParseStat(string? s) => Enum.TryParse<ParticipationStatus>(s, true, out var v) ? v : ParticipationStatus.NeedsAction;
 }

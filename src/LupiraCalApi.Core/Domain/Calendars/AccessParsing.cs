@@ -9,7 +9,7 @@ public static class AccessParsing
     public static (bool Ok, Access Value) Parse(string? raw)
     {
         if (string.IsNullOrWhiteSpace(raw)) return (true, Access.Owner);
-        return raw.Trim().ToLowerInvariant().Replace("-", "") switch
+        return raw.Trim().ToLowerInvariant().Replace("-", string.Empty) switch
         {
             "owner" => (true, Access.Owner),
             "readwrite" => (true, Access.ReadWrite),

@@ -12,8 +12,10 @@ internal static class DependencyTelemetry
     public static void Record(string dependency, DependencyStatus status, double? latencyMs)
     {
         if (latencyMs is { } ms)
+        {
             ProbeDuration.Record(ms / 1000d, new KeyValuePair<string, object?>("dependency", dependency),
                 new KeyValuePair<string, object?>("status", status.ToString()));
+        }
     }
 
     public static void ObserveUpFrom(DependencyReportCache cache) =>

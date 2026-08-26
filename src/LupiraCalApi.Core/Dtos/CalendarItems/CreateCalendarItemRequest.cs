@@ -22,6 +22,7 @@ public sealed class CreateCalendarItemRequest
     public string? ParentSourceKey { get; set; }
 
     public string? Title { get; set; }
+
     public string? Description { get; set; }
 
     /// <summary>Free-text location resolved server-side to a LupiraGeoApi place (fail-closed if geo is up but can't resolve).
@@ -32,20 +33,31 @@ public sealed class CreateCalendarItemRequest
     /// <summary>A pre-resolved LupiraGeoApi place id. When set, it is attached directly (no geocoding, no fail-closed risk) and
     /// <see cref="Location"/>, if any, is kept as the label. Trust the caller resolved it via geo first.</summary>
     public Guid? PlaceId { get; set; }
+
     public string? Status { get; set; }
+
     public bool IsAllDay { get; set; }
+
     public DateTimeOffset? StartsAt { get; set; }
+
     public DateTimeOffset? EndsAt { get; set; }
+
     public string? StartTimezone { get; set; }
+
     public DateOnly? StartDate { get; set; }
+
     public DateOnly? EndDate { get; set; }
+
     public string? RecurrenceRule { get; set; }
+
     public string? Category { get; set; }
+
     public string[]? Tags { get; set; }
 
     /// <summary>Confidence of the start/end date for a historical or backfilled item — the date is still a concrete day;
     /// this records that it is only known to the month/year/roughly. Omit for exact dates.</summary>
     public Domain.Shared.DatePrecision? StartPrecision { get; set; }
+
     public Domain.Shared.DatePrecision? EndPrecision { get; set; }
 
     /// <summary>Optional server-side annotations (e.g. import provenance) merged onto the item at creation — same store

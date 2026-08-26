@@ -8,11 +8,17 @@ namespace LupiraCalApi.Core.Dtos.CalendarItems;
 public sealed class CalendarItemOccurrenceDto
 {
     public required Guid Id { get; set; }
+
     public string? Title { get; set; }
+
     public Guid? PlaceId { get; set; }
+
     public string? LocationLabel { get; set; }
+
     public required bool IsAllDay { get; set; }
+
     public required DateTimeOffset Start { get; set; }
+
     public DateTimeOffset? End { get; set; }
 
     /// <summary>Accepted calendar memberships, limited to calendars the caller can read.</summary>

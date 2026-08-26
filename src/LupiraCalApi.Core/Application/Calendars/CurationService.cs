@@ -86,8 +86,13 @@ public sealed class CurationService(IDocumentSession session, AccessResolver acc
         if (!mayCurate) return OpResult<CalendarItemDto>.NotFound();
         stream.AppendOne(@event);
         idempotency.Record(commandId, itemId, (int) (stream.CurrentVersion ?? 0) + 1);
-        try { await session.SaveChangesAsync(ct); }
-        catch (Exception ex) when (Idempotency.IsDuplicate(ex)) { /* replayed concurrently — current state is authoritative */ }
+        try
+        {
+            await session.SaveChangesAsync(ct);
+        }
+        catch (Exception ex) when (Idempotency.IsDuplicate(ex))
+        { /* replayed concurrently — current state is authoritative */
+        }
 
         var updated = await session.LoadAsync<CalendarItem>(itemId, ct);
         return OpResult<CalendarItemDto>.Ok(updated!.ToResponse(await completeness.ScoreItemAsync(updated!, ct)));

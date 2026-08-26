@@ -12,8 +12,8 @@ namespace LupiraCalApi.UnitTests;
 /// vectors are emitted from these same rules by tools/FixtureEmitter.</summary>
 public class SectionLwwTests
 {
-    static readonly DateTimeOffset T1 = new(2026, 7, 10, 10, 0, 0, TimeSpan.Zero);
-    static readonly DateTimeOffset T2 = new(2026, 7, 10, 11, 0, 0, TimeSpan.Zero);
+    private static readonly DateTimeOffset T1 = new(2026, 7, 10, 10, 0, 0, TimeSpan.Zero);
+    private static readonly DateTimeOffset T2 = new(2026, 7, 10, 11, 0, 0, TimeSpan.Zero);
 
     [Fact]
     public void Later_occurredAt_wins_regardless_of_commandId()
@@ -48,12 +48,12 @@ public class SectionLwwTests
             Assert.True(SectionLww.CompareCommandId(SectionLww.FromSequence(seqs[i]), SectionLww.FromSequence(seqs[i - 1])) > 0);
     }
 
-    static CalendarItemFields Fields(string title) => new(
+    private static CalendarItemFields Fields(string title) => new(
         title, null, ItemStatus.Confirmed, false,
         new DateTimeOffset(2026, 8, 1, 9, 0, 0, TimeSpan.Zero), new DateTimeOffset(2026, 8, 1, 10, 0, 0, TimeSpan.Zero),
         "UTC", null, null, null, null, null, null, ItemCategory.General, null, null, null, null);
 
-    static CalendarItem Scheduled(Guid id)
+    private static CalendarItem Scheduled(Guid id)
     {
         var i = new CalendarItem();
         i.Apply(Ev(new ItemScheduled(id, $"{id:N}@x", Fields("Original"), null)));

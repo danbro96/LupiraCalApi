@@ -30,11 +30,18 @@ public sealed class CalendarItemService(IDocumentSession session, AccessResolver
     private async Task<bool> SaveGuardedAsync(Guid? commandId, Guid aggregateId, int resultVersion, CancellationToken ct)
     {
         idempotency.Record(commandId, aggregateId, resultVersion);
-        try { await session.SaveChangesAsync(ct); }
-        catch (Exception ex) when (Idempotency.IsDuplicate(ex)) { return false; }
+        try
+        {
+            await session.SaveChangesAsync(ct);
+        }
+        catch (Exception ex) when (Idempotency.IsDuplicate(ex))
+        {
+            return false;
+        }
 
         return true;
     }
+
     /// <summary>Resolve free-text to a (geo place id, label). Geo owns resolution. <c>Unresolved</c> is true only when geo
     /// IS configured but couldn't resolve (unreachable/GeocodeUnavailable) — a retryable failure the REST/MCP paths reject
     /// (fail-closed) while the DAV path ignores (label-only). When geo is unconfigured (dev/test) it degrades to the
@@ -171,7 +178,11 @@ public sealed class CalendarItemService(IDocumentSession session, AccessResolver
                 progressed = true;
             }
 
-            if (!progressed) { order.AddRange(pending); break; }
+            if (!progressed)
+            {
+                order.AddRange(pending);
+                break;
+            }
         }
 
         return order;
@@ -218,8 +229,8 @@ public sealed class CalendarItemService(IDocumentSession session, AccessResolver
         {
             var term = query.Trim();
             items = items.Where(i =>
-                (i.Title ?? "").Contains(term, StringComparison.OrdinalIgnoreCase) ||
-                (i.Description ?? "").Contains(term, StringComparison.OrdinalIgnoreCase));
+                (i.Title ?? string.Empty).Contains(term, StringComparison.OrdinalIgnoreCase) ||
+                (i.Description ?? string.Empty).Contains(term, StringComparison.OrdinalIgnoreCase));
         }
 
         var itemList = items.ToList();
@@ -257,6 +268,7 @@ public sealed class CalendarItemService(IDocumentSession session, AccessResolver
                 results.Add(new CalendarItemOccurrenceDto { Id = i.Id, Title = i.Title, PlaceId = i.PlaceId, LocationLabel = i.LocationLabel, IsAllDay = i.IsAllDay, Start = start, End = duration is { } d ? start + d : i.EndsAt, CalendarIds = memberIds, Category = i.Category, Status = i.Status, Tags = i.Tags, ParentItemId = i.ParentItemId, ParentTitle = parentTitle, ChildCount = childCount, Completeness = score, Etag = i.ContentHash });
             }
         }
+
         // Birthdays are not stored items — they're synthesized at read time from LupiraContactApi whenever a
         // Birthdays-kind calendar is in scope and no item-relational filter (tag/parent/contact/category) excludes them.
         if (tag is null && parentId is null && contactId is null && cat is null && (st is null || st == ItemStatus.Confirmed))
@@ -530,8 +542,14 @@ public sealed class CalendarItemService(IDocumentSession session, AccessResolver
         if (ifMatch is not null && (!liveInCal || existing!.ContentHash != ifMatch)) return OpResult<DavWriteResult>.Conflict("ETag mismatch.");
 
         ParsedEvent p;
-        try { p = ICalSerializer.ParseICalendar(rawIcs); }
-        catch (FormatException ex) { return OpResult<DavWriteResult>.Invalid(ex.Message); }
+        try
+        {
+            p = ICalSerializer.ParseICalendar(rawIcs);
+        }
+        catch (FormatException ex)
+        {
+            return OpResult<DavWriteResult>.Invalid(ex.Message);
+        }
 
         var (placeId, locationLabel, _) = await ResolvePlaceAsync(p.Location, ct);   // DAV stays lenient: external clients send free-text, unresolved → label-only
         var fields = new CalendarItemFields(p.Title, p.Description, null, p.IsAllDay, p.StartsAt, p.EndsAt,
@@ -646,7 +664,8 @@ public sealed class CalendarItemService(IDocumentSession session, AccessResolver
 
     /// <summary>Parses an optional enum name. False only for a non-null value that isn't a defined name —
     /// undefined numeric strings ("99") are rejected, not persisted as out-of-range values.</summary>
-    private static bool TryParseDefined<TEnum>(string? value, out TEnum? parsed) where TEnum : struct, Enum
+    private static bool TryParseDefined<TEnum>(string? value, out TEnum? parsed)
+        where TEnum : struct, Enum
     {
         parsed = null;
         if (value is null) return true;
@@ -655,7 +674,9 @@ public sealed class CalendarItemService(IDocumentSession session, AccessResolver
         return true;
     }
 
-    private static string UnknownEnum<TEnum>(string field, string value) where TEnum : struct, Enum =>
+    private static string UnknownEnum<TEnum>(string field, string value)
+        where TEnum : struct, Enum
+        =>
         $"Unknown {field} '{value}'. Valid values: {string.Join(", ", Enum.GetNames<TEnum>())}.";
 
     private static string? Trimmed(string? s) => string.IsNullOrWhiteSpace(s) ? null : s.Trim();

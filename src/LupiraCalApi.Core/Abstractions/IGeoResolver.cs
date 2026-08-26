@@ -9,5 +9,6 @@ namespace LupiraCalApi.Core.Abstractions;
 public interface IGeoResolver
 {
     bool IsConfigured { get; }
+
     Task<GeoPlaceResolution?> ResolveAsync(string text, CancellationToken ct = default);
 }

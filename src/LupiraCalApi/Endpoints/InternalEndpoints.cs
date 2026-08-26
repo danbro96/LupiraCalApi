@@ -8,7 +8,8 @@ public static class InternalEndpoints
 {
     public static IEndpointRouteBuilder MapInternal(this IEndpointRouteBuilder app)
     {
-        app.MapPost("/internal/items/place-references:check",
+        app.MapPost(
+            "/internal/items/place-references:check",
                 (CheckPlaceReferencesRequest body, InternalItemsHandler h, CancellationToken ct) => h.CheckPlaceReferencesAsync(body, ct))
             .RequireAuthorization("InternalPolicy")
             .ExcludeFromDescription()

@@ -14,12 +14,17 @@ namespace LupiraCalApi.Core.Scheduling;
 public sealed partial class ScheduledFireProjection(IFireMaterializer materializer) : EventProjection
 {
     public Task Project(IEvent<ItemPromptSet> e, IDocumentOperations ops, CancellationToken ct) => RematerializeAsync(e.StreamId, ops, ct);
+
     public Task Project(IEvent<ItemActionSet> e, IDocumentOperations ops, CancellationToken ct) => RematerializeAsync(e.StreamId, ops, ct);
+
     public Task Project(IEvent<ItemRevised> e, IDocumentOperations ops, CancellationToken ct) => RematerializeAsync(e.StreamId, ops, ct);
 
     public void Project(IEvent<ItemPromptCleared> e, IDocumentOperations ops) => DropFuturePending(e.StreamId, ops);
+
     public void Project(IEvent<ItemActionCleared> e, IDocumentOperations ops) => DropFuturePending(e.StreamId, ops);
+
     public void Project(IEvent<ItemDeleted> e, IDocumentOperations ops) => DropFuturePending(e.StreamId, ops);
+
     public void Project(IEvent<ItemCancelled> e, IDocumentOperations ops) => DropFuturePending(e.StreamId, ops);
 
     private async Task RematerializeAsync(Guid itemId, IDocumentOperations ops, CancellationToken ct)
@@ -30,9 +35,12 @@ public sealed partial class ScheduledFireProjection(IFireMaterializer materializ
 
         var context = await SchedulingQueries.FireContextAsync(ops, item, ct);
         foreach (var r in materializer.Materialize(item, context, DateTimeOffset.UtcNow, SchedulingDefaults.Horizon))
-            ops.QueueSqlCommand(ScheduledFireSchema.InsertSql,
+        {
+            ops.QueueSqlCommand(
+                ScheduledFireSchema.InsertSql,
                 r.Id, r.ItemId, r.CalendarId, (object?) r.PrincipalId ?? DBNull.Value, r.OccurrenceAt,
                 (object?) r.PromptRef ?? DBNull.Value, (object?) r.ExpireAfter ?? DBNull.Value, r.DedupeKey);
+        }
     }
 
     private static void DropFuturePending(Guid itemId, IDocumentOperations ops) =>

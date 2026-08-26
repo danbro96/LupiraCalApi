@@ -113,7 +113,10 @@ public sealed class ContactApiClient(HttpClient http, IOptions<ContactApiOptions
         }
     }
 
-    private sealed class ResolveRequest { public required List<Guid> ContactIds { get; set; } }
+    private sealed class ResolveRequest
+    {
+        public required List<Guid> ContactIds { get; set; }
+    }
 
     private sealed class ResolveResponse
     {
@@ -123,7 +126,8 @@ public sealed class ContactApiClient(HttpClient http, IOptions<ContactApiOptions
     private sealed class ResolvedContact
     {
         public Guid ContactId { get; set; }
-        public string DisplayName { get; set; } = "";
+
+        public string DisplayName { get; set; } = string.Empty;
     }
 
     private sealed class BirthdaysResponse
@@ -134,15 +138,22 @@ public sealed class ContactApiClient(HttpClient http, IOptions<ContactApiOptions
     private sealed class ContactBirthdayItem
     {
         public Guid ContactId { get; set; }
-        public string DisplayName { get; set; } = "";
+
+        public string DisplayName { get; set; } = string.Empty;
+
         public int? Year { get; set; }
+
         public int Month { get; set; }
+
         public int Day { get; set; }
     }
 
     private sealed class TokenResponse
     {
-        [JsonPropertyName("access_token")] public string? AccessToken { get; set; }
-        [JsonPropertyName("expires_in")] public int? ExpiresIn { get; set; }
+        [JsonPropertyName("access_token")]
+        public string? AccessToken { get; set; }
+
+        [JsonPropertyName("expires_in")]
+        public int? ExpiresIn { get; set; }
     }
 }

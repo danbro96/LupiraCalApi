@@ -6,13 +6,21 @@ namespace LupiraCalApi.Core.Dtos.CalendarItems;
 public sealed class SetItemPromptRequest
 {
     public required PromptIntent Intent { get; set; }
+
     public Ref? Target { get; set; }
+
     public required string Instruction { get; set; }
+
     public required OutputKind Output { get; set; }
+
     public string[]? Tools { get; set; }
+
     public ModelTier? Tier { get; set; }
+
     public FallbackMode OnMiss { get; set; } = FallbackMode.Retry;   // doc default: retry-once → ask
+
     public required PromptFire Fire { get; set; }
+
     public bool Enabled { get; set; } = true;
 
     /// <summary>Client wall-clock of the edit (LWW for the payload section). Omitted ⇒ server receive time.</summary>

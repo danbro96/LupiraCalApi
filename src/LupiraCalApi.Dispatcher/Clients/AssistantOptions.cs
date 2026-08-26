@@ -9,12 +9,13 @@ public sealed class AssistantOptions
     public const string SectionName = "Assistant";
 
     /// <summary>The assistant base address, e.g. <c>https://assistant-api.lupira.com/</c>.</summary>
-    public string BaseUrl { get; set; } = "";
+    public string BaseUrl { get; set; } = string.Empty;
 
     public string? TokenUrl { get; set; }
 
     /// <summary>The assistant service provider's slug, not its audience.</summary>
     public string? ClientId { get; set; }
+
     public string? ClientSecret { get; set; }
 
     /// <summary>Scope to request — the Authentik mapping that injects <c>aud=lupira-assistant-internal</c>.

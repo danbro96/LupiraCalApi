@@ -7,7 +7,7 @@ namespace LupiraCalApi.UnitTests;
 
 public class CompletenessScorerTests
 {
-    static ItemPrompt SamplePrompt() => new(
+    private static ItemPrompt SamplePrompt() => new(
         PromptIntent.Monitor, null, "x", OutputKind.Summary, null, null, FallbackMode.Retry,
         new PromptFire(PromptFireKind.OnStart, null, null), true);
 

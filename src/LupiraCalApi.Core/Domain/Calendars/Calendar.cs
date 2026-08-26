@@ -8,11 +8,16 @@ namespace LupiraCalApi.Core.Domain.Calendars;
 public sealed class Calendar
 {
     public Guid Id { get; set; }
-    public string Slug { get; set; } = "";
+
+    public string Slug { get; set; } = string.Empty;
+
     public string? DisplayName { get; set; }
+
     public string? Color { get; set; }
+
     public string? DefaultTimezone { get; set; }
 
     public CalendarClass Class { get; set; } = CalendarClass.Agenda;
+
     public CalendarKind Kind { get; set; } = CalendarKind.Generic;
 }

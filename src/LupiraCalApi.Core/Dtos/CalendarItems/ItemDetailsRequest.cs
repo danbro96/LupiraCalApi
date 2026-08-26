@@ -11,5 +11,6 @@ namespace LupiraCalApi.Core.Dtos.CalendarItems;
 public sealed class ItemDetailsRequest
 {
     public BookingDetail? Booking { get; set; }
+
     public TravelLegRequest? Travel { get; set; }
 }

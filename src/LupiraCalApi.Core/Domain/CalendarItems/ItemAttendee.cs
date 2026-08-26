@@ -7,11 +7,18 @@ namespace LupiraCalApi.Core.Domain.CalendarItems;
 public sealed class ItemAttendee
 {
     public Guid ParticipationId { get; set; }
+
     public Guid ContactId { get; set; }
+
     public ParticipationRole Role { get; set; }
+
     public ParticipationStatus Status { get; set; } = ParticipationStatus.NeedsAction;
+
     public DateTimeOffset? InvitedAt { get; set; }
+
     public DateTimeOffset? RespondedAt { get; set; }
+
     public DateTimeOffset? AttendedAt { get; set; }
+
     public DateTimeOffset? LeftAt { get; set; }
 }

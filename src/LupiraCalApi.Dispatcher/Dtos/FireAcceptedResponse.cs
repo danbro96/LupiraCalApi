@@ -4,5 +4,6 @@ namespace LupiraCalApi.Dispatcher.Dtos;
 public sealed class FireAcceptedResponse
 {
     public required Guid InboundItemId { get; set; }
+
     public required bool Duplicate { get; set; }
 }

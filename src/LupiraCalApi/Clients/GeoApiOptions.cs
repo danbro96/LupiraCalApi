@@ -10,10 +10,12 @@ public sealed class GeoApiOptions
     public const string SectionName = "Geo";
 
     /// <summary>The geo base address, e.g. <c>https://geo-api.lupira.com/</c>.</summary>
-    public string BaseUrl { get; set; } = "";
+    public string BaseUrl { get; set; } = string.Empty;
 
     public string? TokenUrl { get; set; }
+
     public string? ClientId { get; set; }
+
     public string? ClientSecret { get; set; }
 
     /// <summary>Scope to request on the client-credentials token — the Authentik scope mapping that injects

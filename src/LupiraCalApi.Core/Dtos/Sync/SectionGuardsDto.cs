@@ -6,8 +6,11 @@ namespace LupiraCalApi.Core.Dtos.Sync;
 public sealed class SectionGuardsDto
 {
     public required SectionGuardDto Core { get; set; }
+
     public required SectionGuardDto Metadata { get; set; }
+
     public required SectionGuardDto Payload { get; set; }
+
     public required Dictionary<Guid, SectionGuardDto> Filing { get; set; }
 
     internal static SectionGuardsDto From(CalendarItem i) => new()

@@ -89,19 +89,28 @@ public sealed class GeoApiClient(HttpClient http, IOptions<GeoApiOptions> option
         }
     }
 
-    private sealed class ResolveRequest { public required string Text { get; set; } }
+    private sealed class ResolveRequest
+    {
+        public required string Text { get; set; }
+    }
 
     private sealed class ResolveResponse
     {
         public Guid? PlaceId { get; set; }
-        public string Name { get; set; } = "";
+
+        public string Name { get; set; } = string.Empty;
+
         public double? Latitude { get; set; }
+
         public double? Longitude { get; set; }
     }
 
     private sealed class TokenResponse
     {
-        [JsonPropertyName("access_token")] public string? AccessToken { get; set; }
-        [JsonPropertyName("expires_in")] public int? ExpiresIn { get; set; }
+        [JsonPropertyName("access_token")]
+        public string? AccessToken { get; set; }
+
+        [JsonPropertyName("expires_in")]
+        public int? ExpiresIn { get; set; }
     }
 }

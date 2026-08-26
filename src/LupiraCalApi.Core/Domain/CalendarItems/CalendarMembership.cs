@@ -6,5 +6,6 @@ namespace LupiraCalApi.Core.Domain.CalendarItems;
 public sealed class CalendarMembership
 {
     public Guid CalendarId { get; set; }
+
     public CalendarEntryStatus Status { get; set; }
 }

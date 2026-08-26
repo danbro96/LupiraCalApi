@@ -29,12 +29,15 @@ public static class ICalSerializer
         if (!string.IsNullOrWhiteSpace(title)) ev.Summary = title;
         if (!string.IsNullOrWhiteSpace(description)) ev.Description = description;
         if (!string.IsNullOrWhiteSpace(location)) ev.Location = location;
-        if (status is { } s) ev.Status = s switch
+        if (status is { } s)
+        {
+            ev.Status = s switch
         {
             ItemStatus.Confirmed => "CONFIRMED",
             ItemStatus.Cancelled => "CANCELLED",
             _ => "TENTATIVE",
         };
+        }
 
         if (isAllDay && startDate is { } sd)
         {
@@ -72,7 +75,7 @@ public static class ICalSerializer
         return ics;
     }
 
-    static string NormalizeCrlf(string s) => s.Replace("\r\n", "\n").Replace("\n", "\r\n").TrimEnd('\r', '\n');
+    private static string NormalizeCrlf(string s) => s.Replace("\r\n", "\n").Replace("\n", "\r\n").TrimEnd('\r', '\n');
 
     /// <summary>Regenerate the canonical ICS for an item from its structured fields. <paramref name="locationLabel"/> is the
     /// item's denormalized location label.</summary>
@@ -87,8 +90,14 @@ public static class ICalSerializer
     public static ParsedEvent ParseICalendar(string raw)
     {
         IcalCalendar? calendar;
-        try { calendar = IcalCalendar.Load(raw); }
-        catch (Exception ex) { throw new FormatException("Invalid iCalendar payload.", ex); }
+        try
+        {
+            calendar = IcalCalendar.Load(raw);
+        }
+        catch (Exception ex)
+        {
+            throw new FormatException("Invalid iCalendar payload.", ex);
+        }
 
         if (calendar is null) throw new FormatException("Invalid iCalendar payload.");
 

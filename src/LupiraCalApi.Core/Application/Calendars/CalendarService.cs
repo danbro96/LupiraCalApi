@@ -68,7 +68,7 @@ public sealed class CalendarService(IDocumentSession session, PrincipalDirectory
     {
         if (await session.LoadAsync<Calendar>(calendarId, ct) is null) return OpResult<OwnerGrantDto>.NotFound();
         if (!await access.IsCalendarOwnerAsync(callerId, calendarId, ct)) return OpResult<OwnerGrantDto>.Forbidden("Only an owner may grant access.");
-        var email = (r.Email ?? "").Trim();
+        var email = (r.Email ?? string.Empty).Trim();
         if (email.Length == 0) return OpResult<OwnerGrantDto>.Invalid("Email is required.");
         var (ok, level) = AccessParsing.Parse(r.Access);
         if (!ok) return OpResult<OwnerGrantDto>.Invalid("Access must be owner, read-write, or read.");

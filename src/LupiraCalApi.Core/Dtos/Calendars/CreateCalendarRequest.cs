@@ -6,9 +6,13 @@ namespace LupiraCalApi.Core.Dtos.Calendars;
 public sealed class CreateCalendarRequest
 {
     public required string Slug { get; set; }
+
     public string? DisplayName { get; set; }
+
     public required string Type { get; set; }
+
     public string? Color { get; set; }
+
     public string? DefaultTimezone { get; set; }
 
     /// <summary>Calendars only; defaults to Agenda/Generic. Ignored for address books.</summary>

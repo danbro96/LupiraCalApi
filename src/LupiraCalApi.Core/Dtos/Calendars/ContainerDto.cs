@@ -8,10 +8,15 @@ namespace LupiraCalApi.Core.Dtos.Calendars;
 public sealed class ContainerDto
 {
     public required Guid Id { get; set; }
+
     public required string Type { get; set; }
+
     public required string Slug { get; set; }
+
     public string? DisplayName { get; set; }
+
     public string? Color { get; set; }
+
     public string? DefaultTimezone { get; set; }
 
     [JsonConverter(typeof(JsonStringEnumConverter<CalendarClass>))]

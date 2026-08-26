@@ -128,7 +128,10 @@ public static class CompletenessScorer
                 na.Select(n => n?.GetValueKind() == JsonValueKind.String ? n.GetValue<string>() : null).OfType<string>(),
                 StringComparer.OrdinalIgnoreCase);
         }
-        catch (JsonException) { return []; }
+        catch (JsonException)
+        {
+            return [];
+        }
     }
 
     // ---- presence helpers (1 present · 0.5 weak · 0 absent) ----
@@ -185,6 +188,6 @@ public static class CompletenessScorer
     }
 
     private static double Has(Guid? id) => id is not null ? 1 : 0;
-    private static double Text(string? s) => string.IsNullOrWhiteSpace(s) ? 0 : 1;
 
+    private static double Text(string? s) => string.IsNullOrWhiteSpace(s) ? 0 : 1;
 }

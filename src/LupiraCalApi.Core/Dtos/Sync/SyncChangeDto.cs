@@ -6,5 +6,6 @@ namespace LupiraCalApi.Core.Dtos.Sync;
 public sealed class SyncChangeDto
 {
     public required CalendarItemDto Item { get; set; }
+
     public required SectionGuardsDto Guards { get; set; }
 }

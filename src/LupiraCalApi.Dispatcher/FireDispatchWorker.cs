@@ -24,7 +24,8 @@ public sealed class FireDispatchWorker(
             config.GetConnectionString("Postgres") ?? CoreServiceCollectionExtensions.DefaultConnectionString, stoppingToken);
 
         var opts = options.Value;
-        logger.LogInformation("Fire dispatcher started: tick {Tick}s, batch {Batch}, lease {Lease}s, max {Max} attempts.",
+        logger.LogInformation(
+            "Fire dispatcher started: tick {Tick}s, batch {Batch}, lease {Lease}s, max {Max} attempts.",
             opts.TickSeconds, opts.BatchSize, opts.LeaseSeconds, opts.MaxAttempts);
 
         try

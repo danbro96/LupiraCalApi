@@ -7,6 +7,7 @@ namespace LupiraCalApi.Core.Dtos.CalendarItems;
 public sealed class ItemAttendeeDto
 {
     public required Guid ParticipationId { get; set; }
+
     public required Guid ContactId { get; set; }
 
     [JsonConverter(typeof(JsonStringEnumConverter<ParticipationRole>))]
@@ -16,7 +17,10 @@ public sealed class ItemAttendeeDto
     public required ParticipationStatus Status { get; set; }
 
     public required DateTimeOffset? InvitedAt { get; set; }
+
     public required DateTimeOffset? RespondedAt { get; set; }
+
     public required DateTimeOffset? AttendedAt { get; set; }
+
     public required DateTimeOffset? LeftAt { get; set; }
 }

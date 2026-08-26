@@ -6,4 +6,11 @@ namespace LupiraCalApi.Core.Domain.Shared;
 /// so a DAV round-trip leaves it null (DAV is precision-agnostic). Used for historical/backfilled items whose date is
 /// known only to the month, year, or roughly: the date is still stored as a concrete day, this records the confidence.</summary>
 [JsonConverter(typeof(JsonStringEnumConverter<DatePrecision>))]
-public enum DatePrecision { Exact, Day, Month, Year, Approximate }
+public enum DatePrecision
+{
+    Exact,
+    Day,
+    Month,
+    Year,
+    Approximate,
+}

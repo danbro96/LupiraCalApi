@@ -67,5 +67,4 @@ public sealed class CompletenessResolver(IQuerySession session)
         var cals = await session.Query<Calendar>().Where(c => ids.Contains(c.Id)).ToListAsync(ct);
         return [.. cals.Where(c => c.Class == CalendarClass.System || c.Kind is CalendarKind.Birthdays or CalendarKind.Availability).Select(c => c.Id)];
     }
-
 }

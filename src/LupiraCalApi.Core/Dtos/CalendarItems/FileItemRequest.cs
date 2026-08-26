@@ -5,6 +5,8 @@ namespace LupiraCalApi.Core.Dtos.CalendarItems;
 public sealed class FileItemRequest
 {
     public required Guid ItemId { get; set; }
+
     public required Guid CalendarId { get; set; }
+
     public string? Status { get; set; }
 }

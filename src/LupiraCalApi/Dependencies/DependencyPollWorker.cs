@@ -33,7 +33,9 @@ public sealed class DependencyPollWorker : BackgroundService
             while (await timer.WaitForNextTickAsync(stoppingToken))
                 await SweepSafelyAsync(stoppingToken);
         }
-        catch (OperationCanceledException) { }
+        catch (OperationCanceledException)
+        {
+        }
     }
 
     private async Task SweepSafelyAsync(CancellationToken ct)
@@ -48,7 +50,9 @@ public sealed class DependencyPollWorker : BackgroundService
                 Dependencies = results,
             });
         }
-        catch (OperationCanceledException) when (ct.IsCancellationRequested) { }
+        catch (OperationCanceledException) when (ct.IsCancellationRequested)
+        {
+        }
         catch (Exception ex)
         {
             _logger.LogError(ex, "Dependency sweep failed; next tick retries.");

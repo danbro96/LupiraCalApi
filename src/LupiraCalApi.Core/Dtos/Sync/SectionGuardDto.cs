@@ -6,6 +6,7 @@ namespace LupiraCalApi.Core.Dtos.Sync;
 public sealed class SectionGuardDto
 {
     public required DateTimeOffset Ts { get; set; }
+
     public required Guid Cmd { get; set; }
 
     internal static SectionGuardDto From(DateTimeOffset ts, Guid cmd) => new() { Ts = ts, Cmd = cmd };

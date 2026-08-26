@@ -4,6 +4,7 @@ namespace LupiraCalApi.Core.Abstractions;
 public sealed class NullGeoResolver : IGeoResolver
 {
     public bool IsConfigured => false;
+
     public Task<GeoPlaceResolution?> ResolveAsync(string text, CancellationToken ct = default) =>
         Task.FromResult<GeoPlaceResolution?>(null);
 }

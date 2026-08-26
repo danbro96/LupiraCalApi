@@ -5,5 +5,6 @@ namespace LupiraCalApi.Core.Dtos.Calendars;
 public sealed class GrantOwnerRequest
 {
     public required string Email { get; set; }
+
     public string? Access { get; set; }
 }

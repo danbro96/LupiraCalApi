@@ -5,11 +5,18 @@ namespace LupiraCalApi.Dependencies;
 public sealed class DependencyTarget
 {
     public required string Name { get; set; }
+
     public required string BaseUrl { get; set; }
+
     public required string ProbePath { get; set; }
+
     public string? TokenUrl { get; set; }
+
     public string? ClientId { get; set; }
+
     public string? ClientSecret { get; set; }
+
     public string? Scope { get; set; }
+
     public string? DevUser { get; set; }
 }

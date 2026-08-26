@@ -15,13 +15,21 @@ public sealed class HorizonSweep(IDocumentStore store, IFireMaterializer materia
         using var timer = new PeriodicTimer(SchedulingDefaults.SweepInterval);
         try
         {
-            while (await timer.WaitForNextTickAsync(ct))   // first sweep one interval in; the daemon covers initial materialization
+            while (await timer.WaitForNextTickAsync(ct)) // first sweep one interval in; the daemon covers initial materialization
             {
-                try { await SweepAsync(DateTimeOffset.UtcNow, ct); }
-                catch (Exception ex) when (ex is not OperationCanceledException) { logger.LogError(ex, "Horizon sweep failed"); }
+                try
+                {
+                    await SweepAsync(DateTimeOffset.UtcNow, ct);
+                }
+                catch (Exception ex) when (ex is not OperationCanceledException)
+                {
+                    logger.LogError(ex, "Horizon sweep failed");
+                }
             }
         }
-        catch (OperationCanceledException) { }
+        catch (OperationCanceledException)
+        {
+        }
     }
 
     public async Task SweepAsync(DateTimeOffset now, CancellationToken ct)
@@ -32,9 +40,12 @@ public sealed class HorizonSweep(IDocumentStore store, IFireMaterializer materia
         {
             var context = await SchedulingQueries.FireContextAsync(session, item, ct);
             foreach (var r in materializer.Materialize(item, context, now, SchedulingDefaults.Horizon))
-                session.QueueSqlCommand(ScheduledFireSchema.InsertSql,
+            {
+                session.QueueSqlCommand(
+                    ScheduledFireSchema.InsertSql,
                     r.Id, r.ItemId, r.CalendarId, (object?) r.PrincipalId ?? DBNull.Value, r.OccurrenceAt,
                     (object?) r.PromptRef ?? DBNull.Value, (object?) r.ExpireAfter ?? DBNull.Value, r.DedupeKey);
+            }
         }
 
         await session.SaveChangesAsync(ct);

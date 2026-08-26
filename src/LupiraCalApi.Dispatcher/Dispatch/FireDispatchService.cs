@@ -61,6 +61,7 @@ public sealed class FireDispatchService(
         var rows = new List<ClaimedFire>();
         await using var reader = await cmd.ExecuteReaderAsync(ct);
         while (await reader.ReadAsync(ct))
+        {
             rows.Add(new ClaimedFire(
                 reader.GetGuid(0),
                 reader.GetGuid(1),
@@ -71,6 +72,8 @@ public sealed class FireDispatchService(
                 reader.GetInt32(6),
                 reader.GetString(7),
                 reader.IsDBNull(8) ? null : reader.GetFieldValue<TimeSpan>(8)));
+        }
+
         return rows;
     }
 
@@ -129,8 +132,9 @@ public sealed class FireDispatchService(
         if (result.Accepted)
         {
             await TransitionAsync(ScheduledFireDispatchSql.DoneSql, fire.Id, ct: ct);
-            logger.LogInformation("Fire {FireId} delivered (item {ItemId}, occurrence {OccurrenceAt:O}{Duplicate}).",
-                fire.Id, fire.ItemId, fire.OccurrenceAt, result.Duplicate ? ", duplicate" : "");
+            logger.LogInformation(
+                "Fire {FireId} delivered (item {ItemId}, occurrence {OccurrenceAt:O}{Duplicate}).",
+                fire.Id, fire.ItemId, fire.OccurrenceAt, result.Duplicate ? ", duplicate" : string.Empty);
         }
         else if (!result.Retryable || fire.Attempts >= _opts.MaxAttempts)
         {
@@ -141,7 +145,8 @@ public sealed class FireDispatchService(
         {
             var backoff = DispatchBackoff.Delay(fire.Attempts);
             await TransitionAsync(ScheduledFireDispatchSql.RetrySql, fire.Id, error: result.Error, backoff: backoff, ct: ct);
-            logger.LogWarning("Fire {FireId} push failed (attempt {Attempts}), retrying in {Backoff}: {Error}",
+            logger.LogWarning(
+                "Fire {FireId} push failed (attempt {Attempts}), retrying in {Backoff}: {Error}",
                 fire.Id, fire.Attempts, backoff, result.Error);
         }
     }

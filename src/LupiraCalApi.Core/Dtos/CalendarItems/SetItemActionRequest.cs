@@ -6,9 +6,13 @@ namespace LupiraCalApi.Core.Dtos.CalendarItems;
 public sealed class SetItemActionRequest
 {
     public required ActionKind Kind { get; set; }
+
     public Ref? Target { get; set; }
+
     public required string ParamsJson { get; set; }
+
     public required PromptFire Fire { get; set; }
+
     public bool Enabled { get; set; } = true;
 
     /// <summary>Client wall-clock of the edit (LWW for the payload section). Omitted ⇒ server receive time.</summary>
