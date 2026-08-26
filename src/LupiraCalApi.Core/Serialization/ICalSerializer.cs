@@ -32,11 +32,11 @@ public static class ICalSerializer
         if (status is { } s)
         {
             ev.Status = s switch
-        {
-            ItemStatus.Confirmed => "CONFIRMED",
-            ItemStatus.Cancelled => "CANCELLED",
-            _ => "TENTATIVE",
-        };
+            {
+                ItemStatus.Confirmed => "CONFIRMED",
+                ItemStatus.Cancelled => "CANCELLED",
+                _ => "TENTATIVE",
+            };
         }
 
         if (isAllDay && startDate is { } sd)

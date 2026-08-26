@@ -2773,7 +2773,10 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/SyncContainersResponse"
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/ContainerDto"
+                  }
                 }
               }
             }
@@ -4626,21 +4629,6 @@
           }
         },
         "description": "One page of the changes feed. `Cursor` is opaque — hand it back as `?since=`; loop while\n            `HasMore`. A full sync (no `since`) streams every live visible item and suppresses tombstones —\n            the client replaces its mirror wholesale and rebases pending work."
-      },
-      "SyncContainersResponse": {
-        "required": [
-          "calendars"
-        ],
-        "type": "object",
-        "properties": {
-          "calendars": {
-            "type": "array",
-            "items": {
-              "$ref": "#/components/schemas/ContainerDto"
-            }
-          }
-        },
-        "description": "Snapshot of the caller's containers. Containers are plain documents with no event history, so they\n            have no cursor — fetch once per sync cycle and diff against the mirror."
       },
       "TransportMode": {
         "enum": [

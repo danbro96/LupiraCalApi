@@ -1,7 +1,7 @@
 using LupiraCalApi.Auth;
 using LupiraCalApi.Core.Application.Calendars;
 using LupiraCalApi.Core.Application.Dav;
-using LupiraCalApi.Core.Application.Results;
+using LupiraCalApi.Core.Dtos.Calendars;
 using LupiraCalApi.Core.Dtos.Sync;
 using LupiraCalApi.Http;
 using Microsoft.AspNetCore.Http.HttpResults;
@@ -17,12 +17,9 @@ public sealed class SyncHandler(CurrentUser user, SyncFeed feed, CalendarService
         return OpResultMap.OkProblem(await feed.ChangesAsync(u.Id, since, limit, ct));
     }
 
-    public async Task<Results<Ok<SyncContainersResponse>, ProblemHttpResult, UnauthorizedHttpResult>> ContainersAsync(CancellationToken ct)
+    public async Task<Results<Ok<List<ContainerDto>>, ProblemHttpResult, UnauthorizedHttpResult>> ContainersAsync(CancellationToken ct)
     {
         var u = await user.GetAsync(ct);
-        var res = await calendars.ListContainersAsync(u.Id, ct);
-        return OpResultMap.OkProblem(res.IsOk
-            ? OpResult<SyncContainersResponse>.Ok(new SyncContainersResponse { Calendars = res.Value! })
-            : new OpResult<SyncContainersResponse>(res.Status, null, res.Error));
+        return OpResultMap.OkProblem(await calendars.ListContainersAsync(u.Id, ct));
     }
 }

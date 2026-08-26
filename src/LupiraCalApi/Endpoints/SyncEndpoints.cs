@@ -1,3 +1,4 @@
+using LupiraCalApi.Core.Dtos.Calendars;
 using LupiraCalApi.Core.Dtos.Sync;
 using LupiraCalApi.Handlers;
 
@@ -18,7 +19,7 @@ public static class SyncEndpoints
         group.MapGet("/containers", (SyncHandler h, CancellationToken ct) => h.ContainersAsync(ct))
             .WithName("GetSyncContainers")
             .WithSummary("Snapshot of the caller's calendars for mirror reconciliation. Containers are plain documents with no event history (no cursor) — fetch once per sync cycle and diff locally.")
-            .Produces<SyncContainersResponse>(StatusCodes.Status200OK);
+            .Produces<List<ContainerDto>>(StatusCodes.Status200OK);
 
         return app;
     }

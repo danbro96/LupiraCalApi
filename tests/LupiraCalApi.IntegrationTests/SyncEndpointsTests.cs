@@ -1,3 +1,4 @@
+using LupiraCalApi.Core.Dtos.Calendars;
 using System.Net;
 using System.Net.Http.Json;
 using System.Text.Json;
@@ -232,7 +233,7 @@ public class SyncEndpointsTests(CalApiTestFactory factory) : IntegrationTest(fac
         var cal = await CreateCalendarAsync(api);
         var resp = await api.GetAsync("/sync/containers");
         resp.EnsureSuccessStatusCode();
-        var body = (await resp.Content.ReadFromJsonAsync<SyncContainersResponse>(Json))!;
-        Assert.Contains(body.Calendars, c => c.Id == cal);
+        var body = (await resp.Content.ReadFromJsonAsync<List<ContainerDto>>(Json))!;
+        Assert.Contains(body, c => c.Id == cal);
     }
 }
