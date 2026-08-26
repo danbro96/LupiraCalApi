@@ -1,25 +1,9 @@
 using LupiraCalApi.Domain;
+using LupiraCalApi.Dtos.Internal;
 using Marten;
 using Microsoft.AspNetCore.Http.HttpResults;
 
 namespace LupiraCalApi.Handlers;
-
-public sealed class CheckPlaceReferencesRequest
-{
-    public required List<Guid> PlaceIds { get; set; }
-}
-
-public sealed class ItemPlaceRefDto
-{
-    public required Guid PlaceId { get; set; }
-    public required int LiveCount { get; set; }
-    public required int DeletedCount { get; set; }
-}
-
-public sealed class ItemPlaceReferencesResponse
-{
-    public required List<ItemPlaceRefDto> Places { get; set; }
-}
 
 /// <summary>How many calendar items reference each requested geo place id (item location + travel legs) — geo's
 /// orphan sweep asks this before pruning. Deliberately ACL-free (the fence is the <c>internal:read</c> service scope
