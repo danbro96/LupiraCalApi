@@ -6,6 +6,7 @@ using Marten;
 using Npgsql;
 using System.Net.Http.Json;
 using Xunit;
+using LupiraCalApi.Core.Domain.CalendarItems.Events;
 
 namespace LupiraCalApi.IntegrationTests;
 

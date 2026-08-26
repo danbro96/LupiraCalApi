@@ -1,7 +1,6 @@
 using System.Text.Json;
 using System.Text.Json.Nodes;
 using LupiraCalApi.Core.Domain.CalendarItems;
-using LupiraCalApi.Core.Domain.Calendars;
 using LupiraCalApi.Core.Domain.Shared;
 
 namespace LupiraCalApi.Core.Domain.Completeness;

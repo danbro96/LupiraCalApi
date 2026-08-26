@@ -1,9 +1,10 @@
 using JasperFx;
 using JasperFx.Events.Projections;
 using LupiraCalApi.Core.Domain.CalendarItems;
+using LupiraCalApi.Core.Domain.CalendarItems.Events;
 using LupiraCalApi.Core.Domain.Calendars;
-using LupiraCalApi.Core.Domain.Shared;
 using LupiraCalApi.Core.Domain.Identity;
+using LupiraCalApi.Core.Domain.Shared;
 using Marten;
 using Weasel.Core;
 

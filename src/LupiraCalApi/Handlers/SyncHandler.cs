@@ -1,5 +1,5 @@
-using LupiraCalApi.Core.Application;
 using LupiraCalApi.Auth;
+using LupiraCalApi.Core.Application;
 using LupiraCalApi.Core.Dtos.Sync;
 using LupiraCalApi.Http;
 using Microsoft.AspNetCore.Http.HttpResults;

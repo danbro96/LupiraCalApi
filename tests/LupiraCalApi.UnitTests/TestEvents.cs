@@ -1,5 +1,4 @@
 using JasperFx.Events;
-using LupiraCalApi.Core.Domain.CalendarItems;
 
 namespace LupiraCalApi.UnitTests;
 

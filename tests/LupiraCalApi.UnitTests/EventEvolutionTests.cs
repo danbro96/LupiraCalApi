@@ -1,4 +1,4 @@
-using LupiraCalApi.Core.Domain.CalendarItems;
+using LupiraCalApi.Core.Domain.CalendarItems.Events;
 using Marten.Services.Json.Transformations;
 using Xunit;
 

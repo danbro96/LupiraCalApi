@@ -1,5 +1,5 @@
-using LupiraCalApi.Core.Application;
 using LupiraCalApi.Auth;
+using LupiraCalApi.Core.Application;
 using LupiraCalApi.Core.Dtos.CalendarItems;
 using LupiraCalApi.Core.Dtos.Relations;
 using LupiraCalApi.Http;

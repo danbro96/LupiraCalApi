@@ -1,9 +1,8 @@
 using LupiraCalApi.Core.Application;
 using LupiraCalApi.Core.Auth;
 using LupiraCalApi.Core.Domain.CalendarItems;
-using LupiraCalApi.Core.Domain.Calendars;
-using LupiraCalApi.Core.Domain.Shared;
 using LupiraCalApi.Core.Domain.Identity;
+using LupiraCalApi.Core.Domain.Shared;
 using LupiraCalApi.Core.Serialization;
 using Marten;
 using DavCalendar = LupiraCalApi.Core.Domain.Calendars.Calendar;   // disambiguate from System.Globalization.Calendar

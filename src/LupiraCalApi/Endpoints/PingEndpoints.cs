@@ -10,11 +10,11 @@ public static class PingEndpoints
         // Claims echo only — deliberately no CurrentUser, so a probe never provisions a Principal
         // or bumps LastSeenAt. Consumers poll this from /depz to verify the auth seam.
         app.MapGet("/pingz", (ClaimsPrincipal user) => TypedResults.Ok(new PingDto
-            {
-                Subject = user.FindFirstValue("sub") ?? user.FindFirstValue(ClaimTypes.NameIdentifier) ?? "",
-                Audiences = user.FindAll("aud").Select(c => c.Value).ToArray(),
-                Email = user.FindFirstValue("email") ?? user.FindFirstValue(ClaimTypes.Email),
-            }))
+        {
+            Subject = user.FindFirstValue("sub") ?? user.FindFirstValue(ClaimTypes.NameIdentifier) ?? "",
+            Audiences = user.FindAll("aud").Select(c => c.Value).ToArray(),
+            Email = user.FindFirstValue("email") ?? user.FindFirstValue(ClaimTypes.Email),
+        }))
             .RequireAuthorization("ApiPolicy")
             .WithTags("Ping")
             .WithName("Ping")

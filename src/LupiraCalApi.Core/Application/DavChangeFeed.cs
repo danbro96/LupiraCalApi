@@ -4,9 +4,6 @@ using Marten;
 
 namespace LupiraCalApi.Core.Application;
 
-/// <summary>An item whose state changed since a sync token: its resource UID and current ETag, or a tombstone.</summary>
-public sealed record DavChange(string Uid, string? Etag, bool Deleted);
-
 /// <summary>The CalDAV change feed backing the <c>/dav-backend</c> seam: sync tokens are Marten's global event
 /// sequence (opaque to the gateway), changes are the item streams touched past a token, and an item that was
 /// deleted or is no longer accepted in the calendar surfaces as a tombstone.</summary>

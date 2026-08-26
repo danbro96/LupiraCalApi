@@ -5,10 +5,6 @@ using LupiraCalApi.Dispatcher.Dtos;
 
 namespace LupiraCalApi.Dispatcher.Clients;
 
-/// <summary>Outcome of one push. Retryable = transient (assistant down, 5xx, timeout); non-retryable = the request
-/// itself is bad (400) and re-sending the same body can never succeed.</summary>
-public sealed record PushResult(bool Accepted, bool Retryable, string? Error, bool Duplicate = false);
-
 /// <summary>Pushes a claimed fire to assistant-api <c>POST /fires</c> (accept-then-own: a 202 transfers ownership;
 /// re-pushes dedupe server-side on the dedupe key).</summary>
 public sealed class AssistantFireClient(HttpClient http, ServiceTokenProvider tokens)
