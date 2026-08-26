@@ -1,6 +1,5 @@
 using LupiraCalApi.Core.Application;
 using LupiraCalApi.Core.Domain.Identity;
-using LupiraCalApi.Core.Domain;
 using Marten;
 using Xunit;
 

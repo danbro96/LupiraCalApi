@@ -1,4 +1,7 @@
-namespace LupiraCalApi.Core.Domain;
+using LupiraCalApi.Core.Domain.CalendarItems;
+using LupiraCalApi.Core.Domain.Shared;
+
+namespace LupiraCalApi.Core.Domain.Calendars;
 
 /// <summary>A calendar collection (plain document — its metadata is not versioned). Access is via <see cref="CalendarOwner"/>;
 /// membership of items is via the many-to-many <c>CalendarEntry</c> embedded on <see cref="CalendarItem.Calendars"/>.</summary>

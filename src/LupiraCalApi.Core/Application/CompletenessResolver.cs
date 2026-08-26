@@ -1,4 +1,7 @@
-using LupiraCalApi.Core.Domain;
+using LupiraCalApi.Core.Domain.CalendarItems;
+using LupiraCalApi.Core.Domain.Calendars;
+using LupiraCalApi.Core.Domain.Completeness;
+using LupiraCalApi.Core.Domain.Shared;
 using Marten;
 
 namespace LupiraCalApi.Core.Application;

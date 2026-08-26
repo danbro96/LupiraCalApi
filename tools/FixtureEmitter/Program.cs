@@ -1,5 +1,5 @@
 using LupiraCalApi.Core.Data;
-using LupiraCalApi.Core.Domain;
+using LupiraCalApi.Core.Domain.CalendarItems;
 using Marten;
 using System.Text.Json;
 using System.Text.Json.Serialization;

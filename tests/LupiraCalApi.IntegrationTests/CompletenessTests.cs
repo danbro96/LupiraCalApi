@@ -74,7 +74,7 @@ public sealed class CompletenessTests(CalApiTestFactory factory) : IntegrationTe
     {
         var api = Factory.ApiClient(Email);
         var seeded = await (await api.PostAsync("/me/bootstrap", null)).Content.ReadFromJsonAsync<List<LupiraCalApi.Core.Dtos.Calendars.ContainerDto>>();
-        var inbox = seeded!.Single(c => c.Kind == LupiraCalApi.Core.Domain.CalendarKind.Inbox);
+        var inbox = seeded!.Single(c => c.Kind == LupiraCalApi.Core.Domain.Shared.CalendarKind.Inbox);
         await CreateItemAsync(api, inbox.Id, "Captured thin");
 
         var list = await api.GetFromJsonAsync<List<CalendarItemDto>>($"/items/thin?calendarId={inbox.Id}");
@@ -118,7 +118,7 @@ public sealed class CompletenessTests(CalApiTestFactory factory) : IntegrationTe
     {
         var api = Factory.ApiClient(Email);
         var seeded = await (await api.PostAsync("/me/bootstrap", null)).Content.ReadFromJsonAsync<List<LupiraCalApi.Core.Dtos.Calendars.ContainerDto>>();
-        var inbox = seeded!.Single(c => c.Kind == LupiraCalApi.Core.Domain.CalendarKind.Inbox);
+        var inbox = seeded!.Single(c => c.Kind == LupiraCalApi.Core.Domain.Shared.CalendarKind.Inbox);
 
         var item = await CreateItemAsync(api, inbox.Id, "Captured");
         var got = await api.GetFromJsonAsync<CalendarItemDto>($"/items/{item.Id}");

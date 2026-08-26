@@ -43,8 +43,8 @@ public sealed class UpdateCalendarItemRequest
     public bool RecurrenceRuleProvided { get; set; }
 
     /// <summary>Revise the start/end date confidence (see <see cref="CreateCalendarItemRequest.StartPrecision"/>). Omitted ⇒ kept.</summary>
-    public Domain.DatePrecision? StartPrecision { get; set; }
-    public Domain.DatePrecision? EndPrecision { get; set; }
+    public Domain.Shared.DatePrecision? StartPrecision { get; set; }
+    public Domain.Shared.DatePrecision? EndPrecision { get; set; }
 
     /// <summary>Re-nest under a parent item (or set for the first time). Must exist and be accessible; omitted ⇒ kept.</summary>
     public Guid? ParentItemId { get; set; }
@@ -54,7 +54,7 @@ public sealed class UpdateCalendarItemRequest
     public string[]? Tags { get; set; }
 
     /// <summary>Change the item's presence segment status.</summary>
-    public Domain.AvailabilityStatus? Availability { get; set; }
+    public Domain.Shared.AvailabilityStatus? Availability { get; set; }
 
     /// <summary>Composable detail to set/merge: a <c>Booking</c> and/or a <c>Travel</c> leg; a supplied member replaces that member wholesale.</summary>
     public ItemDetailsRequest? Details { get; set; }

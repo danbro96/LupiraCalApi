@@ -2,7 +2,9 @@ using System.Text.RegularExpressions;
 using Ical.Net.CalendarComponents;
 using Ical.Net.DataTypes;
 using Ical.Net.Serialization;
-using LupiraCalApi.Core.Domain;
+using LupiraCalApi.Core.Domain.CalendarItems;
+using LupiraCalApi.Core.Domain.Calendars;
+using LupiraCalApi.Core.Domain.Shared;
 using IcalCalendar = Ical.Net.Calendar;
 
 namespace LupiraCalApi.Core.Serialization;

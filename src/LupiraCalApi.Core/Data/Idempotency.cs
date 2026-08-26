@@ -1,5 +1,5 @@
 using JasperFx;
-using LupiraCalApi.Core.Domain;
+using LupiraCalApi.Core.Domain.Shared;
 using Marten;
 
 namespace LupiraCalApi.Core.Data;

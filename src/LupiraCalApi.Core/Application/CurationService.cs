@@ -1,6 +1,8 @@
 using LupiraCalApi.Core.Auth;
 using LupiraCalApi.Core.Data;
-using LupiraCalApi.Core.Domain;
+using LupiraCalApi.Core.Domain.CalendarItems;
+using LupiraCalApi.Core.Domain.Calendars;
+using LupiraCalApi.Core.Domain.Shared;
 using LupiraCalApi.Core.Dtos.CalendarItems;
 using LupiraCalApi.Core.Mappers;
 using Marten;

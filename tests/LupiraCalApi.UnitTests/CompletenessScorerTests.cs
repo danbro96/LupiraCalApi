@@ -1,4 +1,6 @@
-using LupiraCalApi.Core.Domain;
+using LupiraCalApi.Core.Domain.CalendarItems;
+using LupiraCalApi.Core.Domain.Completeness;
+using LupiraCalApi.Core.Domain.Shared;
 using Xunit;
 
 namespace LupiraCalApi.UnitTests;

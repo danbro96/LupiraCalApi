@@ -1,4 +1,5 @@
-using LupiraCalApi.Core.Domain;
+using LupiraCalApi.Core.Domain.CalendarItems;
+using LupiraCalApi.Core.Domain.Calendars;
 
 namespace LupiraCalApi.Core.Application;
 

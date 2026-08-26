@@ -1,9 +1,10 @@
-﻿using LupiraCalApi.Core.Domain;
+﻿using LupiraCalApi.Core.Domain.Shared;
 using LupiraCalApi.Core.Dtos.CalendarItems;
 using LupiraCalApi.Core.Dtos.Calendars;
 using LupiraCalApi.Core.Dtos.Me;
 using System.Net.Http.Json;
 using Xunit;
+using LupiraCalApi.Core.Domain.Shared;
 
 namespace LupiraCalApi.IntegrationTests;
 

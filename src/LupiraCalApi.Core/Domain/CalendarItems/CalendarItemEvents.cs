@@ -1,4 +1,7 @@
-namespace LupiraCalApi.Core.Domain;
+using LupiraCalApi.Core.Domain.Calendars;
+using LupiraCalApi.Core.Domain.Shared;
+
+namespace LupiraCalApi.Core.Domain.CalendarItems;
 
 // ---- lifecycle (structured fields are the ONLY canonical state; the ContentHash/ETag is NOT stored on events —
 //      it is a pure derivation of the canonical ICS, recomputed in the snapshot so a formatter fix heals on rebuild) ----

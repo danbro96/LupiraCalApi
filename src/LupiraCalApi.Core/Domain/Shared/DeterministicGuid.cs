@@ -1,7 +1,7 @@
 using System.Security.Cryptography;
 using System.Text;
 
-namespace LupiraCalApi.Core.Domain;
+namespace LupiraCalApi.Core.Domain.Shared;
 
 /// <summary>Stable Guid derived from a natural key (an iCal/vCard uid) — so a DELETE-then-PUT of the same uid lands on the same event stream and resurrects it rather than creating a duplicate.</summary>
 public static class DeterministicGuid

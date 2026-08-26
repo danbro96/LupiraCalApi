@@ -1,4 +1,4 @@
-using LupiraCalApi.Core.Domain;
+using LupiraCalApi.Core.Domain.Shared;
 using LupiraCalApi.Core.Dtos.Calendars;
 using System.Net.Http.Json;
 using Xunit;

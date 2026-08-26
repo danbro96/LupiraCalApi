@@ -1,3 +1,5 @@
+using LupiraCalApi.Core.Domain.Shared;
+
 namespace LupiraCalApi.Core.Dtos.Calendars;
 
 /// <summary>Grant a member access to a container, identified by their login <c>Email</c> (provisioned if they have

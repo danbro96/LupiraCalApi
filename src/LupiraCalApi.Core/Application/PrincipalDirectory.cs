@@ -1,4 +1,4 @@
-using LupiraCalApi.Core.Domain;
+using LupiraCalApi.Core.Domain.Shared;
 using LupiraCalApi.Core.Domain.Identity;
 using Marten;
 using Npgsql;

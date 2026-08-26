@@ -1,6 +1,8 @@
 using LupiraCalApi.Dispatcher.Clients;
 using LupiraCalApi.Dispatcher.Dtos;
-using LupiraCalApi.Core.Domain;
+using LupiraCalApi.Core.Domain.CalendarItems;
+using LupiraCalApi.Core.Domain.Calendars;
+using LupiraCalApi.Core.Domain.Shared;
 using LupiraCalApi.Core.Domain.Identity;
 using LupiraCalApi.Core.Scheduling;
 using Marten;

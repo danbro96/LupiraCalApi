@@ -10,7 +10,7 @@ public sealed class CreateCalendarItemRequest
     public Guid? CalendarId { get; set; }
 
     /// <summary>Client-supplied provenance/idempotency key (e.g. an import <c>sourceKey</c>). When set, the item's stream id
-    /// is derived from it (<see cref="LupiraCalApi.Core.Domain.DeterministicGuid"/>), so re-creating with the same key is a no-op
+    /// is derived from it (<see cref="LupiraCalApi.Core.Domain.Shared.DeterministicGuid"/>), so re-creating with the same key is a no-op
     /// that returns the existing item — safe batch/import replay. Also becomes the item's external UID. Omit for a random uid.</summary>
     public string? SourceKey { get; set; }
 
@@ -45,15 +45,15 @@ public sealed class CreateCalendarItemRequest
 
     /// <summary>Confidence of the start/end date for a historical or backfilled item — the date is still a concrete day;
     /// this records that it is only known to the month/year/roughly. Omit for exact dates.</summary>
-    public Domain.DatePrecision? StartPrecision { get; set; }
-    public Domain.DatePrecision? EndPrecision { get; set; }
+    public Domain.Shared.DatePrecision? StartPrecision { get; set; }
+    public Domain.Shared.DatePrecision? EndPrecision { get; set; }
 
     /// <summary>Optional server-side annotations (e.g. import provenance) merged onto the item at creation — same store
     /// as <c>POST /items/{id}/metadata</c>, saving a second call. Never in ICS.</summary>
     public JsonObject? Metadata { get; set; }
 
     /// <summary>Sets the item's presence segment status (whole-day or timed via Starts/Ends) — availability lives on the availability calendar.</summary>
-    public Domain.AvailabilityStatus? Availability { get; set; }
+    public Domain.Shared.AvailabilityStatus? Availability { get; set; }
 
     /// <summary>Composable detail: a <c>Booking</c> (any category) and/or a <c>Travel</c> leg (a <c>Trip</c>); Travel place refs are free-text labels.</summary>
     public ItemDetailsRequest? Details { get; set; }

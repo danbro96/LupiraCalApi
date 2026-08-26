@@ -4,7 +4,7 @@ using JasperFx.Events.Projections;
 using LupiraCalApi.Core.Application;
 using LupiraCalApi.Core.Auth;
 using LupiraCalApi.Core.Data;
-using LupiraCalApi.Core.Domain;
+using LupiraCalApi.Core.Domain.CalendarItems;
 using LupiraCalApi.Core.Scheduling;
 using Marten;
 using Microsoft.Extensions.Configuration;

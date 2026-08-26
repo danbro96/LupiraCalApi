@@ -1,5 +1,5 @@
 using JasperFx.Events;
-using LupiraCalApi.Core.Domain;
+using LupiraCalApi.Core.Domain.CalendarItems;
 using Marten;
 using Marten.Events.Projections;
 

@@ -1,4 +1,4 @@
-using LupiraCalApi.Core.Domain;
+using LupiraCalApi.Core.Domain.Shared;
 
 namespace LupiraCalApi.Core.Scheduling;
 

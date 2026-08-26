@@ -1,6 +1,7 @@
 using System.Text.Json.Serialization;
+using LupiraCalApi.Core.Domain.Shared;
 
-namespace LupiraCalApi.Core.Domain;
+namespace LupiraCalApi.Core.Domain.CalendarItems;
 
 /// <summary>What an LLM-interpreted run should accomplish.</summary>
 [JsonConverter(typeof(JsonStringEnumConverter<PromptIntent>))]

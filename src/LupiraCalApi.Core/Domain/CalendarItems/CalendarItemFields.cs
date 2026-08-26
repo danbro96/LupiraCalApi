@@ -1,4 +1,6 @@
-namespace LupiraCalApi.Core.Domain;
+using LupiraCalApi.Core.Domain.Shared;
+
+namespace LupiraCalApi.Core.Domain.CalendarItems;
 
 /// <summary>
 /// The structured, mutable fields of a <see cref="CalendarItem"/> — bundled so the REST/MCP authoring path and the

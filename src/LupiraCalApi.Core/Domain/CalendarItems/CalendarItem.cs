@@ -1,7 +1,9 @@
 using JasperFx.Events;
 using LupiraCalApi.Core.Serialization;
+using LupiraCalApi.Core.Domain.Calendars;
+using LupiraCalApi.Core.Domain.Shared;
 
-namespace LupiraCalApi.Core.Domain;
+namespace LupiraCalApi.Core.Domain.CalendarItems;
 
 /// <summary>One attendee's participation in an item — composed from the participation events (the timestamps are
 /// the events' recorded times). "No-show" is derived (a past item where an expected attendee never confirmed).</summary>

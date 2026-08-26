@@ -1,4 +1,4 @@
-namespace LupiraCalApi.Core.Domain;
+namespace LupiraCalApi.Core.Domain.Shared;
 
 /// <summary>Idempotency ledger row: marks a command (the client's <c>Idempotency-Key</c>) as already processed so
 /// a redelivered mutation is a no-op returning the prior result instead of a duplicate write.</summary>

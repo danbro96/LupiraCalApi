@@ -1,5 +1,6 @@
 using LupiraCalApi.Core.Application;
-using LupiraCalApi.Core.Domain;
+using LupiraCalApi.Core.Domain.CalendarItems;
+using LupiraCalApi.Core.Domain.Shared;
 using Xunit;
 using static LupiraCalApi.UnitTests.TestEvents;
 

@@ -1,6 +1,6 @@
 using JasperFx.Events;
 
-namespace LupiraCalApi.Core.Domain;
+namespace LupiraCalApi.Core.Domain.CalendarItems;
 
 /// <summary>
 /// Per-section last-writer-wins rules for <see cref="CalendarItem"/>. A "section" is the slice of the item one

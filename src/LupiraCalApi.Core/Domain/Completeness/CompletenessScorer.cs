@@ -1,7 +1,10 @@
 using System.Text.Json;
 using System.Text.Json.Nodes;
+using LupiraCalApi.Core.Domain.CalendarItems;
+using LupiraCalApi.Core.Domain.Calendars;
+using LupiraCalApi.Core.Domain.Shared;
 
-namespace LupiraCalApi.Core.Domain;
+namespace LupiraCalApi.Core.Domain.Completeness;
 
 /// <summary>
 /// Pure, kind-aware completeness rubric for items. Scores <em>presence</em>, not quality — crude on purpose,

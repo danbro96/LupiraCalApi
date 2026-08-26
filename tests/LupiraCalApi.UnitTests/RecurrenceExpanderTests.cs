@@ -1,4 +1,4 @@
-using LupiraCalApi.Core.Domain;
+using LupiraCalApi.Core.Domain.CalendarItems;
 using LupiraCalApi.Core.Serialization;
 using Xunit;
 

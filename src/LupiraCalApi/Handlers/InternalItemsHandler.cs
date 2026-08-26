@@ -1,4 +1,4 @@
-using LupiraCalApi.Core.Domain;
+using LupiraCalApi.Core.Domain.CalendarItems;
 using LupiraCalApi.Core.Dtos.Internal;
 using Marten;
 using Microsoft.AspNetCore.Http.HttpResults;
