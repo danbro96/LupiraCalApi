@@ -1,7 +1,7 @@
 using System.Text.Json;
 using System.Text.Json.Serialization;
 
-namespace LupiraCalApi.Serialization;
+namespace LupiraCalApi.Core.Serialization;
 
 /// <summary>
 /// Canonicalizes every <see cref="DateTimeOffset"/> on the HTTP contract to UTC ("Z" form). Stored values

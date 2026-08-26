@@ -1,4 +1,4 @@
-namespace LupiraCalApi.Domain;
+namespace LupiraCalApi.Core.Domain;
 
 /// <summary>
 /// Composable, category-independent detail for a <see cref="CalendarItem"/>: any of a reservation (<see cref="Booking"/>),

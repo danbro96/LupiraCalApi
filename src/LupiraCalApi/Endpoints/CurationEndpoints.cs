@@ -1,4 +1,4 @@
-using LupiraCalApi.Dtos.CalendarItems;
+using LupiraCalApi.Core.Dtos.CalendarItems;
 using LupiraCalApi.Handlers;
 using Microsoft.AspNetCore.Mvc;
 

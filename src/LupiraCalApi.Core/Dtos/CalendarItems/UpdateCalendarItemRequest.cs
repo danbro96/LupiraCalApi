@@ -1,4 +1,4 @@
-namespace LupiraCalApi.Dtos.CalendarItems;
+namespace LupiraCalApi.Core.Dtos.CalendarItems;
 
 /// <summary>
 /// Core-field update. Two merge conventions coexist: a plain nullable field means "omitted ⇒ kept" (the original

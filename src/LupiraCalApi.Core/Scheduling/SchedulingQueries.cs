@@ -1,7 +1,7 @@
-using LupiraCalApi.Domain;
+using LupiraCalApi.Core.Domain;
 using Marten;
 
-namespace LupiraCalApi.Scheduling;
+namespace LupiraCalApi.Core.Scheduling;
 
 internal static class SchedulingQueries
 {

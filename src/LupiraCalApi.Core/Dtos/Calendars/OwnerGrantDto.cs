@@ -1,7 +1,7 @@
 using System.Text.Json.Serialization;
-using LupiraCalApi.Domain;
+using LupiraCalApi.Core.Domain;
 
-namespace LupiraCalApi.Dtos.Calendars;
+namespace LupiraCalApi.Core.Dtos.Calendars;
 
 /// <summary>The result of granting a member access to a container: who now has what access on which container.</summary>
 public sealed class OwnerGrantDto

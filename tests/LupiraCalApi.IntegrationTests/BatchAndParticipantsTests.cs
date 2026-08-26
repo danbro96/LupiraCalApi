@@ -1,5 +1,5 @@
-using LupiraCalApi.Domain;
-using LupiraCalApi.Dtos.CalendarItems;
+using LupiraCalApi.Core.Domain;
+using LupiraCalApi.Core.Dtos.CalendarItems;
 using System.Net.Http.Json;
 using System.Text.Json.Serialization;
 using System.Text.Json;

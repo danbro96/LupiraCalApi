@@ -1,9 +1,9 @@
-using LupiraCalApi.Domain;
-using LupiraCalApi.Domain.Identity;
+using LupiraCalApi.Core.Domain;
+using LupiraCalApi.Core.Domain.Identity;
 using Marten;
 using Npgsql;
 
-namespace LupiraCalApi.Application;
+namespace LupiraCalApi.Core.Application;
 
 /// <summary>
 /// Resolves an authenticated principal (OIDC <c>sub</c> + email, or a DAV email) to a local

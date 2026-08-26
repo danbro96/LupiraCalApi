@@ -1,6 +1,6 @@
 using Npgsql;
 
-namespace LupiraCalApi.Scheduling;
+namespace LupiraCalApi.Core.Scheduling;
 
 /// <summary>
 /// The plain relational <c>cal.scheduled_fire</c> queue — operational state, NOT event-sourced (the same split as the raw

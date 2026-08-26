@@ -1,6 +1,6 @@
 using System.Text.Json.Serialization;
 
-namespace LupiraCalApi.Domain;
+namespace LupiraCalApi.Core.Domain;
 
 /// <summary>iCalendar VEVENT <c>STATUS</c>.</summary>
 public enum ItemStatus { Tentative, Confirmed, Cancelled }

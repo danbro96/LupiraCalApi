@@ -1,4 +1,4 @@
-namespace LupiraCalApi.Domain;
+namespace LupiraCalApi.Core.Domain;
 
 // ---- lifecycle (structured fields are the ONLY canonical state; the ContentHash/ETag is NOT stored on events —
 //      it is a pure derivation of the canonical ICS, recomputed in the snapshot so a formatter fix heals on rebuild) ----

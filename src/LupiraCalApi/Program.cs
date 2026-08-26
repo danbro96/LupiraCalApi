@@ -1,15 +1,15 @@
 using System.Text.Json.Serialization;
-using LupiraCalApi.Application;
+using LupiraCalApi.Core.Application;
 using LupiraCalApi.Auth;
 using LupiraCalApi.Clients;
 using LupiraCalApi.Dav;
 using LupiraCalApi.Dependencies;
-using LupiraCalApi.Domain;
+using LupiraCalApi.Core.Domain;
 using LupiraCalApi.Endpoints;
 using LupiraCalApi.Handlers;
 using LupiraCalApi.Health;
 using LupiraCalApi.Mcp;
-using LupiraCalApi.Scheduling;
+using LupiraCalApi.Core.Scheduling;
 using Marten;
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
@@ -170,7 +170,7 @@ builder.Services.ConfigureHttpJsonOptions(o =>
 {
     o.SerializerOptions.NumberHandling = JsonNumberHandling.Strict;
     o.SerializerOptions.Converters.Add(new JsonStringEnumConverter());
-    o.SerializerOptions.Converters.Add(new LupiraCalApi.Serialization.UtcDateTimeOffsetConverter());
+    o.SerializerOptions.Converters.Add(new LupiraCalApi.Core.Serialization.UtcDateTimeOffsetConverter());
 });
 
 builder.Services.AddOpenApi("v1", options =>

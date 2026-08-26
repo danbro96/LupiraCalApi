@@ -1,4 +1,4 @@
-namespace LupiraCalApi.Dtos.Me;
+namespace LupiraCalApi.Core.Dtos.Me;
 
 /// <summary>The resolved local identity of the caller: the stable <see cref="PrincipalId"/> plus
 /// current email/display name. Same identity shape (<c>principalId</c>/<c>email</c>/<c>displayName</c>)

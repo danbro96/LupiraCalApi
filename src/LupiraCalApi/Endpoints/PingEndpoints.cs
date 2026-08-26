@@ -1,5 +1,5 @@
 using System.Security.Claims;
-using LupiraCalApi.Dtos.Ping;
+using LupiraCalApi.Core.Dtos.Ping;
 
 namespace LupiraCalApi.Endpoints;
 

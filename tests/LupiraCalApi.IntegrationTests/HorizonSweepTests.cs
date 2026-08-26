@@ -1,7 +1,7 @@
-using LupiraCalApi.Domain;
-using LupiraCalApi.Dtos.CalendarItems;
-using LupiraCalApi.Scheduling;
-using LupiraCalApi.Serialization;
+using LupiraCalApi.Core.Domain;
+using LupiraCalApi.Core.Dtos.CalendarItems;
+using LupiraCalApi.Core.Scheduling;
+using LupiraCalApi.Core.Serialization;
 using Marten;
 using Microsoft.Extensions.Logging.Abstractions;
 using Npgsql;

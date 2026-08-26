@@ -1,10 +1,10 @@
 using System.ComponentModel;
 using System.Text.Json.Nodes;
-using LupiraCalApi.Application;
+using LupiraCalApi.Core.Application;
 using LupiraCalApi.Auth;
-using LupiraCalApi.Dtos.CalendarItems;
-using LupiraCalApi.Dtos.Calendars;
-using LupiraCalApi.Dtos.Relations;
+using LupiraCalApi.Core.Dtos.CalendarItems;
+using LupiraCalApi.Core.Dtos.Calendars;
+using LupiraCalApi.Core.Dtos.Relations;
 using ModelContextProtocol;
 using ModelContextProtocol.Server;
 

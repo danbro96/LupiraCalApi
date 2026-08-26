@@ -1,10 +1,10 @@
-using LupiraCalApi.Auth;
-using LupiraCalApi.Domain;
-using LupiraCalApi.Dtos.Sync;
-using LupiraCalApi.Mappers;
+using LupiraCalApi.Core.Auth;
+using LupiraCalApi.Core.Domain;
+using LupiraCalApi.Core.Dtos.Sync;
+using LupiraCalApi.Core.Mappers;
 using Marten;
 
-namespace LupiraCalApi.Application;
+namespace LupiraCalApi.Core.Application;
 
 /// <summary>
 /// The offline-client changes feed: account-wide (everything the caller can read), paged strictly by each item's

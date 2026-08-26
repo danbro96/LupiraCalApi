@@ -1,9 +1,9 @@
 using JasperFx.Events;
-using LupiraCalApi.Domain;
+using LupiraCalApi.Core.Domain;
 using Marten;
 using Marten.Events.Projections;
 
-namespace LupiraCalApi.Scheduling;
+namespace LupiraCalApi.Core.Scheduling;
 
 /// <summary>
 /// The materializer: an async-daemon projection that keeps <c>cal.scheduled_fire</c> in sync with each item's fired payload.

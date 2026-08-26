@@ -1,4 +1,4 @@
-namespace LupiraCalApi.Domain;
+namespace LupiraCalApi.Core.Domain;
 
 /// <summary>
 /// The single cross-API edge (plain document): a by-reference link from a calendar item or contact to something in

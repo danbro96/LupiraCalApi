@@ -1,8 +1,8 @@
-using LupiraCalApi.Application;
-using LupiraCalApi.Domain;
-using LupiraCalApi.Dtos.CalendarItems;
+using LupiraCalApi.Core.Application;
+using LupiraCalApi.Core.Domain;
+using LupiraCalApi.Core.Dtos.CalendarItems;
 
-namespace LupiraCalApi.Mappers;
+namespace LupiraCalApi.Core.Mappers;
 
 /// <summary>Builds the composable <see cref="ItemDetails"/> carrier from the request — resolving <c>TravelLegRequest</c>
 /// free-text places to a LupiraGeoApi place id + denormalized label (via <see cref="IGeoResolver"/>) — and merges a

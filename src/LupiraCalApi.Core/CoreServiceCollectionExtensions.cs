@@ -1,11 +1,11 @@
 using JasperFx;
 using JasperFx.Events.Daemon;
 using JasperFx.Events.Projections;
-using LupiraCalApi.Application;
-using LupiraCalApi.Auth;
-using LupiraCalApi.Data;
-using LupiraCalApi.Domain;
-using LupiraCalApi.Scheduling;
+using LupiraCalApi.Core.Application;
+using LupiraCalApi.Core.Auth;
+using LupiraCalApi.Core.Data;
+using LupiraCalApi.Core.Domain;
+using LupiraCalApi.Core.Scheduling;
 using Marten;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection.Extensions;
@@ -54,7 +54,7 @@ public static class CoreServiceCollectionExtensions
         services.TryAddSingleton<IGeoResolver, NullGeoResolver>();
         // Same pattern for contacts: LupiraContactApi owns them; unconfigured -> fail-open null resolver.
         services.TryAddSingleton<IContactResolver, NullContactResolver>();
-        services.AddScoped<LupiraCalApi.Data.Idempotency>();
+        services.AddScoped<LupiraCalApi.Core.Data.Idempotency>();
         services.AddScoped<CalendarService>();
         services.AddScoped<CalendarItemService>();
         services.AddScoped<CurationService>();

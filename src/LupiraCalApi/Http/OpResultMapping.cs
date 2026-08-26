@@ -1,4 +1,4 @@
-using LupiraCalApi.Application;
+using LupiraCalApi.Core.Application;
 using Microsoft.AspNetCore.Http.HttpResults;
 
 namespace LupiraCalApi.Http;

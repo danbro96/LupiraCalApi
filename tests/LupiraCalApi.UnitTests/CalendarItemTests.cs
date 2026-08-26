@@ -1,4 +1,4 @@
-using LupiraCalApi.Domain;
+using LupiraCalApi.Core.Domain;
 using Xunit;
 using static LupiraCalApi.UnitTests.TestEvents;
 

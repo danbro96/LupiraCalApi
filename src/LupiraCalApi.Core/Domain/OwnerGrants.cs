@@ -1,4 +1,4 @@
-namespace LupiraCalApi.Domain;
+namespace LupiraCalApi.Core.Domain;
 
 /// <summary>Parses the wire <c>access</c> value of a sharing grant into <see cref="Access"/>. Empty defaults to
 /// <see cref="Access.Owner"/> (the family-calendar case); hyphenated and bare forms both accepted, case-insensitive.</summary>

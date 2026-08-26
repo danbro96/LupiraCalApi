@@ -1,6 +1,6 @@
-using LupiraCalApi.Domain;
-using LupiraCalApi.Dtos.CalendarItems;
-using LupiraCalApi.Mappers;
+using LupiraCalApi.Core.Domain;
+using LupiraCalApi.Core.Dtos.CalendarItems;
+using LupiraCalApi.Core.Mappers;
 using Xunit;
 
 namespace LupiraCalApi.UnitTests;

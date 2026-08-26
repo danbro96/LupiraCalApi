@@ -1,8 +1,8 @@
 using System.Text.Json.Nodes;
 using System.Text.Json.Serialization;
-using LupiraCalApi.Domain;
+using LupiraCalApi.Core.Domain;
 
-namespace LupiraCalApi.Dtos.CalendarItems;
+namespace LupiraCalApi.Core.Dtos.CalendarItems;
 
 public sealed class CalendarMembershipDto
 {

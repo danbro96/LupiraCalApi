@@ -1,4 +1,4 @@
-﻿using LupiraCalApi.Scheduling;
+﻿using LupiraCalApi.Core.Scheduling;
 using Marten;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc.Testing;

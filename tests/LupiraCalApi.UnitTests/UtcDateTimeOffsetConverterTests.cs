@@ -1,5 +1,5 @@
 using System.Text.Json;
-using LupiraCalApi.Serialization;
+using LupiraCalApi.Core.Serialization;
 using Xunit;
 
 namespace LupiraCalApi.UnitTests;

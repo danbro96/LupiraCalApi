@@ -1,6 +1,6 @@
 using System.Text.Json.Nodes;
 
-namespace LupiraCalApi.Dtos.Relations;
+namespace LupiraCalApi.Core.Dtos.Relations;
 
 public sealed class CreateRelationRequest
 {

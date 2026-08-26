@@ -1,7 +1,7 @@
 using Marten;
 using LupiraCalApi.Dav;
-using LupiraCalApi.Dtos.Calendars;
-using LupiraCalApi.Dtos.Me;
+using LupiraCalApi.Core.Dtos.Calendars;
+using LupiraCalApi.Core.Dtos.Me;
 using System.Net.Http.Json;
 using System.Text;
 using Xunit;

@@ -1,16 +1,16 @@
 using System.Text.Json.Nodes;
 
-namespace LupiraCalApi.Dtos.CalendarItems;
+namespace LupiraCalApi.Core.Dtos.CalendarItems;
 
 /// <summary>Create an item via REST/MCP. <c>CalendarId</c> optional — when set, the item is accepted into that calendar;
 /// when null, the item is created unfiled (e.g. an automated source) for later curation. <c>Location</c> is free text
-/// resolved to a <see cref="LupiraCalApi.Domain.Place"/>. <c>Category</c>/<c>Status</c> are the enum names.</summary>
+/// resolved to a <see cref="LupiraCalApi.Core.Domain.Place"/>. <c>Category</c>/<c>Status</c> are the enum names.</summary>
 public sealed class CreateCalendarItemRequest
 {
     public Guid? CalendarId { get; set; }
 
     /// <summary>Client-supplied provenance/idempotency key (e.g. an import <c>sourceKey</c>). When set, the item's stream id
-    /// is derived from it (<see cref="LupiraCalApi.Domain.DeterministicGuid"/>), so re-creating with the same key is a no-op
+    /// is derived from it (<see cref="LupiraCalApi.Core.Domain.DeterministicGuid"/>), so re-creating with the same key is a no-op
     /// that returns the existing item — safe batch/import replay. Also becomes the item's external UID. Omit for a random uid.</summary>
     public string? SourceKey { get; set; }
 

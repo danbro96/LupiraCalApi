@@ -1,6 +1,6 @@
-using LupiraCalApi.Domain;
-using LupiraCalApi.Dtos.CalendarItems;
-using LupiraCalApi.Handlers;
+using LupiraCalApi.Core.Domain;
+using LupiraCalApi.Core.Dtos.CalendarItems;
+using LupiraCalApi.Core.Dtos.Internal;
 using System.Net.Http.Json;
 using System.Net;
 using Xunit;

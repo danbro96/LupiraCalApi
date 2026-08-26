@@ -1,5 +1,5 @@
-using LupiraCalApi.Domain;
-using LupiraCalApi.Dtos.Internal;
+using LupiraCalApi.Core.Domain;
+using LupiraCalApi.Core.Dtos.Internal;
 using Marten;
 using Microsoft.AspNetCore.Http.HttpResults;
 

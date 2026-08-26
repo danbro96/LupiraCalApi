@@ -1,4 +1,4 @@
-﻿using LupiraCalApi.Dtos.CalendarItems;
+﻿using LupiraCalApi.Core.Dtos.CalendarItems;
 using System.Net.Http.Json;
 using System.Net;
 using Xunit;

@@ -1,7 +1,7 @@
 using System.Security.Claims;
-using LupiraCalApi.Application;
-using LupiraCalApi.Domain;
-using LupiraCalApi.Domain.Identity;
+using LupiraCalApi.Core.Application;
+using LupiraCalApi.Core.Domain;
+using LupiraCalApi.Core.Domain.Identity;
 using Marten;
 
 namespace LupiraCalApi.Auth;

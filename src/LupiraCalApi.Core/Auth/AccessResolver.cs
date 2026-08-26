@@ -1,7 +1,7 @@
-using LupiraCalApi.Domain;
+using LupiraCalApi.Core.Domain;
 using Marten;
 
-namespace LupiraCalApi.Auth;
+namespace LupiraCalApi.Core.Auth;
 
 /// <summary>Container-scoped authorization over the multi-owner membership docs: a principal may read a calendar it
 /// has any grant on, and write one it owns or has a read-write grant on.</summary>

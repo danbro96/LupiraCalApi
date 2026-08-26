@@ -1,6 +1,6 @@
-using LupiraCalApi.Domain;
+using LupiraCalApi.Core.Domain;
 
-namespace LupiraCalApi.Scheduling;
+namespace LupiraCalApi.Core.Scheduling;
 
 public interface IFireMaterializer
 {

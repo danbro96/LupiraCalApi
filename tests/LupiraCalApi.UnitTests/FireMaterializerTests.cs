@@ -1,5 +1,5 @@
-using LupiraCalApi.Domain;
-using LupiraCalApi.Scheduling;
+using LupiraCalApi.Core.Domain;
+using LupiraCalApi.Core.Scheduling;
 using Xunit;
 
 namespace LupiraCalApi.UnitTests;

@@ -1,4 +1,4 @@
-using LupiraCalApi.Dtos.CalendarItems;
+using LupiraCalApi.Core.Dtos.CalendarItems;
 using System.Net.Http.Json;
 using Xunit;
 
@@ -73,8 +73,8 @@ public sealed class CompletenessTests(CalApiTestFactory factory) : IntegrationTe
     public async Task Thin_worklist_excludes_exempt_items()
     {
         var api = Factory.ApiClient(Email);
-        var seeded = await (await api.PostAsync("/me/bootstrap", null)).Content.ReadFromJsonAsync<List<LupiraCalApi.Dtos.Calendars.ContainerDto>>();
-        var inbox = seeded!.Single(c => c.Kind == LupiraCalApi.Domain.CalendarKind.Inbox);
+        var seeded = await (await api.PostAsync("/me/bootstrap", null)).Content.ReadFromJsonAsync<List<LupiraCalApi.Core.Dtos.Calendars.ContainerDto>>();
+        var inbox = seeded!.Single(c => c.Kind == LupiraCalApi.Core.Domain.CalendarKind.Inbox);
         await CreateItemAsync(api, inbox.Id, "Captured thin");
 
         var list = await api.GetFromJsonAsync<List<CalendarItemDto>>($"/items/thin?calendarId={inbox.Id}");
@@ -117,8 +117,8 @@ public sealed class CompletenessTests(CalApiTestFactory factory) : IntegrationTe
     public async Task Items_in_system_calendars_are_exempt()
     {
         var api = Factory.ApiClient(Email);
-        var seeded = await (await api.PostAsync("/me/bootstrap", null)).Content.ReadFromJsonAsync<List<LupiraCalApi.Dtos.Calendars.ContainerDto>>();
-        var inbox = seeded!.Single(c => c.Kind == LupiraCalApi.Domain.CalendarKind.Inbox);
+        var seeded = await (await api.PostAsync("/me/bootstrap", null)).Content.ReadFromJsonAsync<List<LupiraCalApi.Core.Dtos.Calendars.ContainerDto>>();
+        var inbox = seeded!.Single(c => c.Kind == LupiraCalApi.Core.Domain.CalendarKind.Inbox);
 
         var item = await CreateItemAsync(api, inbox.Id, "Captured");
         var got = await api.GetFromJsonAsync<CalendarItemDto>($"/items/{item.Id}");

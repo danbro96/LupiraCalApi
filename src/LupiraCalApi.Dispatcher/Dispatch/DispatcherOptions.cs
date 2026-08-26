@@ -1,4 +1,4 @@
-using LupiraCalApi.Scheduling;
+using LupiraCalApi.Core.Scheduling;
 
 namespace LupiraCalApi.Dispatcher.Dispatch;
 

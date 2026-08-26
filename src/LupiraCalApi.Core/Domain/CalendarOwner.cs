@@ -1,4 +1,4 @@
-namespace LupiraCalApi.Domain;
+namespace LupiraCalApi.Core.Domain;
 
 /// <summary>A principal's access grant on a calendar (plain membership document; multi-owner). Composite identity (calendar:principal).</summary>
 public sealed class CalendarOwner

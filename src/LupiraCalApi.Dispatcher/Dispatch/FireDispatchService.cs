@@ -1,8 +1,8 @@
 using LupiraCalApi.Dispatcher.Clients;
 using LupiraCalApi.Dispatcher.Dtos;
-using LupiraCalApi.Domain;
-using LupiraCalApi.Domain.Identity;
-using LupiraCalApi.Scheduling;
+using LupiraCalApi.Core.Domain;
+using LupiraCalApi.Core.Domain.Identity;
+using LupiraCalApi.Core.Scheduling;
 using Marten;
 using Microsoft.Extensions.Options;
 using Npgsql;

@@ -1,6 +1,6 @@
-using LupiraCalApi.Domain;
-using LupiraCalApi.Dtos.CalendarItems;
-using LupiraCalApi.Dtos.Calendars;
+using LupiraCalApi.Core.Domain;
+using LupiraCalApi.Core.Dtos.CalendarItems;
+using LupiraCalApi.Core.Dtos.Calendars;
 using Marten;
 using Npgsql;
 using System.Net.Http.Json;

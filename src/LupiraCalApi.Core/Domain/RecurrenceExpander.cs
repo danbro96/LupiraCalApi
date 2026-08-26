@@ -1,8 +1,8 @@
 using Ical.Net.DataTypes;
-using LupiraCalApi.Serialization;
+using LupiraCalApi.Core.Serialization;
 using IcalCalendar = Ical.Net.Calendar;
 
-namespace LupiraCalApi.Domain;
+namespace LupiraCalApi.Core.Domain;
 
 /// <summary>
 /// Expands an event's recurrence into concrete UTC occurrence starts within a window, using Ical.Net. Generation is from

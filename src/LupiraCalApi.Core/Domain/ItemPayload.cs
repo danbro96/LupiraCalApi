@@ -1,6 +1,6 @@
 using System.Text.Json.Serialization;
 
-namespace LupiraCalApi.Domain;
+namespace LupiraCalApi.Core.Domain;
 
 /// <summary>What an LLM-interpreted run should accomplish.</summary>
 [JsonConverter(typeof(JsonStringEnumConverter<PromptIntent>))]

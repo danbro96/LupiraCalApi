@@ -1,4 +1,4 @@
-namespace LupiraCalApi.Scheduling;
+namespace LupiraCalApi.Core.Scheduling;
 
 public static class DispatchBackoff
 {

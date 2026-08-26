@@ -1,8 +1,8 @@
 using System.Text.Json.Nodes;
-using LupiraCalApi.Domain;
-using LupiraCalApi.Dtos.CalendarItems;
+using LupiraCalApi.Core.Domain;
+using LupiraCalApi.Core.Dtos.CalendarItems;
 
-namespace LupiraCalApi.Mappers;
+namespace LupiraCalApi.Core.Mappers;
 
 /// <summary>Maps the <see cref="CalendarItem"/> snapshot to its response DTO. <paramref name="completeness"/> is computed
 /// by the service (it needs the item's calendar kinds to decide exemption).</summary>

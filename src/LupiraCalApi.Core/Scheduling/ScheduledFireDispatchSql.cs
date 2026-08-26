@@ -1,4 +1,4 @@
-namespace LupiraCalApi.Scheduling;
+namespace LupiraCalApi.Core.Scheduling;
 
 /// <summary>
 /// The dispatcher's state transitions over <c>cal.scheduled_fire</c> — named-parameter SQL the worker executes via

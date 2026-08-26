@@ -1,10 +1,10 @@
-using LupiraCalApi.Application;
-using LupiraCalApi.Auth;
-using LupiraCalApi.Domain;
-using LupiraCalApi.Domain.Identity;
-using LupiraCalApi.Serialization;
+using LupiraCalApi.Core.Application;
+using LupiraCalApi.Core.Auth;
+using LupiraCalApi.Core.Domain;
+using LupiraCalApi.Core.Domain.Identity;
+using LupiraCalApi.Core.Serialization;
 using Marten;
-using DavCalendar = LupiraCalApi.Domain.Calendar;   // disambiguate from System.Globalization.Calendar
+using DavCalendar = LupiraCalApi.Core.Domain.Calendar;   // disambiguate from System.Globalization.Calendar
 
 namespace LupiraCalApi.Dav;
 

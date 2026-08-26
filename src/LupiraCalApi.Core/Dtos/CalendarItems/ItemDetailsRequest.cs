@@ -1,6 +1,6 @@
-using LupiraCalApi.Domain;
+using LupiraCalApi.Core.Domain;
 
-namespace LupiraCalApi.Dtos.CalendarItems;
+namespace LupiraCalApi.Core.Dtos.CalendarItems;
 
 /// <summary>
 /// Composable detail input for create/update. <see cref="Booking"/> (reservation/confirmation) attaches to any category;

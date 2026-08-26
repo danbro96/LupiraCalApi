@@ -1,7 +1,7 @@
 using System.Text.Json;
 using System.Text.Json.Nodes;
 
-namespace LupiraCalApi.Domain;
+namespace LupiraCalApi.Core.Domain;
 
 /// <summary>
 /// Pure, kind-aware completeness rubric for items. Scores <em>presence</em>, not quality — crude on purpose,

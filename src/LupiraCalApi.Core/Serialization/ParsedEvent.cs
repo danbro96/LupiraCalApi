@@ -1,4 +1,4 @@
-namespace LupiraCalApi.Serialization;
+namespace LupiraCalApi.Core.Serialization;
 
 /// <summary>Primitives parsed out of a client-PUT iCalendar event, mapped into the item's structured fields (no blob is
 /// retained). <c>RecurrenceExceptions</c>/<c>RecurrenceOverrides</c> are the verbatim EXDATE/RDATE lines and RECURRENCE-ID

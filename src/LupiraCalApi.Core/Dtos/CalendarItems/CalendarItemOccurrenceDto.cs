@@ -1,7 +1,7 @@
 using System.Text.Json.Serialization;
-using LupiraCalApi.Domain;
+using LupiraCalApi.Core.Domain;
 
-namespace LupiraCalApi.Dtos.CalendarItems;
+namespace LupiraCalApi.Core.Dtos.CalendarItems;
 
 /// <summary>A single concrete occurrence of an item within a search window (recurrences expanded).</summary>
 public sealed class CalendarItemOccurrenceDto

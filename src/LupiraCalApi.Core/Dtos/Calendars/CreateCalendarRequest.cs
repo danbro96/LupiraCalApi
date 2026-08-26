@@ -1,7 +1,7 @@
 using System.Text.Json.Serialization;
-using LupiraCalApi.Domain;
+using LupiraCalApi.Core.Domain;
 
-namespace LupiraCalApi.Dtos.Calendars;
+namespace LupiraCalApi.Core.Dtos.Calendars;
 
 public sealed class CreateCalendarRequest
 {

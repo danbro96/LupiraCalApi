@@ -1,11 +1,11 @@
-using LupiraCalApi.Auth;
-using LupiraCalApi.Domain;
-using LupiraCalApi.Dtos.CalendarItems;
-using LupiraCalApi.Dtos.Relations;
-using LupiraCalApi.Mappers;
+using LupiraCalApi.Core.Auth;
+using LupiraCalApi.Core.Domain;
+using LupiraCalApi.Core.Dtos.CalendarItems;
+using LupiraCalApi.Core.Dtos.Relations;
+using LupiraCalApi.Core.Mappers;
 using Marten;
 
-namespace LupiraCalApi.Application;
+namespace LupiraCalApi.Core.Application;
 
 /// <summary>
 /// Cross-API relations: a by-reference link from a calendar item to an external reference (e.g. a LupiraTasks item,

@@ -1,4 +1,4 @@
-using LupiraCalApi.Dtos.Sync;
+using LupiraCalApi.Core.Dtos.Sync;
 using LupiraCalApi.Handlers;
 
 namespace LupiraCalApi.Endpoints;

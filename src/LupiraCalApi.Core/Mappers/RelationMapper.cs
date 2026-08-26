@@ -1,8 +1,8 @@
 using System.Text.Json.Nodes;
-using LupiraCalApi.Domain;
-using LupiraCalApi.Dtos.Relations;
+using LupiraCalApi.Core.Domain;
+using LupiraCalApi.Core.Dtos.Relations;
 
-namespace LupiraCalApi.Mappers;
+namespace LupiraCalApi.Core.Mappers;
 
 /// <summary>Maps the <see cref="Relation"/> document to its response DTO.</summary>
 internal static class RelationMapper

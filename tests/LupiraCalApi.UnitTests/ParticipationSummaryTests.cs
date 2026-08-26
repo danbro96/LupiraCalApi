@@ -1,5 +1,5 @@
-using LupiraCalApi.Application;
-using LupiraCalApi.Domain;
+using LupiraCalApi.Core.Application;
+using LupiraCalApi.Core.Domain;
 using Xunit;
 using static LupiraCalApi.UnitTests.TestEvents;
 

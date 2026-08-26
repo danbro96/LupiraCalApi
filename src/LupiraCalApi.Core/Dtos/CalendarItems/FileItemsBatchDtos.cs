@@ -1,4 +1,4 @@
-namespace LupiraCalApi.Dtos.CalendarItems;
+namespace LupiraCalApi.Core.Dtos.CalendarItems;
 
 /// <summary>One entry in a batch file operation: file existing item <c>ItemId</c> into calendar <c>CalendarId</c>.
 /// <c>Status</c> = proposed | accepted (default proposed).</summary>

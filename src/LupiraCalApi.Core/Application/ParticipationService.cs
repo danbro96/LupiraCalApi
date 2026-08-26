@@ -1,10 +1,10 @@
-using LupiraCalApi.Auth;
-using LupiraCalApi.Domain;
-using LupiraCalApi.Dtos.CalendarItems;
-using LupiraCalApi.Mappers;
+using LupiraCalApi.Core.Auth;
+using LupiraCalApi.Core.Domain;
+using LupiraCalApi.Core.Dtos.CalendarItems;
+using LupiraCalApi.Core.Mappers;
 using Marten;
 
-namespace LupiraCalApi.Application;
+namespace LupiraCalApi.Core.Application;
 
 /// <summary>First-class participation: invited / responded / attended / left, appended to the item's stream. The
 /// embedded <see cref="ItemAttendee"/> read model composes the timestamps. Every attendee is a LupiraContactApi

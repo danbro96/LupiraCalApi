@@ -1,6 +1,6 @@
-using LupiraCalApi.Domain;
+using LupiraCalApi.Core.Domain;
 
-namespace LupiraCalApi.Dtos.CalendarItems;
+namespace LupiraCalApi.Core.Dtos.CalendarItems;
 
 /// <summary>Set the LLM-interpreted payload on an item. Replaces any existing prompt; rejected (409) if the item carries an action.</summary>
 public sealed class SetItemPromptRequest

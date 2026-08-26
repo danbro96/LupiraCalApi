@@ -1,4 +1,4 @@
-using LupiraCalApi.Dtos.Calendars;
+using LupiraCalApi.Core.Dtos.Calendars;
 using LupiraCalApi.Handlers;
 
 namespace LupiraCalApi.Endpoints;

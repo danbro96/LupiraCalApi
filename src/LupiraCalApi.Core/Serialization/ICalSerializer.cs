@@ -2,10 +2,10 @@ using System.Text.RegularExpressions;
 using Ical.Net.CalendarComponents;
 using Ical.Net.DataTypes;
 using Ical.Net.Serialization;
-using LupiraCalApi.Domain;
+using LupiraCalApi.Core.Domain;
 using IcalCalendar = Ical.Net.Calendar;
 
-namespace LupiraCalApi.Serialization;
+namespace LupiraCalApi.Core.Serialization;
 
 /// <summary>iCalendar (VEVENT) author + parse via Ical.Net. The structured fields are canonical: GET regenerates the ICS on
 /// demand from them, and the ETag is derived from that generated form — so generation must be deterministic (fixed DTSTAMP,

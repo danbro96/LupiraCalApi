@@ -1,13 +1,13 @@
 using System.Text.Json.Nodes;
-using LupiraCalApi.Auth;
-using LupiraCalApi.Data;
-using LupiraCalApi.Domain;
-using LupiraCalApi.Dtos.CalendarItems;
-using LupiraCalApi.Mappers;
-using LupiraCalApi.Serialization;
+using LupiraCalApi.Core.Auth;
+using LupiraCalApi.Core.Data;
+using LupiraCalApi.Core.Domain;
+using LupiraCalApi.Core.Dtos.CalendarItems;
+using LupiraCalApi.Core.Mappers;
+using LupiraCalApi.Core.Serialization;
 using Marten;
 
-namespace LupiraCalApi.Application;
+namespace LupiraCalApi.Core.Application;
 
 /// <summary>
 /// The calendar-item core shared by REST, DAV, and MCP. Every mutation appends events to the item's Marten stream;

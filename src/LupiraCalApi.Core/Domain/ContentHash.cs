@@ -1,7 +1,7 @@
 using System.Security.Cryptography;
 using System.Text;
 
-namespace LupiraCalApi.Domain;
+namespace LupiraCalApi.Core.Domain;
 
 /// <summary>Strong content validator: hash of the canonical bytes we hand back. Emitted to DAV clients as the ETag.</summary>
 public static class ContentHash

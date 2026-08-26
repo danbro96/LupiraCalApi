@@ -1,9 +1,9 @@
-using LupiraCalApi.Domain;
+using LupiraCalApi.Core.Domain;
 using Marten;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 
-namespace LupiraCalApi.Scheduling;
+namespace LupiraCalApi.Core.Scheduling;
 
 /// <summary>Nightly horizon-extend: re-materializes payload-bearing items (recurring AND one-shots beyond the window at
 /// set-time) so the rolling 35-day window keeps its far edge as days pass. Insert-only (idempotent on dedupe_key);

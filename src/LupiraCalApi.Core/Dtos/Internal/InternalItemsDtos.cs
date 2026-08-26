@@ -1,4 +1,4 @@
-namespace LupiraCalApi.Dtos.Internal;
+namespace LupiraCalApi.Core.Dtos.Internal;
 
 public sealed class CheckPlaceReferencesRequest
 {

@@ -1,7 +1,7 @@
 using System.Text.Json.Serialization;
-using LupiraCalApi.Domain;
+using LupiraCalApi.Core.Domain;
 
-namespace LupiraCalApi.Dtos.Calendars;
+namespace LupiraCalApi.Core.Dtos.Calendars;
 
 /// <summary>A calendar the caller can access; <c>access</c> is the caller's own grant level.
 /// <c>Class</c>/<c>Kind</c> classify the calendar. (Address books live in LupiraContactApi.)</summary>

@@ -1,5 +1,5 @@
-using LupiraCalApi.Domain;
-using LupiraCalApi.Serialization;
+using LupiraCalApi.Core.Domain;
+using LupiraCalApi.Core.Serialization;
 using Xunit;
 
 namespace LupiraCalApi.UnitTests;

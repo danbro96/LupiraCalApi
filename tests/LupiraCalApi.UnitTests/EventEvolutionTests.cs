@@ -1,4 +1,4 @@
-using LupiraCalApi.Domain;
+using LupiraCalApi.Core.Domain;
 using Marten.Services.Json.Transformations;
 using Xunit;
 
