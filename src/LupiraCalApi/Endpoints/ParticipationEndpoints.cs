@@ -45,8 +45,7 @@ public static class ParticipationEndpoints
             .RequireAuthorization("ApiPolicy").WithTags("Participation")
             .WithName("GetParticipationSummary")
             .WithSummary("Per-contact participation across your readable calendars (contactId, item count, most recent occurrence start), ordered most-interacted first. Optional from/to restricts the window. A ranking signal for contact pickers/resolvers.")
-            .Produces<List<ParticipationSummaryEntry>>(StatusCodes.Status200OK)
-            .Produces(StatusCodes.Status401Unauthorized);
+            .Produces<List<ParticipationSummaryEntry>>(StatusCodes.Status200OK);
 
         return app;
     }

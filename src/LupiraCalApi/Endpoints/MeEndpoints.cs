@@ -13,16 +13,14 @@ public static class MeEndpoints
             .WithTags("Me")
             .WithName("GetMe")
             .WithSummary("The caller's resolved local identity (JIT-provisioned on first login).")
-            .Produces<MeDto>(StatusCodes.Status200OK)
-            .Produces(StatusCodes.Status401Unauthorized);
+            .Produces<MeDto>(StatusCodes.Status200OK);
 
         app.MapPost("/me/bootstrap", (MeHandler h, CancellationToken ct) => h.BootstrapAsync(ct))
             .RequireAuthorization("ApiPolicy")
             .WithTags("Me")
             .WithName("BootstrapMe")
             .WithSummary("Idempotently ensure the caller has the standard calendar set; returns it.")
-            .Produces<List<ContainerDto>>(StatusCodes.Status200OK)
-            .Produces(StatusCodes.Status401Unauthorized);
+            .Produces<List<ContainerDto>>(StatusCodes.Status200OK);
         return app;
     }
 }
