@@ -1,4 +1,4 @@
-namespace LupiraCalApi.Core.Application;
+namespace LupiraCalApi.Core.Application.Results;
 
 /// <summary>A value-returning operation outcome.</summary>
 public readonly record struct OpResult<T>(OpStatus Status, T? Value, string? Error)

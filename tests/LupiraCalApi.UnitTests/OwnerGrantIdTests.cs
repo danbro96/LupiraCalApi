@@ -1,5 +1,4 @@
 using LupiraCalApi.Core.Domain.Calendars;
-using LupiraCalApi.Core.Domain.Shared;
 using Xunit;
 
 namespace LupiraCalApi.UnitTests;

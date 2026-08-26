@@ -1,10 +1,11 @@
+using LupiraCalApi.Core.Application.Results;
 using LupiraCalApi.Core.Auth;
 using LupiraCalApi.Core.Domain.Calendars;
 using LupiraCalApi.Core.Domain.Shared;
 using LupiraCalApi.Core.Dtos.Calendars;
 using Marten;
 
-namespace LupiraCalApi.Core.Application;
+namespace LupiraCalApi.Core.Application.Calendars;
 
 /// <summary>Lists and creates the calendars a principal can access, and shares them by granting/revoking co-owners.
 /// Creation grants the caller <c>owner</c>; sharing is owner-only and targets a member by email. Address books are

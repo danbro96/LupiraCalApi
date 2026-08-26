@@ -1,4 +1,4 @@
-using LupiraCalApi.Core.Application;
+using LupiraCalApi.Core.Application.Items;
 using LupiraCalApi.Core.Domain.CalendarItems;
 using LupiraCalApi.Core.Domain.CalendarItems.Events;
 using LupiraCalApi.Core.Domain.Shared;

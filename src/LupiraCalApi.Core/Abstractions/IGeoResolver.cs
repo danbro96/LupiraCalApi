@@ -1,4 +1,4 @@
-namespace LupiraCalApi.Core.Application;
+namespace LupiraCalApi.Core.Abstractions;
 
 /// <summary>
 /// Resolves free-text locations to a shared <c>LupiraGeoApi</c> place. The gazetteer is authoritative there; this cal

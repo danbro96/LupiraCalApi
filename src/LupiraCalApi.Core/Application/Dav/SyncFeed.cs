@@ -1,3 +1,5 @@
+using LupiraCalApi.Core.Application.Items;
+using LupiraCalApi.Core.Application.Results;
 using LupiraCalApi.Core.Auth;
 using LupiraCalApi.Core.Domain.CalendarItems;
 using LupiraCalApi.Core.Domain.Shared;
@@ -5,7 +7,7 @@ using LupiraCalApi.Core.Dtos.Sync;
 using LupiraCalApi.Core.Mappers;
 using Marten;
 
-namespace LupiraCalApi.Core.Application;
+namespace LupiraCalApi.Core.Application.Dav;
 
 /// <summary>
 /// The offline-client changes feed: account-wide (everything the caller can read), paged strictly by each item's

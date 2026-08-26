@@ -1,4 +1,4 @@
-namespace LupiraCalApi.Core.Application;
+namespace LupiraCalApi.Core.Abstractions;
 
 /// <summary>Default when LupiraGeoApi isn't configured: resolution falls back to the legacy local catalog.</summary>
 public sealed class NullGeoResolver : IGeoResolver

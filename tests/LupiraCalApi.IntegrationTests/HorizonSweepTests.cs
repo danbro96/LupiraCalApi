@@ -2,8 +2,6 @@ using System.Net.Http.Json;
 using LupiraCalApi.Core.Domain.CalendarItems;
 using LupiraCalApi.Core.Dtos.CalendarItems;
 using LupiraCalApi.Core.Scheduling;
-using LupiraCalApi.Core.Serialization;
-using Marten;
 using Microsoft.Extensions.Logging.Abstractions;
 using Npgsql;
 using Xunit;

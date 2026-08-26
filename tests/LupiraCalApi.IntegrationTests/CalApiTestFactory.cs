@@ -1,5 +1,3 @@
-﻿using System.Net.Http.Headers;
-using System.Text;
 using LupiraCalApi.Core.Scheduling;
 using Marten;
 using Microsoft.AspNetCore.Hosting;

@@ -1,4 +1,4 @@
-namespace LupiraCalApi.Core.Application;
+namespace LupiraCalApi.Core.Abstractions;
 
 /// <summary>A contact's birthday, feeding the read-time Birthdays projection. <c>Year</c> is null when only the
 /// month-day is known — the birthday still recurs yearly, just without an age.</summary>

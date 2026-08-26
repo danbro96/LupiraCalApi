@@ -1,6 +1,6 @@
 using LupiraCalApi.Core.Domain.CalendarItems;
 
-namespace LupiraCalApi.Core.Application;
+namespace LupiraCalApi.Core.Application.Items;
 
 /// <summary>Calendar-query time-range math (half-open: [start, end)), relocated from the retired in-process
 /// DAV router — the /dav-backend query endpoint filters server-side so recurrence expansion stays in this domain.</summary>

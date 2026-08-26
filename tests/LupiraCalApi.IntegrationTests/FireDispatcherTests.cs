@@ -7,7 +7,6 @@ using LupiraCalApi.Core.Dtos.CalendarItems;
 using LupiraCalApi.Core.Scheduling;
 using LupiraCalApi.Dispatcher.Clients;
 using LupiraCalApi.Dispatcher.Dispatch;
-using Marten;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
 using Npgsql;

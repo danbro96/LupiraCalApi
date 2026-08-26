@@ -1,4 +1,4 @@
-namespace LupiraCalApi.Core.Application;
+namespace LupiraCalApi.Core.Abstractions;
 
 public sealed class NullContactResolver : IContactResolver
 {

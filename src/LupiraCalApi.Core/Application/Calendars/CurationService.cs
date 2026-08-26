@@ -1,3 +1,5 @@
+using LupiraCalApi.Core.Application.Items;
+using LupiraCalApi.Core.Application.Results;
 using LupiraCalApi.Core.Auth;
 using LupiraCalApi.Core.Data;
 using LupiraCalApi.Core.Domain.CalendarItems;
@@ -8,7 +10,7 @@ using LupiraCalApi.Core.Dtos.CalendarItems;
 using LupiraCalApi.Core.Mappers;
 using Marten;
 
-namespace LupiraCalApi.Core.Application;
+namespace LupiraCalApi.Core.Application.Calendars;
 
 /// <summary>Curation of the many-to-many <c>CalendarItem ↔ Calendar</c> membership: list proposed items, accept/reject,
 /// or file an existing item into a calendar. Authorized against the target calendar. Mutations take an optional

@@ -1,6 +1,6 @@
 using System.Text.Json;
 using System.Text.Json.Serialization;
-using LupiraCalApi.Core.Application;
+using LupiraCalApi.Core.Abstractions;
 using Microsoft.Extensions.Options;
 
 namespace LupiraCalApi.Clients;

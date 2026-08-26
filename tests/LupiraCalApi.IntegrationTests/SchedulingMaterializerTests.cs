@@ -2,7 +2,6 @@ using System.Net.Http.Json;
 using LupiraCalApi.Core.Domain.CalendarItems;
 using LupiraCalApi.Core.Dtos.CalendarItems;
 using LupiraCalApi.Core.Scheduling;
-using Marten;
 using Npgsql;
 using Xunit;
 

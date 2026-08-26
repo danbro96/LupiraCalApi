@@ -1,4 +1,8 @@
 using LupiraCalApi.Core.Application;
+using LupiraCalApi.Core.Application.Calendars;
+using LupiraCalApi.Core.Application.Dav;
+using LupiraCalApi.Core.Application.Items;
+using LupiraCalApi.Core.Application.Results;
 using LupiraCalApi.Core.Auth;
 using LupiraCalApi.Core.Domain.CalendarItems;
 using LupiraCalApi.Core.Domain.Identity;

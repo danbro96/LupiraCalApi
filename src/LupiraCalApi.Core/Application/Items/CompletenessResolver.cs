@@ -4,7 +4,7 @@ using LupiraCalApi.Core.Domain.Completeness;
 using LupiraCalApi.Core.Domain.Shared;
 using Marten;
 
-namespace LupiraCalApi.Core.Application;
+namespace LupiraCalApi.Core.Application.Items;
 
 /// <summary>Resolves the derived completeness score for items. It lives outside the snapshot because
 /// item exemption needs the item's calendar kinds — not visible to a single-stream snapshot.</summary>

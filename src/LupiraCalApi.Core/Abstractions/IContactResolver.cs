@@ -1,4 +1,4 @@
-namespace LupiraCalApi.Core.Application;
+namespace LupiraCalApi.Core.Abstractions;
 
 /// <summary>
 /// Cross-service contact resolution — LupiraContactApi owns contacts; items/attendees reference them by bare

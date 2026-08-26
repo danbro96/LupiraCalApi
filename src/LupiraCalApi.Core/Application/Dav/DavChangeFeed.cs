@@ -2,7 +2,7 @@ using LupiraCalApi.Core.Domain.CalendarItems;
 using LupiraCalApi.Core.Domain.Shared;
 using Marten;
 
-namespace LupiraCalApi.Core.Application;
+namespace LupiraCalApi.Core.Application.Dav;
 
 /// <summary>The CalDAV change feed backing the <c>/dav-backend</c> seam: sync tokens are Marten's global event
 /// sequence (opaque to the gateway), changes are the item streams touched past a token, and an item that was

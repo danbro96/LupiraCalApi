@@ -1,6 +1,6 @@
 using System.Net;
 using System.Net.Http.Json;
-using LupiraCalApi.Core.Application;
+using LupiraCalApi.Core.Abstractions;
 using LupiraCalApi.Core.Dtos.CalendarItems;
 using Microsoft.AspNetCore.TestHost;
 using Microsoft.Extensions.DependencyInjection;

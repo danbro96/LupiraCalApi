@@ -1,7 +1,11 @@
 using JasperFx;
 using JasperFx.Events.Daemon;
 using JasperFx.Events.Projections;
+using LupiraCalApi.Core.Abstractions;
 using LupiraCalApi.Core.Application;
+using LupiraCalApi.Core.Application.Calendars;
+using LupiraCalApi.Core.Application.Dav;
+using LupiraCalApi.Core.Application.Items;
 using LupiraCalApi.Core.Auth;
 using LupiraCalApi.Core.Data;
 using LupiraCalApi.Core.Domain.CalendarItems;

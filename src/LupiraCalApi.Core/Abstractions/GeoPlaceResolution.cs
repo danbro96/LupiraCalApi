@@ -1,4 +1,4 @@
-namespace LupiraCalApi.Core.Application;
+namespace LupiraCalApi.Core.Abstractions;
 
 /// <summary>The authoritative resolution of a free-text location by LupiraGeoApi: a stable place id + canonical name and
 /// (when known) coordinates.</summary>
