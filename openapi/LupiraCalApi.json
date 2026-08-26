@@ -25,7 +25,24 @@
             }
           },
           "401": {
-            "description": "Unauthorized"
+            "description": "Unauthorized",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal server error",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
           }
         },
         "security": [
@@ -54,7 +71,24 @@
             }
           },
           "401": {
-            "description": "Unauthorized"
+            "description": "Unauthorized",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal server error",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
           }
         },
         "security": [
@@ -86,7 +120,24 @@
             }
           },
           "401": {
-            "description": "Unauthorized"
+            "description": "Unauthorized",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal server error",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
           }
         },
         "security": [
@@ -142,7 +193,24 @@
             }
           },
           "401": {
-            "description": "Unauthorized"
+            "description": "Unauthorized",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal server error",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
           }
         },
         "security": [
@@ -174,7 +242,24 @@
             }
           },
           "401": {
-            "description": "Unauthorized"
+            "description": "Unauthorized",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal server error",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
           }
         },
         "security": [
@@ -211,7 +296,24 @@
             }
           },
           "401": {
-            "description": "Unauthorized"
+            "description": "Unauthorized",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal server error",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
           }
         },
         "security": [
@@ -261,7 +363,14 @@
             }
           },
           "404": {
-            "description": "Not Found"
+            "description": "Not Found",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
           },
           "403": {
             "description": "Forbidden",
@@ -275,6 +384,26 @@
           },
           "409": {
             "description": "Conflict",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal server error",
             "content": {
               "application/problem+json": {
                 "schema": {
@@ -320,7 +449,14 @@
             "description": "No Content"
           },
           "404": {
-            "description": "Not Found"
+            "description": "Not Found",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
           },
           "403": {
             "description": "Forbidden",
@@ -334,6 +470,26 @@
           },
           "409": {
             "description": "Conflict",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal server error",
             "content": {
               "application/problem+json": {
                 "schema": {
@@ -492,7 +648,24 @@
             }
           },
           "401": {
-            "description": "Unauthorized"
+            "description": "Unauthorized",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal server error",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
           }
         },
         "security": [
@@ -539,7 +712,24 @@
             }
           },
           "401": {
-            "description": "Unauthorized"
+            "description": "Unauthorized",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal server error",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
           }
         },
         "security": [
@@ -601,7 +791,24 @@
             }
           },
           "401": {
-            "description": "Unauthorized"
+            "description": "Unauthorized",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal server error",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
           }
         },
         "security": [
@@ -641,10 +848,34 @@
             }
           },
           "404": {
-            "description": "Not Found"
+            "description": "Not Found",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
           },
           "401": {
-            "description": "Unauthorized"
+            "description": "Unauthorized",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal server error",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
           }
         },
         "security": [
@@ -700,10 +931,34 @@
             }
           },
           "404": {
-            "description": "Not Found"
+            "description": "Not Found",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
           },
           "401": {
-            "description": "Unauthorized"
+            "description": "Unauthorized",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal server error",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
           }
         },
         "security": [
@@ -742,10 +997,34 @@
             "description": "No Content"
           },
           "404": {
-            "description": "Not Found"
+            "description": "Not Found",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
           },
           "401": {
-            "description": "Unauthorized"
+            "description": "Unauthorized",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal server error",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
           }
         },
         "security": [
@@ -830,7 +1109,24 @@
             }
           },
           "401": {
-            "description": "Unauthorized"
+            "description": "Unauthorized",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal server error",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
           }
         },
         "security": [
@@ -873,7 +1169,24 @@
             }
           },
           "401": {
-            "description": "Unauthorized"
+            "description": "Unauthorized",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal server error",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
           }
         },
         "security": [
@@ -942,10 +1255,34 @@
             }
           },
           "404": {
-            "description": "Not Found"
+            "description": "Not Found",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
           },
           "401": {
-            "description": "Unauthorized"
+            "description": "Unauthorized",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal server error",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
           }
         },
         "security": [
@@ -1003,7 +1340,14 @@
             }
           },
           "404": {
-            "description": "Not Found"
+            "description": "Not Found",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
           },
           "409": {
             "description": "Conflict",
@@ -1016,7 +1360,24 @@
             }
           },
           "401": {
-            "description": "Unauthorized"
+            "description": "Unauthorized",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal server error",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
           }
         },
         "security": [
@@ -1066,10 +1427,34 @@
             "description": "No Content"
           },
           "404": {
-            "description": "Not Found"
+            "description": "Not Found",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
           },
           "401": {
-            "description": "Unauthorized"
+            "description": "Unauthorized",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal server error",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
           }
         },
         "security": [
@@ -1127,7 +1512,14 @@
             }
           },
           "404": {
-            "description": "Not Found"
+            "description": "Not Found",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
           },
           "409": {
             "description": "Conflict",
@@ -1140,7 +1532,24 @@
             }
           },
           "401": {
-            "description": "Unauthorized"
+            "description": "Unauthorized",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal server error",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
           }
         },
         "security": [
@@ -1190,10 +1599,34 @@
             "description": "No Content"
           },
           "404": {
-            "description": "Not Found"
+            "description": "Not Found",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
           },
           "401": {
-            "description": "Unauthorized"
+            "description": "Unauthorized",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal server error",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
           }
         },
         "security": [
@@ -1243,10 +1676,34 @@
             }
           },
           "404": {
-            "description": "Not Found"
+            "description": "Not Found",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
           },
           "401": {
-            "description": "Unauthorized"
+            "description": "Unauthorized",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal server error",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
           }
         },
         "security": [
@@ -1287,10 +1744,34 @@
             }
           },
           "404": {
-            "description": "Not Found"
+            "description": "Not Found",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
           },
           "401": {
-            "description": "Unauthorized"
+            "description": "Unauthorized",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal server error",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
           }
         },
         "security": [
@@ -1340,7 +1821,24 @@
             }
           },
           "401": {
-            "description": "Unauthorized"
+            "description": "Unauthorized",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal server error",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
           }
         },
         "security": [
@@ -1384,6 +1882,26 @@
           },
           "403": {
             "description": "Forbidden",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal server error",
             "content": {
               "application/problem+json": {
                 "schema": {
@@ -1458,7 +1976,34 @@
             }
           },
           "404": {
-            "description": "Not Found"
+            "description": "Not Found",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal server error",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
           }
         },
         "security": [
@@ -1533,7 +2078,34 @@
             }
           },
           "404": {
-            "description": "Not Found"
+            "description": "Not Found",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal server error",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
           }
         },
         "security": [
@@ -1599,7 +2171,34 @@
             }
           },
           "404": {
-            "description": "Not Found"
+            "description": "Not Found",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal server error",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
           }
         },
         "security": [
@@ -1655,7 +2254,34 @@
             }
           },
           "404": {
-            "description": "Not Found"
+            "description": "Not Found",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal server error",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
           }
         },
         "security": [
@@ -1703,10 +2329,37 @@
             }
           },
           "404": {
-            "description": "Not Found"
+            "description": "Not Found",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
           },
           "400": {
             "description": "Bad Request",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal server error",
             "content": {
               "application/problem+json": {
                 "schema": {
@@ -1769,7 +2422,34 @@
             }
           },
           "404": {
-            "description": "Not Found"
+            "description": "Not Found",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal server error",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
           }
         },
         "security": [
@@ -1818,7 +2498,34 @@
             }
           },
           "404": {
-            "description": "Not Found"
+            "description": "Not Found",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal server error",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
           }
         },
         "security": [
@@ -1867,7 +2574,34 @@
             }
           },
           "404": {
-            "description": "Not Found"
+            "description": "Not Found",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal server error",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
           }
         },
         "security": [
@@ -1916,7 +2650,34 @@
             }
           },
           "404": {
-            "description": "Not Found"
+            "description": "Not Found",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal server error",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
           }
         },
         "security": [
@@ -1972,7 +2733,24 @@
             }
           },
           "401": {
-            "description": "Unauthorized"
+            "description": "Unauthorized",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal server error",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
           }
         },
         "security": [
@@ -2001,7 +2779,24 @@
             }
           },
           "401": {
-            "description": "Unauthorized"
+            "description": "Unauthorized",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal server error",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
           }
         },
         "security": [
@@ -2019,7 +2814,8 @@
           "Owner",
           "ReadWrite",
           "Read"
-        ]
+        ],
+        "description": "A principal's permission on a collection. `Owner` adds member-management + delete rights over `ReadWrite`."
       },
       "ActionKind": {
         "enum": [
@@ -2030,7 +2826,8 @@
           "RescheduleSelf",
           "RunJob",
           "Rescore"
-        ]
+        ],
+        "description": "A deterministic, no-LLM action executed directly at fire time."
       },
       "AvailabilityStatus": {
         "enum": [
@@ -2039,7 +2836,8 @@
           "Vacation",
           "Sick",
           "Leave"
-        ]
+        ],
+        "description": "A presence/availability segment's status. A day may hold several segments (whole-day or timed)."
       },
       "BookingDetail": {
         "required": [
@@ -2098,7 +2896,8 @@
             ],
             "format": "int32"
           }
-        }
+        },
+        "description": "A reservation/confirmation attached to any category (a booked meal, a ticketed outing, a hotel, a flight).\n            `ProviderContactId` reuses a `Contact` (airline, hotel, restaurant, venue); `PartySize` covers a\n            table/seat reservation; `Amount`/`Currency` the paid cost."
       },
       "CalendarClass": {
         "enum": [
@@ -2112,7 +2911,8 @@
           "Proposed",
           "Accepted",
           "Removed"
-        ]
+        ],
+        "description": "Curation state of a CalendarItem within a calendar. `Removed` is retained as a sync tombstone."
       },
       "CalendarItemDto": {
         "required": [
@@ -2279,6 +3079,7 @@
                 "type": "null"
               },
               {
+                "description": "Event-bound payload (server-side only; never in ICS). At most one of ItemPrompt? CalendarItemDto.Prompt/ItemAction? CalendarItemDto.Action is set.",
                 "$ref": "#/components/schemas/ItemPrompt"
               }
             ]
@@ -2299,6 +3100,7 @@
                 "type": "null"
               },
               {
+                "description": "How well-documented this item is (null = not applicable, e.g. exempt kinds/calendars). Drives Elicit ranking.",
                 "$ref": "#/components/schemas/CompletenessScore"
               }
             ]
@@ -2320,6 +3122,7 @@
           },
           "createdAt": {
             "type": "string",
+            "description": "Server-side timestamps (from the event timeline) + stream version — the ordering/versioning\n            surface offline clients key on. `Etag` stays content-derived and is orthogonal.",
             "format": "date-time"
           },
           "updatedAt": {
@@ -2385,7 +3188,8 @@
             "items": {
               "type": "string",
               "format": "uuid"
-            }
+            },
+            "description": "Accepted calendar memberships, limited to calendars the caller can read."
           },
           "category": {
             "oneOf": [
@@ -2421,6 +3225,7 @@
               "null",
               "string"
             ],
+            "description": "Hierarchy link (e.g. the trip a leg belongs to). Title only when the caller can read the parent.",
             "format": "uuid"
           },
           "parentTitle": {
@@ -2431,6 +3236,7 @@
           },
           "childCount": {
             "type": "integer",
+            "description": "Direct children visible to the caller, independent of the current filters.",
             "format": "int32"
           },
           "completeness": {
@@ -2439,6 +3245,7 @@
                 "type": "null"
               },
               {
+                "description": "The item's own completeness (same across its occurrences; null = not applicable), so search results rank directly.",
                 "$ref": "#/components/schemas/CompletenessScore"
               }
             ]
@@ -2449,6 +3256,7 @@
                 "type": "null"
               },
               {
+                "description": "Provenance of a read-time-projected occurrence (e.g. Birthdays → a contact). Null for stored items.",
                 "$ref": "#/components/schemas/OccurrenceOrigin"
               }
             ]
@@ -2456,7 +3264,8 @@
           "etag": {
             "type": "string"
           }
-        }
+        },
+        "description": "A single concrete occurrence of an item within a search window (recurrences expanded)."
       },
       "CalendarKind": {
         "enum": [
@@ -2507,7 +3316,8 @@
           "severity": {
             "$ref": "#/components/schemas/GapSeverity"
           }
-        }
+        },
+        "description": "A field the record is missing or thin on, with its rubric weight (heavier = ask first)."
       },
       "CompletenessScore": {
         "required": [
@@ -2531,7 +3341,8 @@
               "$ref": "#/components/schemas/CompletenessGap"
             }
           }
-        }
+        },
+        "description": "How well-documented a record is: `Score` 0..1 (Σ weight·presence / Σ weight), the unmet\n            fields ranked by missing mass (weight·absence, largest first), and the rubric version that produced it.\n            `null` (not this type) means \"not applicable\"."
       },
       "ContainerDto": {
         "required": [
@@ -2593,7 +3404,8 @@
           "access": {
             "$ref": "#/components/schemas/Access"
           }
-        }
+        },
+        "description": "A calendar the caller can access; `access` is the caller's own grant level.\n            `Class`/`Kind` classify the calendar. (Address books live in LupiraContactApi.)"
       },
       "CreateCalendarItemRequest": {
         "type": "object",
@@ -2609,20 +3421,23 @@
             "type": [
               "null",
               "string"
-            ]
+            ],
+            "description": "Client-supplied provenance/idempotency key (e.g. an import `sourceKey`). When set, the item's stream id\n            is derived from it (DeterministicGuid), so re-creating with the same key is a no-op\n            that returns the existing item — safe batch/import replay. Also becomes the item's external UID. Omit for a random uid."
           },
           "parentItemId": {
             "type": [
               "null",
               "string"
             ],
+            "description": "Nest this item under a parent (e.g. a trip's leg/sub-event). The parent must exist and be accessible to the caller.",
             "format": "uuid"
           },
           "parentSourceKey": {
             "type": [
               "null",
               "string"
-            ]
+            ],
+            "description": "Alternative to Guid? CreateCalendarItemRequest.ParentItemId for batch imports: reference the parent by its string? CreateCalendarItemRequest.SourceKey;\n            the server resolves it to the parent's deterministic id. Used when parent + children are created in one batch. Ignored if Guid? CreateCalendarItemRequest.ParentItemId is set."
           },
           "title": {
             "type": [
@@ -2640,13 +3455,15 @@
             "type": [
               "null",
               "string"
-            ]
+            ],
+            "description": "Free-text location resolved server-side to a LupiraGeoApi place (fail-closed if geo is up but can't resolve).\n            Prefer Guid? CreateCalendarItemRequest.PlaceId when you have already resolved/vetted the place (places-first imports) — then string? CreateCalendarItemRequest.Location\n            is used only as the display label."
           },
           "placeId": {
             "type": [
               "null",
               "string"
             ],
+            "description": "A pre-resolved LupiraGeoApi place id. When set, it is attached directly (no geocoding, no fail-closed risk) and\n            string? CreateCalendarItemRequest.Location, if any, is kept as the label. Trust the caller resolved it via geo first.",
             "format": "uuid"
           },
           "status": {
@@ -2719,6 +3536,7 @@
                 "type": "null"
               },
               {
+                "description": "Confidence of the start/end date for a historical or backfilled item — the date is still a concrete day;\n            this records that it is only known to the month/year/roughly. Omit for exact dates.",
                 "$ref": "#/components/schemas/DatePrecision"
               }
             ]
@@ -2739,6 +3557,7 @@
                 "type": "null"
               },
               {
+                "description": "Optional server-side annotations (e.g. import provenance) merged onto the item at creation — same store\n            as `POST /items/{id}/metadata`, saving a second call. Never in ICS.",
                 "$ref": "#/components/schemas/JsonObject"
               }
             ]
@@ -2749,6 +3568,7 @@
                 "type": "null"
               },
               {
+                "description": "Sets the item's presence segment status (whole-day or timed via Starts/Ends) — availability lives on the availability calendar.",
                 "$ref": "#/components/schemas/AvailabilityStatus"
               }
             ]
@@ -2759,11 +3579,13 @@
                 "type": "null"
               },
               {
+                "description": "Composable detail: a `Booking` (any category) and/or a `Travel` leg (a `Trip`); Travel place refs are free-text labels.",
                 "$ref": "#/components/schemas/ItemDetailsRequest"
               }
             ]
           }
-        }
+        },
+        "description": "Create an item via REST/MCP. `CalendarId` optional — when set, the item is accepted into that calendar;\n            when null, the item is created unfiled (e.g. an automated source) for later curation. `Location` is free text\n            resolved to a <see cref=\"!:LupiraCalApi.Core.Domain.Place\" />. `Category`/`Status` are the enum names."
       },
       "CreateCalendarItemsBatchRequest": {
         "required": [
@@ -2777,7 +3599,8 @@
               "$ref": "#/components/schemas/CreateCalendarItemRequest"
             }
           }
-        }
+        },
+        "description": "Create many items in one call. Items may reference their parent by `ParentSourceKey` (the parent's\n            `SourceKey`) in any order — the server orders parents before children. Idempotent per item on `SourceKey`."
       },
       "CreateCalendarRequest": {
         "required": [
@@ -2816,6 +3639,7 @@
                 "type": "null"
               },
               {
+                "description": "Calendars only; defaults to Agenda/Generic. Ignored for address books.",
                 "$ref": "#/components/schemas/CalendarClass"
               }
             ]
@@ -2876,13 +3700,15 @@
           "Retry",
           "Ask",
           "Drop"
-        ]
+        ],
+        "description": "On a missed contract: retry once then ask (Retry), ask immediately (Ask), or drop (Drop)."
       },
       "GapSeverity": {
         "enum": [
           "Weak",
           "Absent"
-        ]
+        ],
+        "description": "A field is fully present, weak/partial (0.5), or absent."
       },
       "GrantOwnerRequest": {
         "required": [
@@ -2899,7 +3725,8 @@
               "string"
             ]
           }
-        }
+        },
+        "description": "Grant a member access to a container, identified by their login `Email` (provisioned if they have\n            not logged in yet). `Access` is `owner` (default), `read-write`, or `read` — case-insensitive."
       },
       "ItemAction": {
         "required": [
@@ -2933,7 +3760,8 @@
           "enabled": {
             "type": "boolean"
           }
-        }
+        },
+        "description": "A deterministic payload executed directly (no LLM). `ParamsJson` carries the frozen params (e.g. a SendCheckIn message)."
       },
       "ItemAttendeeDto": {
         "required": [
@@ -2990,7 +3818,8 @@
             ],
             "format": "date-time"
           }
-        }
+        },
+        "description": "One attendee's participation, composed from the participation events."
       },
       "ItemBatchResult": {
         "required": [
@@ -3023,7 +3852,8 @@
               "string"
             ]
           }
-        }
+        },
+        "description": "Per-item outcome of a batch create, aligned index-for-index with the request. `Status` is\n            `created` | `existed` (idempotent hit on SourceKey) | `invalid` (see `Error`)."
       },
       "ItemCategory": {
         "enum": [
@@ -3074,7 +3904,8 @@
               }
             ]
           }
-        }
+        },
+        "description": "Composable, category-independent detail for a CalendarItem: any of a reservation (BookingDetail? ItemDetails.Booking),\na movement leg (TravelLeg? ItemDetails.Travel, a `Trip` only), or an availability segment (PresenceDetail? ItemDetails.Presence). Each is\nan optional value object rather than a per-kind member, so one event can carry several at once (a booked flight sets both\nBookingDetail? ItemDetails.Booking and TravelLeg? ItemDetails.Travel). Location (venue, hotel, clinic) uses the item's `PlaceId`\n(a LupiraGeoApi place id) + `LocationLabel`; provider/driver references reuse a `Contact` id."
       },
       "ItemDetailsRequest": {
         "type": "object",
@@ -3099,7 +3930,8 @@
               }
             ]
           }
-        }
+        },
+        "description": "Composable detail input for create/update. BookingDetail? ItemDetailsRequest.Booking (reservation/confirmation) attaches to any category;\nTravelLegRequest? ItemDetailsRequest.Travel applies to a `Trip` (its `ToPlace`/`FromPlace` are free-text labels resolved to a\na LupiraGeoApi place, like `Location`). A presence/availability segment is authored via the request's top-level\n`Availability` field, not here. On update, a supplied member replaces that member wholesale; omitted members are kept."
       },
       "ItemPrompt": {
         "required": [
@@ -3162,7 +3994,8 @@
           "enabled": {
             "type": "boolean"
           }
-        }
+        },
+        "description": "An LLM-interpreted, contracted payload → an agent run. Declared at authoring time; enforced by assistant-api at fire time."
       },
       "ItemStatus": {
         "enum": [
@@ -3196,7 +4029,8 @@
               "string"
             ]
           }
-        }
+        },
+        "description": "The resolved local identity of the caller: the stable Guid MeDto.PrincipalId plus\n            current email/display name. Same identity shape (`principalId`/`email`/`displayName`)\n            the platform uses everywhere it returns a person."
       },
       "ModelTier": {
         "enum": [
@@ -3220,12 +4054,14 @@
             "type": "string",
             "format": "uuid"
           }
-        }
+        },
+        "description": "Ties a projected occurrence back to the entity it was derived from — the birthday occurrence's\n            Guid OccurrenceOrigin.SourceId is the contact whose birthday it is."
       },
       "OriginKind": {
         "enum": [
           "Birthday"
-        ]
+        ],
+        "description": "What a read-time-projected occurrence was synthesized from."
       },
       "OutputKind": {
         "enum": [
@@ -3237,7 +4073,8 @@
           "Question",
           "Relation",
           "None"
-        ]
+        ],
+        "description": "The ProposedAction kind a run is contracted to yield (assistant-api validates against it; cal-api only stores it)."
       },
       "OwnerGrantDto": {
         "required": [
@@ -3272,7 +4109,8 @@
           "access": {
             "$ref": "#/components/schemas/Access"
           }
-        }
+        },
+        "description": "The result of granting a member access to a container: who now has what access on which container."
       },
       "ParticipationRef": {
         "required": [
@@ -3289,7 +4127,8 @@
             "type": "string",
             "format": "uuid"
           }
-        }
+        },
+        "description": "A newly added attendee: the contact and its assigned participation id."
       },
       "ParticipationRole": {
         "enum": [
@@ -3297,7 +4136,8 @@
           "RequiredParticipant",
           "OptionalParticipant",
           "NonParticipant"
-        ]
+        ],
+        "description": "iCalendar `ROLE`."
       },
       "ParticipationStatus": {
         "enum": [
@@ -3306,7 +4146,8 @@
           "Declined",
           "Tentative",
           "Delegated"
-        ]
+        ],
+        "description": "iCalendar `PARTSTAT` (attendee RSVP)."
       },
       "ParticipationSummaryEntry": {
         "required": [
@@ -3331,7 +4172,8 @@
             ],
             "format": "date-time"
           }
-        }
+        },
+        "description": "One contact's participation across the caller's readable calendars: how many items they attend(ed)\n            and the most recent occurrence start (past or planned). A ranking signal for pickers/resolvers, not an ACL surface."
       },
       "PingDto": {
         "required": [
@@ -3355,7 +4197,8 @@
               "string"
             ]
           }
-        }
+        },
+        "description": "The claims a caller's token resolved to, echoed for cross-service auth-seam probes.\n            Returning the audiences (not a bare 200) lets a failing consumer see which half of the seam\n            is misconfigured."
       },
       "PresenceDetail": {
         "required": [
@@ -3366,7 +4209,8 @@
           "status": {
             "$ref": "#/components/schemas/AvailabilityStatus"
           }
-        }
+        },
+        "description": "A presence/availability segment's status; the span is the item itself (whole-day or timed). Replaces the old\n            Availability item kind — presence items live on the availability calendar and are exempt from completeness scoring."
       },
       "ProblemDetails": {
         "type": "object",
@@ -3401,8 +4245,15 @@
               "null",
               "string"
             ]
+          },
+          "traceId": {
+            "type": [
+              "null",
+              "string"
+            ]
           }
-        }
+        },
+        "description": "RFC 9457 problem details."
       },
       "PromptFire": {
         "required": [
@@ -3429,7 +4280,8 @@
             ],
             "format": "time"
           }
-        }
+        },
+        "description": "Fire timing (flattened union): OnStart/OnEnd carry nothing; Offset uses `OffsetMinutes` (negative = lead time);\n            AllDayAt uses `AllDayAt` (local wall-clock time on the occurrence date)."
       },
       "PromptFireKind": {
         "enum": [
@@ -3437,7 +4289,8 @@
           "OnEnd",
           "Offset",
           "AllDayAt"
-        ]
+        ],
+        "description": "When a payload fires relative to its item's occurrence."
       },
       "PromptIntent": {
         "enum": [
@@ -3447,7 +4300,8 @@
           "Monitor",
           "Summarise",
           "AskUser"
-        ]
+        ],
+        "description": "What an LLM-interpreted run should accomplish."
       },
       "Ref": {
         "required": [
@@ -3473,7 +4327,8 @@
               "string"
             ]
           }
-        }
+        },
+        "description": "A reference the fired payload acts on. `Id` for Event/Contact/Task; `Url` for External."
       },
       "RefKind": {
         "enum": [
@@ -3481,7 +4336,8 @@
           "Contact",
           "Task",
           "External"
-        ]
+        ],
+        "description": "What a Ref points at."
       },
       "RelationDto": {
         "required": [
@@ -3541,7 +4397,8 @@
             "type": "string",
             "format": "uuid"
           }
-        }
+        },
+        "description": "One section's last-writer guard: the (occurredAt, commandId) of the write that owns its current\n            value. Offline clients seed their local guards from these so a pending edit on one section never blocks —\n            and is never clobbered by — fresher server state on another."
       },
       "SectionGuardsDto": {
         "required": [
@@ -3567,7 +4424,8 @@
               "$ref": "#/components/schemas/SectionGuardDto"
             }
           }
-        }
+        },
+        "description": "Per-section guards for an item: core fields, metadata, the XOR payload, and per-calendar filing."
       },
       "SetItemActionRequest": {
         "required": [
@@ -3604,9 +4462,11 @@
               "null",
               "string"
             ],
+            "description": "Client wall-clock of the edit (LWW for the payload section). Omitted ⇒ server receive time.",
             "format": "date-time"
           }
-        }
+        },
+        "description": "Set the deterministic payload on an item. Replaces any existing action; rejected (409) if the item carries a prompt."
       },
       "SetItemPromptRequest": {
         "required": [
@@ -3669,9 +4529,11 @@
               "null",
               "string"
             ],
+            "description": "Client wall-clock of the edit (LWW for the payload section). Omitted ⇒ server receive time.",
             "format": "date-time"
           }
-        }
+        },
+        "description": "Set the LLM-interpreted payload on an item. Replaces any existing prompt; rejected (409) if the item carries an action."
       },
       "SetParticipantsRequest": {
         "required": [
@@ -3689,7 +4551,8 @@
           "attended": {
             "type": "boolean"
           }
-        }
+        },
+        "description": "Add a set of contacts as attendees of an item in one call (add-only — does not remove existing attendees).\n            `Attended` also marks them attended (for historical/backfilled events); pass false for a live invite flow."
       },
       "SetParticipantsResult": {
         "required": [
@@ -3713,7 +4576,8 @@
             "type": "integer",
             "format": "int32"
           }
-        }
+        },
+        "description": "Slim result of `set_participants` — the additions and how many were already present. Deliberately not the\n            full item DTO (which would echo the whole, growing attendee list on every call)."
       },
       "SyncChangeDto": {
         "required": [
@@ -3728,7 +4592,8 @@
           "guards": {
             "$ref": "#/components/schemas/SectionGuardsDto"
           }
-        }
+        },
+        "description": "A changed item: the full DTO plus its section guards."
       },
       "SyncChangesResponse": {
         "required": [
@@ -3756,9 +4621,11 @@
             "items": {
               "type": "string",
               "format": "uuid"
-            }
+            },
+            "description": "Ids no longer visible to the caller: soft-deleted, or every accepted membership left the caller's\n            readable calendars. Unknown ids are safe to ignore."
           }
-        }
+        },
+        "description": "One page of the changes feed. `Cursor` is opaque — hand it back as `?since=`; loop while\n            `HasMore`. A full sync (no `since`) streams every live visible item and suppresses tombstones —\n            the client replaces its mirror wholesale and rebases pending work."
       },
       "SyncContainersResponse": {
         "required": [
@@ -3772,7 +4639,8 @@
               "$ref": "#/components/schemas/ContainerDto"
             }
           }
-        }
+        },
+        "description": "Snapshot of the caller's containers. Containers are plain documents with no event history, so they\n            have no cursor — fetch once per sync cycle and diff against the mirror."
       },
       "TransportMode": {
         "enum": [
@@ -3787,7 +4655,8 @@
           "Bike",
           "Walk",
           "Other"
-        ]
+        ],
+        "description": "Mode of a TravelLeg. Rail split: `Train` = mainline/commuter, `Metro` = rapid transit,\n            `Tram` = light/narrow-gauge rail; `Coach` = long-distance bus vs local `Bus`."
       },
       "TravelLeg": {
         "required": [
@@ -3885,7 +4754,8 @@
               "string"
             ]
           }
-        }
+        },
+        "description": "One leg of a `Trip`. Mode-agnostic: `DeparturePoint`/`ArrivalPoint` generalize gate/platform/stop,\n            `Carrier` the airline/operator, `ServiceNumber` the flight/train/service number. `ToPlaceId`/`FromPlaceId`\n            are LupiraGeoApi place ids with denormalized `ToLabel`/`FromLabel`; `DriverContactId` names the driver\n            for a TransportMode.Car leg."
       },
       "TravelLegRequest": {
         "type": "object",
@@ -3910,6 +4780,7 @@
               "null",
               "string"
             ],
+            "description": "Pre-resolved place ids (places-first imports). When set, used directly instead of resolving\n            string? TravelLegRequest.ToPlace/string? TravelLegRequest.FromPlace text; the text, if any, is kept as the label.",
             "format": "uuid"
           },
           "fromPlaceId": {
@@ -3970,7 +4841,8 @@
             ],
             "format": "uuid"
           }
-        }
+        },
+        "description": "`ToPlace`/`FromPlace` are free-text labels resolved to a LupiraGeoApi place id + label; `DriverContactId` is a <see cref=\"!:Contact\" /> id."
       },
       "UpdateCalendarItemRequest": {
         "type": "object",
@@ -4004,6 +4876,7 @@
               "null",
               "string"
             ],
+            "description": "Re-anchor the location to a resolved LupiraGeoApi place; string? UpdateCalendarItemRequest.Location then carries the display\n            label. Set bool UpdateCalendarItemRequest.PlaceIdProvided with a null value to clear. Free-text-only location changes are rejected\n            (resolve via geo first); CalDAV remains the lenient path.",
             "format": "uuid"
           },
           "placeIdProvided": {
@@ -4033,7 +4906,8 @@
             "type": [
               "null",
               "boolean"
-            ]
+            ],
+            "description": "Switch between timed and all-day (null ⇒ kept). All-day items carry their span in StartDate/EndDate."
           },
           "startDate": {
             "type": [
@@ -4059,7 +4933,8 @@
             "type": [
               "null",
               "string"
-            ]
+            ],
+            "description": "IANA timezone names annotating the timed start/end (not serialized to ICS today)."
           },
           "startTimezoneProvided": {
             "type": "boolean"
@@ -4077,7 +4952,8 @@
             "type": [
               "null",
               "string"
-            ]
+            ],
+            "description": "RFC 5545 recurrence rule. Non-null sets it; to CLEAR recurrence send null with\n            bool UpdateCalendarItemRequest.RecurrenceRuleProvided = true (a bare null keeps the existing rule)."
           },
           "recurrenceRuleProvided": {
             "type": "boolean"
@@ -4088,6 +4964,7 @@
                 "type": "null"
               },
               {
+                "description": "Revise the start/end date confidence (see DatePrecision? CreateCalendarItemRequest.StartPrecision). Omitted ⇒ kept.",
                 "$ref": "#/components/schemas/DatePrecision"
               }
             ]
@@ -4107,13 +4984,15 @@
               "null",
               "string"
             ],
+            "description": "Re-nest under a parent item (or set for the first time). Must exist and be accessible; omitted ⇒ kept.",
             "format": "uuid"
           },
           "category": {
             "type": [
               "null",
               "string"
-            ]
+            ],
+            "description": "Reclassify the item (enum name). Changing the category drops the previous details."
           },
           "tags": {
             "type": [
@@ -4130,6 +5009,7 @@
                 "type": "null"
               },
               {
+                "description": "Change the item's presence segment status.",
                 "$ref": "#/components/schemas/AvailabilityStatus"
               }
             ]
@@ -4140,6 +5020,7 @@
                 "type": "null"
               },
               {
+                "description": "Composable detail to set/merge: a `Booking` and/or a `Travel` leg; a supplied member replaces that member wholesale.",
                 "$ref": "#/components/schemas/ItemDetailsRequest"
               }
             ]
@@ -4149,9 +5030,11 @@
               "null",
               "string"
             ],
+            "description": "Client wall-clock of the edit, for last-writer-wins conflict resolution of the core section.\n            Omitted ⇒ server receive time (online callers never need it).",
             "format": "date-time"
           }
-        }
+        },
+        "description": "Core-field update. Two merge conventions coexist: a plain nullable field means \"omitted ⇒ kept\" (the original\ncontract, unchanged for existing callers); fields that must also be *clearable* to null carry a paired\n`*Provided` sentinel — when the sentinel is true the field's value (including null) is written verbatim.\nOffline clients replay whole-section writes, so they set every sentinel and send the full core section."
       }
     },
     "securitySchemes": {
