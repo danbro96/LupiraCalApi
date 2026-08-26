@@ -1,12 +1,12 @@
+using System.Net.Http.Json;
 using LupiraCalApi.Core.Domain.CalendarItems;
+using LupiraCalApi.Core.Domain.CalendarItems.Events;
 using LupiraCalApi.Core.Domain.Shared;
 using LupiraCalApi.Core.Dtos.CalendarItems;
 using LupiraCalApi.Core.Dtos.Calendars;
 using Marten;
 using Npgsql;
-using System.Net.Http.Json;
 using Xunit;
-using LupiraCalApi.Core.Domain.CalendarItems.Events;
 
 namespace LupiraCalApi.IntegrationTests;
 
@@ -35,7 +35,12 @@ public sealed class FireContextTests(CalApiTestFactory factory) : IntegrationTes
         var start = DateTimeOffset.UtcNow.AddDays(10);
         var resp = await api.PostAsJsonAsync("/items", new CreateCalendarItemRequest
         {
-            CalendarId = calId, Title = "Fire", IsAllDay = false, StartsAt = start, EndsAt = start.AddHours(1), StartTimezone = "UTC",
+            CalendarId = calId,
+            Title = "Fire",
+            IsAllDay = false,
+            StartsAt = start,
+            EndsAt = start.AddHours(1),
+            StartTimezone = "UTC",
         });
         resp.EnsureSuccessStatusCode();
         return (await resp.Content.ReadFromJsonAsync<CalendarItemDto>())!;

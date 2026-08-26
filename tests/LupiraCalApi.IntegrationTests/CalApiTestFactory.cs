@@ -1,12 +1,12 @@
-﻿using LupiraCalApi.Core.Scheduling;
+﻿using System.Net.Http.Headers;
+using System.Text;
+using LupiraCalApi.Core.Scheduling;
 using Marten;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Npgsql;
-using System.Net.Http.Headers;
-using System.Text;
 using Testcontainers.PostgreSql;
 
 namespace LupiraCalApi.IntegrationTests;
@@ -78,7 +78,6 @@ public sealed class CalApiTestFactory : WebApplicationFactory<Program>
         client.DefaultRequestHeaders.Add("X-Dev-Scopes", "internal:read");
         return client;
     }
-
 
     protected override void Dispose(bool disposing)
     {

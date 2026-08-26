@@ -1,8 +1,8 @@
+using System.Net;
+using System.Net.Http.Json;
 using LupiraCalApi.Core.Domain.Shared;
 using LupiraCalApi.Core.Dtos.CalendarItems;
 using LupiraCalApi.Core.Dtos.Internal;
-using System.Net.Http.Json;
-using System.Net;
 using Xunit;
 
 namespace LupiraCalApi.IntegrationTests;
@@ -23,10 +23,14 @@ public sealed class InternalPlaceReferencesTests(CalApiTestFactory factory) : In
 
     private static CreateCalendarItemRequest Item(Guid calId, string title, Guid? placeId = null) => new()
     {
-        CalendarId = calId, Title = title, IsAllDay = false,
+        CalendarId = calId,
+        Title = title,
+        IsAllDay = false,
         StartsAt = new DateTimeOffset(2026, 7, 1, 9, 0, 0, TimeSpan.Zero),
-        EndsAt = new DateTimeOffset(2026, 7, 1, 10, 0, 0, TimeSpan.Zero), StartTimezone = "UTC",
-        Location = placeId is null ? null : "Somewhere", PlaceId = placeId,
+        EndsAt = new DateTimeOffset(2026, 7, 1, 10, 0, 0, TimeSpan.Zero),
+        StartTimezone = "UTC",
+        Location = placeId is null ? null : "Somewhere",
+        PlaceId = placeId,
     };
 
     [Fact]

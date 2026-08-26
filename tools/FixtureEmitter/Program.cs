@@ -1,8 +1,8 @@
+using System.Text.Json;
+using System.Text.Json.Serialization;
 using LupiraCalApi.Core.Data;
 using LupiraCalApi.Core.Domain.CalendarItems;
 using Marten;
-using System.Text.Json;
-using System.Text.Json.Serialization;
 
 // Emits parity fixtures for the mobile domain package (packages/domain in the LupiraCalWeb monorepo):
 //   <out-dir>/recurrence.json   — recurrence-rule expansions computed by the server's RecurrenceExpander;
@@ -80,7 +80,7 @@ if (fromDb >= 0 && fromDb + 1 < args.Length)
     {
         var sample = group.First();
         if (sample.StartsAt is not { } start) continue;
-        Add($"db-{n++:D3}", group.Key!, start, (int)((sample.EndsAt - sample.StartsAt)?.TotalMinutes ?? 60),
+        Add($"db-{n++:D3}", group.Key!, start, (int) ((sample.EndsAt - sample.StartsAt)?.TotalMinutes ?? 60),
             start.AddMonths(-1), start.AddMonths(6));
     }
     Console.WriteLine($"Ingested {n} distinct rules from the store.");
@@ -112,10 +112,3 @@ Vec("seq-fallback-hex-boundary", t, SectionLww.FromSequence(16), t, SectionLww.F
 await File.WriteAllTextAsync(Path.Combine(outDir, "lww-vectors.json"), JsonSerializer.Serialize(vectors, json));
 Console.WriteLine($"lww-vectors.json: {vectors.Count} vectors → {outDir}");
 return 0;
-
-internal sealed record RecurrenceCase(
-    string Name, string Rule, DateTimeOffset Start, int DurationMinutes,
-    DateTimeOffset WindowStart, DateTimeOffset WindowEnd, IReadOnlyList<DateTimeOffset> Expected);
-
-internal sealed record LwwVector(
-    string Name, DateTimeOffset OccurredAt, Guid CommandId, DateTimeOffset GuardTs, Guid GuardCmd, bool Wins);

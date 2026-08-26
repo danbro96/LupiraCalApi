@@ -1,6 +1,6 @@
+using System.Net.Http.Json;
 using LupiraCalApi.Core.Domain.Shared;
 using LupiraCalApi.Core.Dtos.CalendarItems;
-using System.Net.Http.Json;
 using Xunit;
 
 namespace LupiraCalApi.IntegrationTests;
@@ -25,13 +25,22 @@ public sealed class AvailabilityTests(CalApiTestFactory factory) : IntegrationTe
 
         var office = await PostAsync(api, new CreateCalendarItemRequest
         {
-            CalendarId = calId, Title = "Office", Availability = AvailabilityStatus.Office,
-            IsAllDay = true, StartDate = day, EndDate = day.AddDays(1),
+            CalendarId = calId,
+            Title = "Office",
+            Availability = AvailabilityStatus.Office,
+            IsAllDay = true,
+            StartDate = day,
+            EndDate = day.AddDays(1),
         });
         var home = await PostAsync(api, new CreateCalendarItemRequest
         {
-            CalendarId = calId, Title = "Home", Availability = AvailabilityStatus.Home,
-            IsAllDay = false, StartsAt = new DateTimeOffset(2026, 7, 1, 13, 0, 0, TimeSpan.Zero), EndsAt = new DateTimeOffset(2026, 7, 1, 17, 0, 0, TimeSpan.Zero), StartTimezone = "UTC",
+            CalendarId = calId,
+            Title = "Home",
+            Availability = AvailabilityStatus.Home,
+            IsAllDay = false,
+            StartsAt = new DateTimeOffset(2026, 7, 1, 13, 0, 0, TimeSpan.Zero),
+            EndsAt = new DateTimeOffset(2026, 7, 1, 17, 0, 0, TimeSpan.Zero),
+            StartTimezone = "UTC",
         });
 
         Assert.Equal(AvailabilityStatus.Office, office.Details?.Presence?.Status);
@@ -50,8 +59,12 @@ public sealed class AvailabilityTests(CalApiTestFactory factory) : IntegrationTe
         var calId = await CreateCalendarAsync(api);
         var item = await PostAsync(api, new CreateCalendarItemRequest
         {
-            CalendarId = calId, Title = "Status", Availability = AvailabilityStatus.Office,
-            IsAllDay = true, StartDate = new DateOnly(2026, 7, 1), EndDate = new DateOnly(2026, 7, 2),
+            CalendarId = calId,
+            Title = "Status",
+            Availability = AvailabilityStatus.Office,
+            IsAllDay = true,
+            StartDate = new DateOnly(2026, 7, 1),
+            EndDate = new DateOnly(2026, 7, 2),
         });
 
         var upd = await api.PutAsJsonAsync($"/items/{item.Id}", new UpdateCalendarItemRequest { Availability = AvailabilityStatus.Sick });
@@ -69,8 +82,14 @@ public sealed class AvailabilityTests(CalApiTestFactory factory) : IntegrationTe
         var start = new DateTimeOffset(2026, 7, 1, 8, 0, 0, TimeSpan.Zero);   // a Wednesday
         await PostAsync(api, new CreateCalendarItemRequest
         {
-            CalendarId = calId, Title = "Office hours", Availability = AvailabilityStatus.Office,
-            IsAllDay = false, StartsAt = start, EndsAt = start.AddHours(8), StartTimezone = "UTC", RecurrenceRule = "FREQ=WEEKLY",
+            CalendarId = calId,
+            Title = "Office hours",
+            Availability = AvailabilityStatus.Office,
+            IsAllDay = false,
+            StartsAt = start,
+            EndsAt = start.AddHours(8),
+            StartTimezone = "UTC",
+            RecurrenceRule = "FREQ=WEEKLY",
         });
 
         var from = Uri.EscapeDataString(start.ToString("o"));

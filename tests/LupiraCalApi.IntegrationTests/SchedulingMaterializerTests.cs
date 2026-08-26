@@ -1,9 +1,9 @@
+using System.Net.Http.Json;
 using LupiraCalApi.Core.Domain.CalendarItems;
 using LupiraCalApi.Core.Dtos.CalendarItems;
 using LupiraCalApi.Core.Scheduling;
 using Marten;
 using Npgsql;
-using System.Net.Http.Json;
 using Xunit;
 
 namespace LupiraCalApi.IntegrationTests;
@@ -32,7 +32,12 @@ public sealed class SchedulingMaterializerTests(CalApiTestFactory factory) : Int
         var start = DateTimeOffset.UtcNow.AddDays(10);
         var resp = await api.PostAsJsonAsync("/items", new CreateCalendarItemRequest
         {
-            CalendarId = calId, Title = "Fire", IsAllDay = false, StartsAt = start, EndsAt = start.AddHours(1), StartTimezone = "UTC",
+            CalendarId = calId,
+            Title = "Fire",
+            IsAllDay = false,
+            StartsAt = start,
+            EndsAt = start.AddHours(1),
+            StartTimezone = "UTC",
         });
         resp.EnsureSuccessStatusCode();
         return (await resp.Content.ReadFromJsonAsync<CalendarItemDto>())!;
@@ -82,8 +87,8 @@ public sealed class SchedulingMaterializerTests(CalApiTestFactory factory) : Int
     {
         await using var s = Factory.Store.LightweightSession();
         s.QueueSqlCommand(ScheduledFireSchema.InsertSql,
-            r.Id, r.ItemId, r.CalendarId, (object?)r.PrincipalId ?? DBNull.Value, r.OccurrenceAt,
-            (object?)r.PromptRef ?? DBNull.Value, (object?)r.ExpireAfter ?? DBNull.Value, r.DedupeKey);
+            r.Id, r.ItemId, r.CalendarId, (object?) r.PrincipalId ?? DBNull.Value, r.OccurrenceAt,
+            (object?) r.PromptRef ?? DBNull.Value, (object?) r.ExpireAfter ?? DBNull.Value, r.DedupeKey);
         await s.SaveChangesAsync();
     }
 

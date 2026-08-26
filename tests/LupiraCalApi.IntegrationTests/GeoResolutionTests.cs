@@ -1,9 +1,9 @@
+using System.Net;
+using System.Net.Http.Json;
 using LupiraCalApi.Core.Application;
 using LupiraCalApi.Core.Dtos.CalendarItems;
 using Microsoft.AspNetCore.TestHost;
 using Microsoft.Extensions.DependencyInjection;
-using System.Net.Http.Json;
-using System.Net;
 using Xunit;
 
 namespace LupiraCalApi.IntegrationTests;
@@ -41,10 +41,14 @@ public sealed class GeoResolutionTests(CalApiTestFactory factory) : IntegrationT
 
     private static CreateCalendarItemRequest Coffee(Guid calId, string? location = null, Guid? placeId = null) => new()
     {
-        CalendarId = calId, Title = "Coffee", IsAllDay = false,
+        CalendarId = calId,
+        Title = "Coffee",
+        IsAllDay = false,
         StartsAt = new DateTimeOffset(2026, 7, 1, 9, 0, 0, TimeSpan.Zero),
-        EndsAt = new DateTimeOffset(2026, 7, 1, 10, 0, 0, TimeSpan.Zero), StartTimezone = "UTC",
-        Location = location, PlaceId = placeId,
+        EndsAt = new DateTimeOffset(2026, 7, 1, 10, 0, 0, TimeSpan.Zero),
+        StartTimezone = "UTC",
+        Location = location,
+        PlaceId = placeId,
     };
 
     [Fact]

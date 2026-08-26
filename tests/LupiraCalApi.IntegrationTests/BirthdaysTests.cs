@@ -1,10 +1,10 @@
+using System.Net.Http.Json;
 using LupiraCalApi.Core.Application;
 using LupiraCalApi.Core.Domain.Shared;
 using LupiraCalApi.Core.Dtos.CalendarItems;
 using LupiraCalApi.Core.Dtos.Calendars;
 using Microsoft.AspNetCore.TestHost;
 using Microsoft.Extensions.DependencyInjection;
-using System.Net.Http.Json;
 using Xunit;
 
 namespace LupiraCalApi.IntegrationTests;
@@ -56,13 +56,22 @@ public sealed class BirthdaysTests(CalApiTestFactory factory) : IntegrationTest(
 
         var create = await api.PostAsJsonAsync("/items", new CreateCalendarItemRequest
         {
-            CalendarId = bdays, Title = "Shadow", IsAllDay = false, StartsAt = start, EndsAt = start.AddHours(1), StartTimezone = "UTC",
+            CalendarId = bdays,
+            Title = "Shadow",
+            IsAllDay = false,
+            StartsAt = start,
+            EndsAt = start.AddHours(1),
+            StartTimezone = "UTC",
         });
         Assert.Equal(System.Net.HttpStatusCode.BadRequest, create.StatusCode);
 
         var elsewhere = await api.PostAsJsonAsync("/items", new CreateCalendarItemRequest
         {
-            Title = "Loose", IsAllDay = false, StartsAt = start, EndsAt = start.AddHours(1), StartTimezone = "UTC",
+            Title = "Loose",
+            IsAllDay = false,
+            StartsAt = start,
+            EndsAt = start.AddHours(1),
+            StartTimezone = "UTC",
         });
         elsewhere.EnsureSuccessStatusCode();
         var item = (await elsewhere.Content.ReadFromJsonAsync<CalendarItemDto>())!;

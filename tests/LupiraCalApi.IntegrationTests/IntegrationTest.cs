@@ -1,9 +1,9 @@
-using Marten;
-using LupiraCalApi.Dav;
-using LupiraCalApi.Core.Dtos.Calendars;
-using LupiraCalApi.Core.Dtos.Me;
 using System.Net.Http.Json;
 using System.Text;
+using LupiraCalApi.Core.Dtos.Calendars;
+using LupiraCalApi.Core.Dtos.Me;
+using LupiraCalApi.Dav;
+using Marten;
 using Xunit;
 
 namespace LupiraCalApi.IntegrationTests;

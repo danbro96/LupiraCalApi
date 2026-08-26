@@ -1,9 +1,9 @@
+using System.Net;
+using System.Net.Http.Json;
+using System.Text.Json;
+using System.Text.Json.Serialization;
 using LupiraCalApi.Core.Dtos.CalendarItems;
 using LupiraCalApi.Core.Dtos.Sync;
-using System.Net.Http.Json;
-using System.Net;
-using System.Text.Json.Serialization;
-using System.Text.Json;
 using Xunit;
 
 namespace LupiraCalApi.IntegrationTests;

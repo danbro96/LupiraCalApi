@@ -1,5 +1,5 @@
-using LupiraCalApi.Core.Dtos.CalendarItems;
 using System.Net.Http.Json;
+using LupiraCalApi.Core.Dtos.CalendarItems;
 using Xunit;
 
 namespace LupiraCalApi.IntegrationTests;
@@ -13,9 +13,16 @@ public sealed class CompletenessTests(CalApiTestFactory factory) : IntegrationTe
     {
         var resp = await api.PostAsJsonAsync("/items", new CreateCalendarItemRequest
         {
-            CalendarId = calId, Title = title, Description = description, Category = category,
-            Location = location, PlaceId = location is null ? null : Guid.NewGuid(),   // REST requires a resolved place id
-            IsAllDay = false, StartsAt = Start, EndsAt = Start.AddHours(1), StartTimezone = "UTC",
+            CalendarId = calId,
+            Title = title,
+            Description = description,
+            Category = category,
+            Location = location,
+            PlaceId = location is null ? null : Guid.NewGuid(),   // REST requires a resolved place id
+            IsAllDay = false,
+            StartsAt = Start,
+            EndsAt = Start.AddHours(1),
+            StartTimezone = "UTC",
         });
         resp.EnsureSuccessStatusCode();
         return (await resp.Content.ReadFromJsonAsync<CalendarItemDto>())!;

@@ -1,3 +1,4 @@
+using System.Net.Http.Json;
 using LupiraCalApi.Core.Domain.CalendarItems;
 using LupiraCalApi.Core.Dtos.CalendarItems;
 using LupiraCalApi.Core.Scheduling;
@@ -5,7 +6,6 @@ using LupiraCalApi.Core.Serialization;
 using Marten;
 using Microsoft.Extensions.Logging.Abstractions;
 using Npgsql;
-using System.Net.Http.Json;
 using Xunit;
 
 namespace LupiraCalApi.IntegrationTests;
@@ -36,8 +36,13 @@ public sealed class HorizonSweepTests(CalApiTestFactory factory) : IntegrationTe
     {
         var resp = await api.PostAsJsonAsync("/items", new CreateCalendarItemRequest
         {
-            CalendarId = calId, Title = "Fire", IsAllDay = false, StartsAt = start, EndsAt = start.AddHours(1),
-            StartTimezone = "UTC", RecurrenceRule = rrule,
+            CalendarId = calId,
+            Title = "Fire",
+            IsAllDay = false,
+            StartsAt = start,
+            EndsAt = start.AddHours(1),
+            StartTimezone = "UTC",
+            RecurrenceRule = rrule,
         });
         resp.EnsureSuccessStatusCode();
         var item = (await resp.Content.ReadFromJsonAsync<CalendarItemDto>())!;

@@ -1,9 +1,9 @@
+using System.Net;
+using System.Net.Http.Json;
+using System.Text.Json.Nodes;
 using LupiraCalApi.Core.Domain.Shared;
 using LupiraCalApi.Core.Dtos.CalendarItems;
 using LupiraCalApi.Core.Dtos.Calendars;
-using System.Net.Http.Json;
-using System.Net;
-using System.Text.Json.Nodes;
 using Xunit;
 
 namespace LupiraCalApi.IntegrationTests;
@@ -154,8 +154,11 @@ public sealed class CalendarItemsRestTests(CalApiTestFactory factory) : Integrat
         var calId = await CreateCalendarAsync(api);
         var resp = await api.PostAsJsonAsync("/items", new CreateCalendarItemRequest
         {
-            CalendarId = calId, Title = "Gbg trip", IsAllDay = true,
-            StartDate = new DateOnly(2026, 7, 16), EndDate = new DateOnly(2026, 7, 18),
+            CalendarId = calId,
+            Title = "Gbg trip",
+            IsAllDay = true,
+            StartDate = new DateOnly(2026, 7, 16),
+            EndDate = new DateOnly(2026, 7, 18),
         });
         resp.EnsureSuccessStatusCode();
 

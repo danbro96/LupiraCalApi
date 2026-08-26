@@ -1,7 +1,7 @@
-using LupiraCalApi.Core.Dtos.CalendarItems;
 using System.Net.Http.Json;
-using System.Text.Json.Serialization;
 using System.Text.Json;
+using System.Text.Json.Serialization;
+using LupiraCalApi.Core.Dtos.CalendarItems;
 using Xunit;
 
 namespace LupiraCalApi.IntegrationTests;
@@ -14,10 +14,15 @@ public sealed class BatchAndParticipantsTests(CalApiTestFactory factory) : Integ
 
     private static CreateCalendarItemRequest Item(Guid calId, string title, string sourceKey, string? parentSourceKey = null, string category = "General") => new()
     {
-        CalendarId = calId, Title = title, SourceKey = sourceKey, ParentSourceKey = parentSourceKey,
-        Category = category, IsAllDay = false,
+        CalendarId = calId,
+        Title = title,
+        SourceKey = sourceKey,
+        ParentSourceKey = parentSourceKey,
+        Category = category,
+        IsAllDay = false,
         StartsAt = new DateTimeOffset(2026, 7, 1, 9, 0, 0, TimeSpan.Zero),
-        EndsAt = new DateTimeOffset(2026, 7, 1, 10, 0, 0, TimeSpan.Zero), StartTimezone = "UTC",
+        EndsAt = new DateTimeOffset(2026, 7, 1, 10, 0, 0, TimeSpan.Zero),
+        StartTimezone = "UTC",
     };
 
     [Fact]

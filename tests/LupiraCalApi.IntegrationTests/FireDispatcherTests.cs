@@ -1,3 +1,6 @@
+using System.Net;
+using System.Net.Http.Json;
+using System.Text.Json;
 using LupiraCalApi.Core.Domain.CalendarItems;
 using LupiraCalApi.Core.Domain.Shared;
 using LupiraCalApi.Core.Dtos.CalendarItems;
@@ -8,9 +11,6 @@ using Marten;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
 using Npgsql;
-using System.Net.Http.Json;
-using System.Net;
-using System.Text.Json;
 using Xunit;
 
 namespace LupiraCalApi.IntegrationTests;
@@ -73,7 +73,12 @@ public sealed class FireDispatcherTests(CalApiTestFactory factory) : Integration
         var start = DateTimeOffset.UtcNow.AddDays(10);
         var resp = await api.PostAsJsonAsync("/items", new CreateCalendarItemRequest
         {
-            CalendarId = calId, Title = "Fire", IsAllDay = false, StartsAt = start, EndsAt = start.AddHours(1), StartTimezone = "UTC",
+            CalendarId = calId,
+            Title = "Fire",
+            IsAllDay = false,
+            StartsAt = start,
+            EndsAt = start.AddHours(1),
+            StartTimezone = "UTC",
         });
         resp.EnsureSuccessStatusCode();
         var item = (await resp.Content.ReadFromJsonAsync<CalendarItemDto>())!;
@@ -254,6 +259,6 @@ public sealed class FireDispatcherTests(CalApiTestFactory factory) : Integration
         await using var conn = await _db.OpenConnectionAsync();
         await using var cmd = new NpgsqlCommand(sql, conn);
         cmd.Parameters.AddWithValue("id", itemId);
-        return (T)(await cmd.ExecuteScalarAsync())!;
+        return (T) (await cmd.ExecuteScalarAsync())!;
     }
 }
