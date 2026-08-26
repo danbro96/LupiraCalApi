@@ -20,9 +20,9 @@ namespace LupiraCalApi.Mcp;
 [McpServerToolType]
 public sealed class CalendarTools
 {
-    [McpServerTool]
+    [McpServerTool(Name = "search_items")]
     [Description("Search calendar items the caller can access, optionally by text, time window, category/status, tag; pageable.")]
-    public static async Task<IReadOnlyList<CalendarItemOccurrenceDto>> search_items(
+    public static async Task<IReadOnlyList<CalendarItemOccurrenceDto>> SearchItems(
         CalendarItemService items, CurrentUser user,
         [Description("Free-text query over title/description. With no from/to, matches all-time.")] string? query = null,
         [Description("Window start, ISO 8601. Without a query, defaults to one year ago.")] DateTimeOffset? from = null,
@@ -41,34 +41,34 @@ public sealed class CalendarTools
         return Require(await items.SearchAsync(u.Id, query, from, to, calendarId, tag, parentId, contactId, category, status, skip, take, desc));
     }
 
-    [McpServerTool]
+    [McpServerTool(Name = "create_item")]
     [Description("Create a calendar item; file it into a calendar (CalendarId) or leave it unfiled for curation. Category is the event type (General, Meeting, Appointment, Meal, Occasion, Outing, Trip, Stay, Activity, Focus, Chore). A location must be a resolved LupiraGeoApi PlaceId (resolve via lupira-geo first — free-text Location is only a label). Details are composable: Booking (provider/confirmation/reference/amount/partySize) attaches to any category; Travel (Mode + ToPlaceId, optional FromPlaceId) applies to a Trip and requires ToPlaceId. A presence/availability segment uses the top-level Availability field. For a historical/backfilled item known only to the month/year/roughly, still pass a concrete date and set StartPrecision/EndPrecision (Exact|Day|Month|Year|Approximate). Metadata (a JSON object, e.g. import provenance) can be merged inline at creation. Set a client SourceKey for idempotent re-create; nest under a parent via ParentItemId or ParentSourceKey. Bills and deliveries are LupiraTasks tasks — link them with link_item_to_task.")]
-    public static async Task<CalendarItemDto> create_item(CalendarItemService items, CurrentUser user, CreateCalendarItemRequest request)
+    public static async Task<CalendarItemDto> CreateItem(CalendarItemService items, CurrentUser user, CreateCalendarItemRequest request)
     {
         var u = await user.GetAsync();
         return Require(await items.CreateAsync(u.Id, request));
     }
 
-    [McpServerTool]
+    [McpServerTool(Name = "create_items_batch")]
     [Description("Create many calendar items in one call — for imports/backfills. Idempotent per item on its SourceKey (re-running returns the existing item, no duplicate). Children reference their parent by ParentSourceKey (the parent's SourceKey) in any order; the server orders parents first. Locations must be resolved PlaceIds (see create_item). Returns a per-item result {sourceKey, itemId, status: created|existed|invalid} in input order; one bad item does not fail the batch.")]
-    public static async Task<IReadOnlyList<ItemBatchResult>> create_items_batch(CalendarItemService items, CurrentUser user, CreateCalendarItemsBatchRequest request)
+    public static async Task<IReadOnlyList<ItemBatchResult>> CreateItemsBatch(CalendarItemService items, CurrentUser user, CreateCalendarItemsBatchRequest request)
     {
         var u = await user.GetAsync();
         return Require(await items.CreateBatchAsync(u.Id, request.Items));
     }
 
-    [McpServerTool]
+    [McpServerTool(Name = "update_item")]
     [Description("Update a calendar item: any subset of title, description, location, status, times, recurrence, tags, Category, and composable Details (Booking, Travel). To change location pass PlaceId (a resolved LupiraGeoApi place id; resolve via lupira-geo first) with Location as the display label — a free-text-only Location change is rejected; PlaceIdProvided=true with null PlaceId clears it. Omitted fields are unchanged; a supplied details member replaces that member wholesale (resend the full member; Travel requires ToPlaceId and applies only to Category 'Trip'). Changing Category drops the previous details. The top-level Availability field sets the presence segment's status.")]
-    public static async Task<CalendarItemDto> update_item(CalendarItemService items, CurrentUser user,
+    public static async Task<CalendarItemDto> UpdateItem(CalendarItemService items, CurrentUser user,
         [Description("Calendar item id.")] Guid itemId, UpdateCalendarItemRequest request)
     {
         var u = await user.GetAsync();
         return Require(await items.UpdateAsync(u.Id, itemId, request));
     }
 
-    [McpServerTool]
+    [McpServerTool(Name = "delete_item")]
     [Description("Delete a calendar item (soft delete + tombstone). Removes the whole item from every calendar it's filed in — not a single occurrence of a recurring series, and not just one calendar. Requires write access. Already-deleted or unknown ids return not found.")]
-    public static async Task<string> delete_item(
+    public static async Task<string> DeleteItem(
         CalendarItemService items, CurrentUser user,
         [Description("Calendar item id.")] Guid itemId)
     {
@@ -77,9 +77,9 @@ public sealed class CalendarTools
         return $"Deleted calendar item {itemId}.";
     }
 
-    [McpServerTool]
+    [McpServerTool(Name = "list_thin_items")]
     [Description("Check-in worklist: calendar items ranked thinnest-first by completeness score (0..1, ascending; most recent start first on ties). Item-granular — recurring items appear once. Each item carries Completeness with ranked Gaps: the fields worth asking the user about. Exempt items (system/Birthdays/Availability calendars, cancelled, presence/payload) never appear. When a gap doesn't apply (e.g. no booking for a homemade dinner), acknowledge it via attach_metadata with {\"completeness\":{\"na\":[\"booking\"]}} — the field stops counting and the ask goes away.")]
-    public static async Task<IReadOnlyList<CalendarItemDto>> list_thin_items(
+    public static async Task<IReadOnlyList<CalendarItemDto>> ListThinItems(
         CalendarItemService items, CurrentUser user,
         [Description("Restrict to one calendar id.")] Guid? calendarId = null,
         [Description("Filter by category (General, Meeting, Appointment, Meal, Occasion, Outing, Trip, Stay, Activity, Focus, Chore).")] string? category = null,
@@ -90,9 +90,9 @@ public sealed class CalendarTools
         return Require(await items.ThinItemsAsync(u.Id, calendarId, category, maxScore, take));
     }
 
-    [McpServerTool]
+    [McpServerTool(Name = "attach_metadata")]
     [Description("Merge an arbitrary JSON object of metadata into a calendar item. Also the channel for completeness N/A acknowledgments: {\"completeness\":{\"na\":[\"booking\",\"seat\"]}} marks those rubric fields as not applicable so the item's completeness score stops counting them.")]
-    public static async Task<CalendarItemDto> attach_metadata(
+    public static async Task<CalendarItemDto> AttachMetadata(
         CalendarItemService items, CurrentUser user,
         [Description("Calendar item id.")] Guid itemId,
         [Description("A JSON object of metadata keys to merge.")] string metadataJson)
@@ -102,9 +102,9 @@ public sealed class CalendarTools
         return Require(await items.AttachMetadataAsync(u.Id, itemId, node));
     }
 
-    [McpServerTool]
+    [McpServerTool(Name = "file_item")]
     [Description("File an already-created calendar item into a calendar. status = proposed|accepted (default proposed); 'accepted' files it directly (then visible over DAV), 'proposed' queues it for accept/reject. Returns the updated item. Unknown or inaccessible items return not found.")]
-    public static async Task<CalendarItemDto> file_item(
+    public static async Task<CalendarItemDto> FileItem(
         CurationService curation, CurrentUser user,
         [Description("Calendar item id.")] Guid itemId,
         [Description("Target calendar id.")] Guid calendarId,
@@ -114,18 +114,18 @@ public sealed class CalendarTools
         return Require(await curation.AddToCalendarAsync(u.Id, itemId, calendarId, status));
     }
 
-    [McpServerTool]
+    [McpServerTool(Name = "file_items_batch")]
     [Description("File many existing calendar items into calendars in one call. Each entry files ItemId into CalendarId with an optional Status (proposed|accepted, default proposed) and is authorized independently — one bad entry never fails the batch. Returns a per-entry result {itemId, calendarId, status: filed|notfound|forbidden|invalid, error} in input order.")]
-    public static async Task<IReadOnlyList<FileItemResult>> file_items_batch(
+    public static async Task<IReadOnlyList<FileItemResult>> FileItemsBatch(
         CurationService curation, CurrentUser user, FileItemsBatchRequest request)
     {
         var u = await user.GetAsync();
         return Require(await curation.AddToCalendarBatchAsync(u.Id, request.Entries));
     }
 
-    [McpServerTool]
+    [McpServerTool(Name = "invite_participant")]
     [Description("Invite a contact to a calendar item as an attendee. role = chair|req-participant|opt-participant|non-participant (default req-participant).")]
-    public static async Task<CalendarItemDto> invite_participant(
+    public static async Task<CalendarItemDto> InviteParticipant(
         ParticipationService participation, CurrentUser user,
         [Description("Calendar item id.")] Guid itemId,
         [Description("The LupiraContactApi contact id to invite.")] Guid contactId,
@@ -135,9 +135,9 @@ public sealed class CalendarTools
         return Require(await participation.InviteAsync(u.Id, itemId, contactId, role));
     }
 
-    [McpServerTool]
+    [McpServerTool(Name = "respond_participant")]
     [Description("Record an attendee's RSVP. status = needs-action|accepted|declined|tentative|delegated.")]
-    public static async Task<CalendarItemDto> respond_participant(
+    public static async Task<CalendarItemDto> RespondParticipant(
         ParticipationService participation, CurrentUser user,
         [Description("Calendar item id.")] Guid itemId,
         [Description("The participation id (from the item's attendees).")] Guid participationId,
@@ -147,9 +147,9 @@ public sealed class CalendarTools
         return Require(await participation.RespondAsync(u.Id, itemId, participationId, status));
     }
 
-    [McpServerTool]
+    [McpServerTool(Name = "set_participants")]
     [Description("Add a set of contacts as attendees of an item in one call (add-only — keeps existing attendees). attended=true (default) also marks them attended, for historical/backfilled events (avoids the pending-invite look); pass false for a live invite flow. Returns a slim result (the additions + already-present count), not the full item. Prefer this over repeated invite_participant.")]
-    public static async Task<SetParticipantsResult> set_participants(
+    public static async Task<SetParticipantsResult> SetParticipants(
         ParticipationService participation, CurrentUser user,
         [Description("Calendar item id.")] Guid itemId,
         [Description("LupiraContactApi contact ids to add as attendees.")] Guid[] contactIds,
@@ -159,9 +159,9 @@ public sealed class CalendarTools
         return Require(await participation.SetParticipantsAsync(u.Id, itemId, contactIds, attended));
     }
 
-    [McpServerTool]
+    [McpServerTool(Name = "participation_summary")]
     [Description("Per-contact participation across the caller's readable calendars: {contactId, count, lastAt}, ordered most-interacted first. Use it to rank ambiguous contact matches (e.g. lupira-contact resolve_contacts candidates) by real interaction. Optional from/to restricts to occurrences in that window.")]
-    public static async Task<IReadOnlyList<ParticipationSummaryEntry>> participation_summary(
+    public static async Task<IReadOnlyList<ParticipationSummaryEntry>> ParticipationSummary(
         ParticipationService participation, CurrentUser user,
         [Description("Window start, ISO 8601 (optional; default all-time).")] DateTimeOffset? from = null,
         [Description("Window end, ISO 8601 (optional; default all-time).")] DateTimeOffset? to = null)
@@ -170,33 +170,33 @@ public sealed class CalendarTools
         return Require(await participation.SummaryAsync(u.Id, from, to));
     }
 
-    [McpServerTool]
+    [McpServerTool(Name = "list_calendars")]
     [Description("List the calendars the caller can access.")]
-    public static async Task<IReadOnlyList<ContainerDto>> list_calendars(CalendarService calendars, CurrentUser user)
+    public static async Task<IReadOnlyList<ContainerDto>> ListCalendars(CalendarService calendars, CurrentUser user)
     {
         var u = await user.GetAsync();
         return Require(await calendars.ListContainersAsync(u.Id));
     }
 
-    [McpServerTool]
+    [McpServerTool(Name = "bootstrap_me")]
     [Description("Ensure the caller has the standard calendar set (idempotent); returns it.")]
-    public static async Task<IReadOnlyList<ContainerDto>> bootstrap_me(CalendarService calendars, CurrentUser user)
+    public static async Task<IReadOnlyList<ContainerDto>> BootstrapMe(CalendarService calendars, CurrentUser user)
     {
         var u = await user.GetAsync();
         return Require(await calendars.BootstrapPersonalAsync(u.Id));
     }
 
-    [McpServerTool]
+    [McpServerTool(Name = "create_calendar")]
     [Description("Create a calendar. Slug required.")]
-    public static async Task<ContainerDto> create_calendar(CalendarService calendars, CurrentUser user, CreateCalendarRequest request)
+    public static async Task<ContainerDto> CreateCalendar(CalendarService calendars, CurrentUser user, CreateCalendarRequest request)
     {
         var u = await user.GetAsync();
         return Require(await calendars.CreateAsync(u.Id, request));
     }
 
-    [McpServerTool]
+    [McpServerTool(Name = "grant_calendar_owner")]
     [Description("Grant a member access to a calendar, by email. access = owner|read-write|read (default owner).")]
-    public static async Task<OwnerGrantDto> grant_calendar_owner(
+    public static async Task<OwnerGrantDto> GrantCalendarOwner(
         CalendarService calendars, CurrentUser user,
         [Description("Calendar id.")] Guid calendarId,
         [Description("The member's login email.")] string email,
@@ -206,9 +206,9 @@ public sealed class CalendarTools
         return Require(await calendars.GrantCalendarOwnerAsync(u.Id, calendarId, new GrantOwnerRequest { Email = email, Access = access }));
     }
 
-    [McpServerTool]
+    [McpServerTool(Name = "revoke_calendar_owner")]
     [Description("Revoke a member's access to a calendar, by email. Fails if it would remove the last owner.")]
-    public static async Task<string> revoke_calendar_owner(
+    public static async Task<string> RevokeCalendarOwner(
         CalendarService calendars, CurrentUser user,
         [Description("Calendar id.")] Guid calendarId,
         [Description("The member's login email.")] string email)
@@ -218,9 +218,9 @@ public sealed class CalendarTools
         return $"Revoked {email}'s access to calendar {calendarId}.";
     }
 
-    [McpServerTool]
+    [McpServerTool(Name = "link_item_to_task")]
     [Description("Link a calendar item to an external item (e.g. a LupiraTasks item) by reference id.")]
-    public static async Task<RelationDto> link_item_to_task(
+    public static async Task<RelationDto> LinkItemToTask(
         RelationService relations, CurrentUser user,
         [Description("Calendar item id.")] Guid itemId,
         [Description("The LupiraTasks item id.")] string taskId,
@@ -230,9 +230,9 @@ public sealed class CalendarTools
         return Require(await relations.LinkItemAsync(u.Id, itemId, new CreateRelationRequest { ToKind = "task", ToRef = taskId, RelationType = relationType }));
     }
 
-    [McpServerTool]
+    [McpServerTool(Name = "find_items_linked_to_task")]
     [Description("Find calendar items the caller can access that are linked to a given LupiraTasks item.")]
-    public static async Task<IReadOnlyList<CalendarItemDto>> find_items_linked_to_task(
+    public static async Task<IReadOnlyList<CalendarItemDto>> FindItemsLinkedToTask(
         RelationService relations, CurrentUser user,
         [Description("The LupiraTasks item id.")] string taskId)
     {
