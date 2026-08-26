@@ -123,7 +123,7 @@ The agent surface mirrors REST and is scoped to the caller's access:
 
 `search_items` · `create_item` · `update_item` · `attach_metadata` · `invite_participant` ·
 `respond_participant` · `list_calendars` · `bootstrap_me` · `create_calendar` · `grant_calendar_owner` ·
-`revoke_calendar_owner` · `link_item_to_task` · `find_items_linked_to_task`
+`revoke_calendar_owner` · `link_item_to_task` · `list_items_linked_to_task`
 
 ## Docker & Compose
 
