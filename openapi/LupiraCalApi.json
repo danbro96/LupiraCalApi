@@ -2306,7 +2306,7 @@
           "attendees": {
             "type": "array",
             "items": {
-              "$ref": "#/components/schemas/ItemAttendee"
+              "$ref": "#/components/schemas/ItemAttendeeDto"
             }
           },
           "calendars": {
@@ -2935,7 +2935,17 @@
           }
         }
       },
-      "ItemAttendee": {
+      "ItemAttendeeDto": {
+        "required": [
+          "participationId",
+          "contactId",
+          "role",
+          "status",
+          "invitedAt",
+          "respondedAt",
+          "attendedAt",
+          "leftAt"
+        ],
         "type": "object",
         "properties": {
           "participationId": {

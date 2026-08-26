@@ -33,11 +33,23 @@ internal static class CalendarItemMapper
         Prompt = i.Prompt,
         Action = i.Action,
         Completeness = completeness,
-        Attendees = i.Attendees,
+        Attendees = [.. i.Attendees.Select(ToResponse)],
         Calendars = i.Calendars.Select(m => new CalendarMembershipDto { CalendarId = m.CalendarId, Status = m.Status }).ToList(),
         Etag = i.ContentHash,
         CreatedAt = i.CreatedAt,
         UpdatedAt = i.UpdatedAt,
         Version = i.Version,
+    };
+
+    private static ItemAttendeeDto ToResponse(ItemAttendee a) => new()
+    {
+        ParticipationId = a.ParticipationId,
+        ContactId = a.ContactId,
+        Role = a.Role,
+        Status = a.Status,
+        InvitedAt = a.InvitedAt,
+        RespondedAt = a.RespondedAt,
+        AttendedAt = a.AttendedAt,
+        LeftAt = a.LeftAt,
     };
 }

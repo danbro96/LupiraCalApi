@@ -12,6 +12,24 @@ public sealed class CalendarMembershipDto
     public required CalendarEntryStatus Status { get; set; }
 }
 
+/// <summary>One attendee's participation, composed from the participation events.</summary>
+public sealed class ItemAttendeeDto
+{
+    public required Guid ParticipationId { get; set; }
+    public required Guid ContactId { get; set; }
+
+    [JsonConverter(typeof(JsonStringEnumConverter<ParticipationRole>))]
+    public required ParticipationRole Role { get; set; }
+
+    [JsonConverter(typeof(JsonStringEnumConverter<ParticipationStatus>))]
+    public required ParticipationStatus Status { get; set; }
+
+    public required DateTimeOffset? InvitedAt { get; set; }
+    public required DateTimeOffset? RespondedAt { get; set; }
+    public required DateTimeOffset? AttendedAt { get; set; }
+    public required DateTimeOffset? LeftAt { get; set; }
+}
+
 public sealed class CalendarItemDto
 {
     public required Guid Id { get; set; }
@@ -53,7 +71,7 @@ public sealed class CalendarItemDto
     /// <summary>How well-documented this item is (null = not applicable, e.g. exempt kinds/calendars). Drives Elicit ranking.</summary>
     public CompletenessScore? Completeness { get; set; }
 
-    public required IReadOnlyList<ItemAttendee> Attendees { get; set; }
+    public required IReadOnlyList<ItemAttendeeDto> Attendees { get; set; }
     public required IReadOnlyList<CalendarMembershipDto> Calendars { get; set; }
     public required string Etag { get; set; }
 
