@@ -230,9 +230,9 @@ public sealed class CalendarTools
         return Require(await relations.LinkItemAsync(u.Id, itemId, new CreateRelationRequest { ToKind = "task", ToRef = taskId, RelationType = relationType }));
     }
 
-    [McpServerTool(Name = "find_items_linked_to_task")]
+    [McpServerTool(Name = "list_items_linked_to_task")]
     [Description("Find calendar items the caller can access that are linked to a given LupiraTasks item.")]
-    public static async Task<IReadOnlyList<CalendarItemDto>> FindItemsLinkedToTask(
+    public static async Task<IReadOnlyList<CalendarItemDto>> ListItemsLinkedToTask(
         RelationService relations, CurrentUser user,
         [Description("The LupiraTasks item id.")] string taskId)
     {
