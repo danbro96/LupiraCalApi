@@ -37,6 +37,50 @@ public sealed class RelationsTests(CalApiTestFactory factory) : IntegrationTest(
     }
 
     [Fact]
+    public async Task Edges_by_kind_map_each_reference_to_its_item()
+    {
+        var api = Factory.ApiClient(Email);
+        var calId = await CreateCalendarAsync(api);
+        var first = await CreateItemAsync(api, calId);
+        var second = await CreateItemAsync(api, calId);
+        var photoA = Guid.NewGuid().ToString();
+        var photoB = Guid.NewGuid().ToString();
+
+        foreach (var (item, photo) in new[] { (first, photoA), (second, photoB) })
+        {
+            var link = await api.PostAsJsonAsync($"/items/{item}/relations",
+                new CreateRelationRequest { ToKind = "photo", ToRef = photo, RelationType = "depicts" });
+            link.EnsureSuccessStatusCode();
+        }
+        var other = await api.PostAsJsonAsync($"/items/{first}/relations",
+            new CreateRelationRequest { ToKind = "task", ToRef = "task-9", RelationType = "derived-from" });
+        other.EnsureSuccessStatusCode();
+
+        // One call gives the whole reference→item mapping; the item-shaped reverse lookup would need
+        // one request per photo and still wouldn't say which photo matched which item.
+        var edges = await api.GetFromJsonAsync<List<RelationDto>>("/relations/edges?toKind=photo");
+        Assert.Equal(2, edges!.Count);
+        Assert.Equal(first, edges.Single(e => e.ToRef == photoA).FromId);
+        Assert.Equal(second, edges.Single(e => e.ToRef == photoB).FromId);
+        Assert.DoesNotContain(edges, e => e.ToKind == "task");
+    }
+
+    [Fact]
+    public async Task Edges_hide_items_the_caller_cannot_see()
+    {
+        var owner = Factory.ApiClient(Email);
+        var calId = await CreateCalendarAsync(owner);
+        var itemId = await CreateItemAsync(owner, calId);
+        var photo = Guid.NewGuid().ToString();
+        (await owner.PostAsJsonAsync($"/items/{itemId}/relations",
+            new CreateRelationRequest { ToKind = "photo", ToRef = photo, RelationType = "depicts" })).EnsureSuccessStatusCode();
+
+        // A Relation carries no principal of its own — visibility has to come from the item.
+        var stranger = Factory.ApiClient("mallory@x.test");
+        Assert.Empty((await stranger.GetFromJsonAsync<List<RelationDto>>("/relations/edges?toKind=photo"))!);
+    }
+
+    [Fact]
     public async Task Link_on_a_missing_item_is_not_found()
     {
         var api = Factory.ApiClient(Email);

@@ -1781,6 +1781,65 @@
         ]
       }
     },
+    "/relations/edges": {
+      "get": {
+        "tags": [
+          "Relations"
+        ],
+        "summary": "Every edge of one kind the caller can see, with its item and reference — e.g. all photo links.",
+        "operationId": "ListRelationEdges",
+        "parameters": [
+          {
+            "name": "toKind",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/RelationDto"
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal server error",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "Bearer": [ ]
+          }
+        ]
+      }
+    },
     "/relations": {
       "get": {
         "tags": [

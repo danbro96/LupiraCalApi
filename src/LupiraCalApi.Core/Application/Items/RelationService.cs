@@ -45,6 +45,27 @@ public sealed class RelationService(IDocumentSession session, AccessResolver acc
         return OpResult<List<RelationDto>>.Ok(rels.Select(RelationMapper.ToResponse).ToList());
     }
 
+    /// <summary>Every edge of one kind the caller can see, as raw relations rather than items — the
+    /// caller needs the ToRef→FromId mapping itself (e.g. to badge a photo grid), which the item-shaped
+    /// reverse lookup cannot express without one call per reference.</summary>
+    public async Task<OpResult<List<RelationDto>>> ListEdgesByKindAsync(Guid principalId, string toKind, CancellationToken ct = default)
+    {
+        var rels = await session.Query<Relation>().Where(x => x.FromKind == "item" && x.ToKind == toKind).ToListAsync(ct);
+        if (rels.Count == 0) return OpResult<List<RelationDto>>.Ok([]);
+
+        // A Relation carries no principal — visibility comes from the item it hangs off.
+        var ids = rels.Select(r => r.FromId).Distinct().ToList();
+        var items = await session.Query<CalendarItem>().Where(i => ids.Contains(i.Id) && i.DeletedAt == null).ToListAsync(ct);
+        var calIds = await access.AccessibleCalendarIdsAsync(principalId, ct);
+        var visibleIds = items
+            .Where(i => i.Calendars.Any(m => m.Status == CalendarEntryStatus.Accepted && calIds.Contains(m.CalendarId)))
+            .Select(i => i.Id)
+            .ToHashSet();
+
+        return OpResult<List<RelationDto>>.Ok(
+            [.. rels.Where(r => visibleIds.Contains(r.FromId)).Select(RelationMapper.ToResponse)]);
+    }
+
     /// <summary>Reverse lookup: items the caller can access that link to a given external reference.</summary>
     public async Task<OpResult<List<CalendarItemDto>>> FindItemsLinkedToAsync(Guid principalId, string toKind, string toRef, CancellationToken ct = default)
     {

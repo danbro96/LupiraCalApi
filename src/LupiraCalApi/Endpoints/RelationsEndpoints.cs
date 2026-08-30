@@ -24,6 +24,12 @@ public static class RelationsEndpoints
             .Produces<List<RelationDto>>(StatusCodes.Status200OK)
             .ProducesProblem(StatusCodes.Status404NotFound);
 
+        group.MapGet("/relations/edges", (string toKind, RelationsHandler h, CancellationToken ct) =>
+                h.ListEdgesByKindAsync(toKind, ct))
+            .WithName("ListRelationEdges")
+            .WithSummary("Every edge of one kind the caller can see, with its item and reference — e.g. all photo links.")
+            .Produces<List<RelationDto>>(StatusCodes.Status200OK);
+
         group.MapGet("/relations", (string toKind, string toRef, RelationsHandler h, CancellationToken ct) =>
                 h.FindItemsLinkedToAsync(toKind, toRef, ct))
             .WithName("FindRelatedItems")

@@ -21,6 +21,12 @@ public sealed class RelationsHandler(CurrentUser user, RelationService relations
         return OpResultMap.OkNotFoundProblem(await relations.ListForItemAsync(u.Id, id, ct));
     }
 
+    public async Task<Results<Ok<List<RelationDto>>, ProblemHttpResult, UnauthorizedHttpResult>> ListEdgesByKindAsync(string toKind, CancellationToken ct)
+    {
+        var u = await user.GetAsync(ct);
+        return OpResultMap.OkProblem(await relations.ListEdgesByKindAsync(u.Id, toKind, ct));
+    }
+
     public async Task<Results<Ok<List<CalendarItemDto>>, ProblemHttpResult, UnauthorizedHttpResult>> FindItemsLinkedToAsync(string toKind, string toRef, CancellationToken ct)
     {
         var u = await user.GetAsync(ct);
