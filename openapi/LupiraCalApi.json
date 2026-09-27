@@ -2964,8 +2964,7 @@
       "CalendarClass": {
         "enum": [
           "Agenda",
-          "System",
-          null
+          "System"
         ]
       },
       "CalendarEntryStatus": {
@@ -3340,8 +3339,7 @@
           "UserCheckIn",
           "DevOps",
           "FoodPlan",
-          "Generic",
-          null
+          "Generic"
         ]
       },
       "CalendarMembershipDto": {
@@ -3753,8 +3751,7 @@
           "Day",
           "Month",
           "Year",
-          "Approximate",
-          null
+          "Approximate"
         ]
       },
       "FallbackMode": {
@@ -3929,8 +3926,7 @@
           "Stay",
           "Activity",
           "Focus",
-          "Chore",
-          null
+          "Chore"
         ]
       },
       "ItemDetails": {
@@ -4063,8 +4059,7 @@
         "enum": [
           "Tentative",
           "Confirmed",
-          "Cancelled",
-          null
+          "Cancelled"
         ]
       },
       "JsonNode": { },
@@ -4098,8 +4093,7 @@
         "enum": [
           "Small",
           "Medium",
-          "Large",
-          null
+          "Large"
         ]
       },
       "OccurrenceOrigin": {
