@@ -10,7 +10,7 @@
   </PropertyGroup>
 
   <!--
-    Build-time OpenAPI document (openapi/LupiraCalApi.json) — consumed by LupiraCalWeb's Orval codegen.
+    Build-time OpenAPI document (openapi/LupiraCalApi.json) — consumed by LupiraCal's Orval codegen.
     Doc-gen boots the app and CalApi's startup eagerly creates the cal.scheduled_fire table (needs dev
     Postgres), so generation runs on local builds only and is skipped in CI. This is the one emitter
     that can't run doc-gen without infra; all others use the always-on canonical block.

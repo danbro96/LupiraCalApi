@@ -4,7 +4,7 @@ using LupiraCalApi.Core.Data;
 using LupiraCalApi.Core.Domain.CalendarItems;
 using Marten;
 
-// Emits parity fixtures for the mobile domain package (packages/domain in the LupiraCalWeb monorepo):
+// Emits parity fixtures for the mobile domain package (packages/domain in the LupiraCal monorepo):
 //   <out-dir>/recurrence.json   — recurrence-rule expansions computed by the server's RecurrenceExpander;
 //                                 the TS expander must reproduce `expected` exactly (UTC, half-open window).
 //   <out-dir>/lww-vectors.json  — SectionLww wins/tiebreak decisions; the client reducer must agree on every row.
