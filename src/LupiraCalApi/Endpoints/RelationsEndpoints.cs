@@ -24,6 +24,20 @@ public static class RelationsEndpoints
             .Produces<List<RelationDto>>(StatusCodes.Status200OK)
             .ProducesProblem(StatusCodes.Status404NotFound);
 
+        group.MapDelete("/items/{id:guid}/relations/{relationId:guid}", (Guid id, Guid relationId, RelationsHandler h, CancellationToken ct) =>
+                h.UnlinkItemAsync(id, relationId, ct))
+            .WithName("DeleteItemRelation")
+            .WithSummary("Remove one relation from a calendar item.")
+            .Produces(StatusCodes.Status204NoContent)
+            .ProducesProblem(StatusCodes.Status403Forbidden).ProducesProblem(StatusCodes.Status404NotFound);
+
+        group.MapPost("/items/{id:guid}/relations/batch/delete", (Guid id, DeleteRelationsBatchRequest body, RelationsHandler h, CancellationToken ct) =>
+                h.UnlinkItemBatchAsync(id, body, ct))
+            .WithName("DeleteItemRelationsBatch")
+            .WithSummary("Unlink many references of one kind from an item at once (idempotent: references with no matching edge are ignored).")
+            .Produces(StatusCodes.Status204NoContent)
+            .ProducesProblem(StatusCodes.Status400BadRequest).ProducesProblem(StatusCodes.Status403Forbidden).ProducesProblem(StatusCodes.Status404NotFound);
+
         group.MapGet("/items/{id:guid}/relations", (Guid id, RelationsHandler h, CancellationToken ct) =>
                 h.ListForItemAsync(id, ct))
             .WithName("ListItemRelations")

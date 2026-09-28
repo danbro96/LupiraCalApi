@@ -22,6 +22,19 @@ public sealed class RelationsHandler(CurrentUser user, RelationService relations
         return OpResultMap.OkNotFoundProblem(await relations.LinkItemBatchAsync(u.Id, id, body, ct));
     }
 
+    public async Task<Results<NoContent, NotFound, ProblemHttpResult, UnauthorizedHttpResult>> UnlinkItemAsync(Guid id, Guid relationId, CancellationToken ct)
+    {
+        var u = await user.GetAsync(ct);
+        return OpResultMap.NoContentNotFoundProblem(await relations.UnlinkItemAsync(u.Id, id, relationId, ct));
+    }
+
+    public async Task<Results<NoContent, NotFound, ProblemHttpResult, UnauthorizedHttpResult>> UnlinkItemBatchAsync(
+        Guid id, DeleteRelationsBatchRequest body, CancellationToken ct)
+    {
+        var u = await user.GetAsync(ct);
+        return OpResultMap.NoContentNotFoundProblem(await relations.UnlinkItemBatchAsync(u.Id, id, body, ct));
+    }
+
     public async Task<Results<Ok<List<RelationDto>>, NotFound, ProblemHttpResult, UnauthorizedHttpResult>> ListForItemAsync(Guid id, CancellationToken ct)
     {
         var u = await user.GetAsync(ct);

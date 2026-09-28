@@ -71,6 +71,35 @@ public sealed class RelationService(IDocumentSession session, AccessResolver acc
         return OpResult<List<RelationDto>>.Ok(existing.Concat(added).Select(RelationMapper.ToResponse).ToList());
     }
 
+    public async Task<OpResult> UnlinkItemAsync(Guid principalId, Guid itemId, Guid relationId, CancellationToken ct = default)
+    {
+        var item = await session.LoadAsync<CalendarItem>(itemId, ct);
+        if (item is null || item.DeletedAt is not null) return OpResult.NotFound();
+        if (!await access.CanWriteItemAsync(principalId, item, ct)) return OpResult.Forbidden("No write access to this item.");
+
+        var rel = await session.LoadAsync<Relation>(relationId, ct);
+        if (rel is null || rel.FromKind != "item" || rel.FromId != itemId) return OpResult.NotFound();
+
+        session.Delete(rel);
+        await session.SaveChangesAsync(ct);
+        return OpResult.Ok();
+    }
+
+    /// <summary>Idempotent: references with no matching edge are ignored.</summary>
+    public async Task<OpResult> UnlinkItemBatchAsync(
+        Guid principalId, Guid itemId, DeleteRelationsBatchRequest r, CancellationToken ct = default)
+    {
+        if (r.ToRefs.Count > BatchMax) return OpResult.Invalid($"At most {BatchMax} references per batch.");
+        var item = await session.LoadAsync<CalendarItem>(itemId, ct);
+        if (item is null || item.DeletedAt is not null) return OpResult.NotFound();
+        if (!await access.CanWriteItemAsync(principalId, item, ct)) return OpResult.Forbidden("No write access to this item.");
+
+        session.DeleteWhere<Relation>(x => x.FromKind == "item" && x.FromId == itemId && x.ToKind == r.ToKind
+            && x.RelationType == r.RelationType && r.ToRefs.Contains(x.ToRef));
+        await session.SaveChangesAsync(ct);
+        return OpResult.Ok();
+    }
+
     public async Task<OpResult<List<RelationDto>>> ListForItemAsync(Guid principalId, Guid itemId, CancellationToken ct = default)
     {
         var item = await session.LoadAsync<CalendarItem>(itemId, ct);
