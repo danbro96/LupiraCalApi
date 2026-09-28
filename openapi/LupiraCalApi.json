@@ -2156,6 +2156,123 @@
         ]
       }
     },
+    "/hotspots": {
+      "get": {
+        "tags": [
+          "Hotspots"
+        ],
+        "summary": "Places where your events and photos concentrate, derived at read time and ranked by active days (distinct UTC days with an event occurrence or a photo). Events come from calendars you can read (or calendarId), photos are your own. Defaults: all-time up to now, minDays 3, limit 100. A hotspot carries the LupiraGeoApi PlaceId it anchors to, else a reverse-geocoded label.",
+        "operationId": "GetHotspots",
+        "parameters": [
+          {
+            "name": "from",
+            "in": "query",
+            "schema": {
+              "type": [
+                "null",
+                "string"
+              ],
+              "format": "date-time"
+            }
+          },
+          {
+            "name": "to",
+            "in": "query",
+            "schema": {
+              "type": [
+                "null",
+                "string"
+              ],
+              "format": "date-time"
+            }
+          },
+          {
+            "name": "calendarId",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "minDays",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "format": "int32"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "format": "int32"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/HotspotDto"
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal server error",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "Bearer": [ ]
+          }
+        ]
+      }
+    },
     "/calendars/{calendarId}/proposed": {
       "get": {
         "tags": [
@@ -4082,6 +4199,77 @@
         },
         "description": "Grant a member access to a container, identified by their login `Email` (provisioned if they have\n            not logged in yet). `Access` is `owner` (default), `read-write`, or `read` — case-insensitive."
       },
+      "HotspotDto": {
+        "required": [
+          "id",
+          "latitude",
+          "longitude",
+          "radiusM",
+          "eventCount",
+          "photoCount",
+          "activeDays",
+          "firstDay",
+          "lastDay"
+        ],
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "description": "`place:{placeId}` when anchored, else `cell:{lat},{lon}` of its densest ~100 m cell."
+          },
+          "latitude": {
+            "type": "number",
+            "format": "double"
+          },
+          "longitude": {
+            "type": "number",
+            "format": "double"
+          },
+          "radiusM": {
+            "type": "integer",
+            "description": "Distance from the centre to the farthest contributing point.",
+            "format": "int32"
+          },
+          "placeId": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "description": "The LupiraGeoApi place the hotspot anchors to.",
+            "format": "uuid"
+          },
+          "label": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "description": "The anchor place's name, else a reverse-geocoded label."
+          },
+          "eventCount": {
+            "type": "integer",
+            "description": "Event occurrences here, recurrences expanded.",
+            "format": "int32"
+          },
+          "photoCount": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "activeDays": {
+            "type": "integer",
+            "description": "Distinct UTC days with an event or a photo here.",
+            "format": "int32"
+          },
+          "firstDay": {
+            "type": "string",
+            "format": "date"
+          },
+          "lastDay": {
+            "type": "string",
+            "format": "date"
+          }
+        },
+        "description": "A place where the caller's events and photos concentrate, derived at read time and ranked by active days."
+      },
       "ItemAction": {
         "required": [
           "kind",
@@ -5403,6 +5591,9 @@
     },
     {
       "name": "Relations"
+    },
+    {
+      "name": "Hotspots"
     },
     {
       "name": "Curation"

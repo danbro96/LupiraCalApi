@@ -2,10 +2,12 @@ using System.ComponentModel;
 using System.Text.Json.Nodes;
 using LupiraCalApi.Auth;
 using LupiraCalApi.Core.Application.Calendars;
+using LupiraCalApi.Core.Application.Hotspots;
 using LupiraCalApi.Core.Application.Items;
 using LupiraCalApi.Core.Application.Results;
 using LupiraCalApi.Core.Dtos.CalendarItems;
 using LupiraCalApi.Core.Dtos.Calendars;
+using LupiraCalApi.Core.Dtos.Hotspots;
 using LupiraCalApi.Core.Dtos.Relations;
 using ModelContextProtocol;
 using ModelContextProtocol.Server;
@@ -251,6 +253,20 @@ public sealed class CalendarTools
     {
         var u = await user.GetAsync();
         return Require(await relations.FindItemsLinkedToAsync(u.Id, "task", taskId));
+    }
+
+    [McpServerTool(Name = "list_hotspots")]
+    [Description("Places where the caller's events and photos concentrate, ranked by active days (distinct UTC days with an event occurrence or a photo there). Events come from calendars the caller can read, photos are their own. Each hotspot carries the LupiraGeoApi PlaceId it anchors to, else a reverse-geocoded label.")]
+    public static async Task<IReadOnlyList<HotspotDto>> ListHotspots(
+        HotspotService hotspots, CurrentUser user,
+        [Description("Window start, ISO 8601. Default: all-time.")] DateTimeOffset? from = null,
+        [Description("Window end, ISO 8601. Default: now.")] DateTimeOffset? to = null,
+        [Description("Count events from this calendar id only.")] Guid? calendarId = null,
+        [Description("Minimum active days for a hotspot (default 3).")] int? minDays = null,
+        [Description("Max hotspots returned (default 100, max 500).")] int? limit = null)
+    {
+        var u = await user.GetAsync();
+        return Require(await hotspots.ListAsync(u.Id, from, to, calendarId, minDays, limit));
     }
 
     /// <summary>Unwraps a service outcome to its value, surfacing non-Ok statuses as an MCP tool error.</summary>

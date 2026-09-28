@@ -242,6 +242,12 @@ catalog). Free-text locations are resolved once at write time via `IGeoResolver`
 label means ICS generation and the read DTOs never call geo. `GET /items/by-place/{placeId}` is the
 reverse index (items at a geo place).
 
+**Hotspots** (`GET /hotspots`) are derived at read time and never stored. Event occurrences in readable calendars
+(located by `PlaceId`, else the travel `ToPlaceId`) and the caller's photo density from LupiraPhotoApi
+(`IPhotoDensitySource`, member token exchange) are clustered by `HotspotClusterer`: DBSCAN over 150 m where density is
+distinct UTC days, not points, so a photo burst counts once and a weekly class counts every week. A hotspot anchors
+to the geo place with the most event days inside it, else a place within 75 m, else a reverse-geocoded label.
+
 ## Enumerations
 
 | Enum | Members | Maps to |

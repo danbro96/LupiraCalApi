@@ -114,6 +114,7 @@ are scoped to the caller's accessible containers.
 | **Participation** | `POST /items/{id}/participants` (invite) · `…/{participationId}/respond` · `…/attend` · `…/leave` · `DELETE …/{participationId}` |
 | **Curation** | `GET /calendars/{id}/proposed` · `POST /items/{itemId}/calendars/{calId}/accept` · `POST /items/{itemId}/calendars/{calId}` · `DELETE /items/{itemId}/calendars/{calId}` |
 | **Relations** | `POST`/`GET /items/{id}/relations` (link to an external service) · `DELETE /items/{id}/relations/{relationId}` · `POST /items/{id}/relations/batch` · `POST /items/{id}/relations/batch/delete` (idempotent) · `GET /relations/edges` (all edges of one kind) · `GET /relations` (reverse lookup) |
+| **Hotspots** | `GET /hotspots` (places where your events and photos concentrate, ranked by active days; derived at read time) |
 | **DAV backend** | `/dav-backend/u/{email}/…` (LAN-only, gateway-authed; collections · query · resources · changes — see [the contract](docs/dav-backend-contract.md)) |
 | **Health** | `GET /livez` (liveness) · `GET /readyz` (readiness — Postgres reachable) |
 
@@ -123,7 +124,8 @@ The agent surface mirrors REST and is scoped to the caller's access:
 
 `search_items` · `create_item` · `update_item` · `attach_metadata` · `invite_participant` ·
 `respond_participant` · `list_calendars` · `bootstrap_me` · `create_calendar` · `grant_calendar_owner` ·
-`revoke_calendar_owner` · `link_item_to_task` · `unlink_item_from_task` · `list_items_linked_to_task`
+`revoke_calendar_owner` · `link_item_to_task` · `unlink_item_from_task` · `list_items_linked_to_task` ·
+`list_hotspots`
 
 ## Docker & Compose
 

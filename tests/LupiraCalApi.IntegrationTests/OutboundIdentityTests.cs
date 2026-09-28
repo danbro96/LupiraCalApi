@@ -3,6 +3,7 @@ using System.Net.Http.Json;
 using System.Text;
 using System.Text.Json;
 using LupiraCalApi.Core.Dtos.CalendarItems;
+using LupiraCalApi.Core.Dtos.Hotspots;
 using Microsoft.AspNetCore.TestHost;
 using Microsoft.AspNetCore.WebUtilities;
 using Microsoft.Extensions.DependencyInjection;
@@ -10,7 +11,7 @@ using Xunit;
 
 namespace LupiraCalApi.IntegrationTests;
 
-/// <summary>The real geo/contact clients over a stubbed network: calls with no member behind them (the DAV seam) use
+/// <summary>The real geo/contact/photo clients over a stubbed network: calls with no member behind them (the DAV seam) use
 /// the service client's credentials; member calls carry the member's identity. Development stands in for the
 /// member-token exchange, which the unit tests cover.</summary>
 public sealed class OutboundIdentityTests(CalApiTestFactory factory) : IntegrationTest(factory)
@@ -39,6 +40,16 @@ public sealed class OutboundIdentityTests(CalApiTestFactory factory) : Integrati
             lock (Calls) Calls.Add((path, null, null, auth, dev));
             if (path == "/places/resolve")
                 return Json($$"""{"placeId":"{{Guid.NewGuid()}}","name":"Cafe Central","latitude":48.2,"longitude":16.4}""");
+            if (path == "/places/lookup")
+            {
+                using var doc = JsonDocument.Parse(await request.Content!.ReadAsStringAsync(ct));
+                var ids = doc.RootElement.GetProperty("ids").EnumerateArray().Select(e => e.GetGuid());
+                return Json(JsonSerializer.Serialize(ids.Select(id => new { requestedId = id, place = new { id, name = "Cafe Central", latitude = 59.3301, longitude = 18.0701 } })));
+            }
+            if (path == "/places")
+                return Json("[]");
+            if (path == "/photos/density")
+                return Json("""[{"latitude":59.33,"longitude":18.07,"count":4,"days":["2026-03-01","2026-03-02"]}]""");
             if (path == "/contacts/lookup")
             {
                 using var doc = JsonDocument.Parse(await request.Content!.ReadAsStringAsync(ct));
@@ -69,6 +80,8 @@ public sealed class OutboundIdentityTests(CalApiTestFactory factory) : Integrati
             b.UseSetting("Contacts:TokenUrl", TokenUrl);
             b.UseSetting("Contacts:ClientId", "lupira-contact-svc");
             b.UseSetting("Contacts:ClientSecret", "contact-secret");
+            b.UseSetting("Photos:BaseUrl", "http://photo.test/");
+            b.UseSetting("Photos:Audience", "lupira-photo");
             b.ConfigureTestServices(s => s.ConfigureHttpClientDefaults(h => h.ConfigurePrimaryHttpMessageHandler(() => net)));
         });
         var member = app.CreateClient();
@@ -133,6 +146,32 @@ public sealed class OutboundIdentityTests(CalApiTestFactory factory) : Integrati
         var lookup = Assert.Single(net.Calls, c => c.Path == "/contacts/lookup");
         Assert.Equal(Email, lookup.DevUser);
         Assert.Null(lookup.Authorization);
+        Assert.DoesNotContain(net.Calls, c => c.GrantType is not null);
+    }
+
+    [Fact]
+    public async Task Member_hotspots_read_geo_and_photos_as_the_member()
+    {
+        var (member, _, net) = Clients();
+        var calId = await CreateCalendarAsync(member);
+        (await member.PostAsJsonAsync("/items", new CreateCalendarItemRequest
+        {
+            CalendarId = calId,
+            Title = "Coffee",
+            IsAllDay = false,
+            StartsAt = new DateTimeOffset(2026, 7, 1, 9, 0, 0, TimeSpan.Zero),
+            EndsAt = new DateTimeOffset(2026, 7, 1, 10, 0, 0, TimeSpan.Zero),
+            StartTimezone = "UTC",
+            Location = "Cafe Central",
+            PlaceId = Guid.NewGuid(),
+        })).EnsureSuccessStatusCode();
+
+        var hotspot = Assert.Single((await member.GetFromJsonAsync<List<HotspotDto>>("/hotspots?to=2026-12-31T00:00:00Z"))!);
+
+        Assert.Equal((1, 4, 3), (hotspot.EventCount, hotspot.PhotoCount, hotspot.ActiveDays));
+        Assert.Equal("Cafe Central", hotspot.Label);
+        Assert.Equal(Email, Assert.Single(net.Calls, c => c.Path == "/photos/density").DevUser);
+        Assert.Equal(Email, Assert.Single(net.Calls, c => c.Path == "/places/lookup").DevUser);
         Assert.DoesNotContain(net.Calls, c => c.GrantType is not null);
     }
 }

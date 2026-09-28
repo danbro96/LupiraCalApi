@@ -11,4 +11,12 @@ public interface IGeoResolver
     bool IsConfigured { get; }
 
     Task<GeoPlaceResolution?> ResolveAsync(string text, CancellationToken ct = default);
+
+    /// <summary>Places by id, keyed by the requested id (merged ids map to the survivor). <c>null</c> = geo unavailable;
+    /// absent keys in a non-null result are unknown or deleted.</summary>
+    Task<IReadOnlyDictionary<Guid, GeoPlaceSummary>?> LookupAsync(IReadOnlyCollection<Guid> placeIds, CancellationToken ct = default);
+
+    Task<GeoPlaceSummary?> NearestAsync(double latitude, double longitude, int radiusM, CancellationToken ct = default);
+
+    Task<GeoReverseLabel?> ReverseAsync(double latitude, double longitude, CancellationToken ct = default);
 }

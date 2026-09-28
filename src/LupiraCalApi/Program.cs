@@ -39,6 +39,7 @@ builder.Services.AddScoped<MeHandler>();
 builder.Services.AddScoped<CalendarsHandler>();
 builder.Services.AddScoped<CalendarItemsHandler>();
 builder.Services.AddScoped<RelationsHandler>();
+builder.Services.AddScoped<HotspotsHandler>();
 builder.Services.AddScoped<CurationHandler>();
 builder.Services.AddScoped<ParticipationHandler>();
 builder.Services.AddScoped<SyncHandler>();
@@ -63,6 +64,16 @@ if (contactOptions.IsConfigured)
 {
     builder.Services.AddHttpClient<IContactResolver, ContactApiClient>(c =>
         c.BaseAddress = new Uri(contactOptions.BaseUrl.EndsWith('/') ? contactOptions.BaseUrl : contactOptions.BaseUrl + "/"));
+}
+
+// --- Photos: LupiraPhotoApi owns photos (Photos:BaseUrl). When configured, hotspots weigh in the caller's photo
+// density; otherwise Core's NullPhotoDensitySource keeps them events-only. ---
+builder.Services.Configure<PhotoApiOptions>(builder.Configuration.GetSection(PhotoApiOptions.SectionName));
+var photoOptions = builder.Configuration.GetSection(PhotoApiOptions.SectionName).Get<PhotoApiOptions>() ?? new PhotoApiOptions();
+if (photoOptions.IsConfigured)
+{
+    builder.Services.AddHttpClient<IPhotoDensitySource, PhotoApiClient>(c =>
+        c.BaseAddress = new Uri(photoOptions.BaseUrl.EndsWith('/') ? photoOptions.BaseUrl : photoOptions.BaseUrl + "/"));
 }
 
 // Outbound auth per OutboundAuthProvider. Token state lives in singletons, so the typed clients stay transient.
@@ -99,10 +110,10 @@ if (enforceConfig && (string.IsNullOrWhiteSpace(oidc.Authority) || string.IsNull
     throw new InvalidOperationException("Auth:Oidc Authority + Audience are required outside Development.");
 
 var exchangeOptions = builder.Configuration.GetSection(TokenExchangeOptions.SectionName).Get<TokenExchangeOptions>() ?? new TokenExchangeOptions();
-IOutboundHopOptions[] configuredHops = [.. new IOutboundHopOptions[] { geoOptions, contactOptions }.Where(h => h.IsConfigured)];
+IOutboundHopOptions[] configuredHops = [.. new IOutboundHopOptions[] { geoOptions, contactOptions, photoOptions }.Where(h => h.IsConfigured)];
 if (enforceConfig && configuredHops.Length > 0
     && (!exchangeOptions.IsConfigured || configuredHops.Any(h => string.IsNullOrWhiteSpace(h.Audience))))
-    throw new InvalidOperationException("Geo/Contacts hops need an Audience and Auth:Exchange TokenUrl + ClientId + ClientSecret outside Development.");
+    throw new InvalidOperationException("Geo/Contacts/Photos hops need an Audience and Auth:Exchange TokenUrl + ClientId + ClientSecret outside Development.");
 
 var authBuilder = builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
     .AddJwtBearer(options =>
@@ -390,6 +401,7 @@ app.MapCalendars();
 app.MapOwners();
 app.MapCalendarItems();
 app.MapRelations();
+app.MapHotspots();
 app.MapCuration();
 app.MapParticipation();
 app.MapSync();

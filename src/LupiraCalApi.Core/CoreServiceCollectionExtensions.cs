@@ -5,6 +5,7 @@ using LupiraCalApi.Core.Abstractions;
 using LupiraCalApi.Core.Application;
 using LupiraCalApi.Core.Application.Calendars;
 using LupiraCalApi.Core.Application.Dav;
+using LupiraCalApi.Core.Application.Hotspots;
 using LupiraCalApi.Core.Application.Items;
 using LupiraCalApi.Core.Auth;
 using LupiraCalApi.Core.Data;
@@ -58,12 +59,14 @@ public static class CoreServiceCollectionExtensions
         services.TryAddSingleton<IGeoResolver, NullGeoResolver>();
         // Same pattern for contacts: LupiraContactApi owns them; unconfigured -> fail-open null resolver.
         services.TryAddSingleton<IContactResolver, NullContactResolver>();
+        services.TryAddSingleton<IPhotoDensitySource, NullPhotoDensitySource>();
         services.AddScoped<LupiraCalApi.Core.Data.Idempotency>();
         services.AddScoped<CalendarService>();
         services.AddScoped<CalendarItemService>();
         services.AddScoped<CurationService>();
         services.AddScoped<ParticipationService>();
         services.AddScoped<RelationService>();
+        services.AddScoped<HotspotService>();
         services.AddSingleton<TimeRangeFilter>();
         services.AddScoped<DavChangeFeed>();
         services.AddScoped<SyncFeed>();

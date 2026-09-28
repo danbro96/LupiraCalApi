@@ -20,6 +20,12 @@ public sealed class GeoResolutionTests(CalApiTestFactory factory) : IntegrationT
         public bool IsConfigured => true;
         public Task<GeoPlaceResolution?> ResolveAsync(string text, CancellationToken ct = default) =>
             Task.FromResult<GeoPlaceResolution?>(new GeoPlaceResolution(id, name, 59.33, 18.06));
+        public Task<IReadOnlyDictionary<Guid, GeoPlaceSummary>?> LookupAsync(IReadOnlyCollection<Guid> placeIds, CancellationToken ct = default) =>
+            Task.FromResult<IReadOnlyDictionary<Guid, GeoPlaceSummary>?>(null);
+        public Task<GeoPlaceSummary?> NearestAsync(double latitude, double longitude, int radiusM, CancellationToken ct = default) =>
+            Task.FromResult<GeoPlaceSummary?>(null);
+        public Task<GeoReverseLabel?> ReverseAsync(double latitude, double longitude, CancellationToken ct = default) =>
+            Task.FromResult<GeoReverseLabel?>(null);
     }
 
     // Geo configured but unreachable (GeocodeUnavailable / transport error) — the retryable case.
@@ -28,6 +34,12 @@ public sealed class GeoResolutionTests(CalApiTestFactory factory) : IntegrationT
         public bool IsConfigured => true;
         public Task<GeoPlaceResolution?> ResolveAsync(string text, CancellationToken ct = default) =>
             Task.FromResult<GeoPlaceResolution?>(null);
+        public Task<IReadOnlyDictionary<Guid, GeoPlaceSummary>?> LookupAsync(IReadOnlyCollection<Guid> placeIds, CancellationToken ct = default) =>
+            Task.FromResult<IReadOnlyDictionary<Guid, GeoPlaceSummary>?>(null);
+        public Task<GeoPlaceSummary?> NearestAsync(double latitude, double longitude, int radiusM, CancellationToken ct = default) =>
+            Task.FromResult<GeoPlaceSummary?>(null);
+        public Task<GeoReverseLabel?> ReverseAsync(double latitude, double longitude, CancellationToken ct = default) =>
+            Task.FromResult<GeoReverseLabel?>(null);
     }
 
     private HttpClient ClientWith(IGeoResolver geo)

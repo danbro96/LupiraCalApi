@@ -52,6 +52,11 @@ services:
       Geo__ClientSecret: ${GEO_CLIENT_SECRET:-}
       Geo__Scope: ${GEO_SCOPE:-lupira-geo-aud}
 
+      # Photos — hotspots weigh in the caller's photo density from LupiraPhotoApi, as the member (token exchange
+      # only; photos are owner-scoped). Clear PHOTO_BASE_URL to keep hotspots events-only.
+      Photos__BaseUrl: ${PHOTO_BASE_URL:-http://lupira-photo-api:8080/}   # in-network hop
+      Photos__Audience: ${PHOTO_AUDIENCE:-lupira-photo}
+
       # MCP surface (/mcp) is the most powerful surface — keep it off the public internet.
 
       # OTEL — optional OTLP export (http/protobuf; 5-min metric cadence). Unset endpoint = silent no-op.
