@@ -50,17 +50,8 @@ public sealed class TokenEndpointClient(IHttpClientFactory httpFactory)
         using (resp)
         {
             var body = await resp.Content.ReadAsStringAsync(ct);
-            JsonElement root;
-            try
-            {
-                root = JsonDocument.Parse(body).RootElement;
-            }
-            catch (JsonException)
-            {
-                throw new TokenEndpointException(
-                    resp.IsSuccessStatusCode ? TokenErrorKind.Other : TokenErrorKind.Unavailable, (int) resp.StatusCode, "non-JSON response");
-            }
-
+            using var doc = ParseBody(body, resp);
+            var root = doc.RootElement;
             if (!resp.IsSuccessStatusCode)
                 throw new TokenEndpointException(
                     TokenEndpointException.Parse(Text(root, "error")), (int) resp.StatusCode, Text(root, "error_description"));
@@ -70,6 +61,19 @@ public sealed class TokenEndpointClient(IHttpClientFactory httpFactory)
                 throw new TokenEndpointException(TokenErrorKind.Other, (int) resp.StatusCode, "response had no access_token");
             var expiresIn = root.TryGetProperty("expires_in", out var e) && e.TryGetInt32(out var s) ? s : 300;
             return new IssuedToken(accessToken, TimeSpan.FromSeconds(expiresIn));
+        }
+    }
+
+    private static JsonDocument ParseBody(string body, HttpResponseMessage resp)
+    {
+        try
+        {
+            return JsonDocument.Parse(body);
+        }
+        catch (JsonException)
+        {
+            throw new TokenEndpointException(
+                resp.IsSuccessStatusCode ? TokenErrorKind.Other : TokenErrorKind.Unavailable, (int) resp.StatusCode, "non-JSON response");
         }
     }
 

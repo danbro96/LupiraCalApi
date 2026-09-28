@@ -1,10 +1,9 @@
 namespace LupiraCalApi.Clients;
 
 /// <summary>
-/// Binds <c>Geo</c> — the cal → LupiraGeoApi hop (resolve a free-text location to a shared place). Member requests
-/// exchange the caller's bearer for <see cref="Audience"/>; calls with no member (the DAV seam) use client credentials
-/// (<see cref="TokenUrl"/> + client id/secret); Development sends <c>X-Dev-User</c>. Unset <see cref="BaseUrl"/> ⇒ not
-/// configured ⇒ free-text locations resolve to no place id (label = raw text).
+/// Binds <c>Geo</c> — the cal → LupiraGeoApi hop (resolve a free-text location to a shared place), authenticated per
+/// <see cref="OutboundAuthProvider"/>. Unset <see cref="BaseUrl"/> ⇒ not configured ⇒ free-text locations resolve to no
+/// place id (label = raw text).
 /// </summary>
 public sealed class GeoApiOptions : IOutboundHopOptions
 {

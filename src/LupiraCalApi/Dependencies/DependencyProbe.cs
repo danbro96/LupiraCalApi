@@ -1,20 +1,17 @@
-using System.Collections.Concurrent;
 using System.Diagnostics;
-using System.Text.Json;
+using LupiraCalApi.Clients;
 
 namespace LupiraCalApi.Dependencies;
 
 /// <summary>One edge probe: mint (or reuse) a client-credentials token, GET the target's /pingz,
 /// map the outcome. Uses its own named client so probe traffic never rides the real clients.</summary>
-public sealed class DependencyProbe(IHttpClientFactory httpFactory)
+public sealed class DependencyProbe(IHttpClientFactory httpFactory, TokenEndpointClient tokens, TokenCache cache)
 {
     public const string ProbeClientName = "depz-probe";
 
-    private readonly ConcurrentDictionary<string, (string Token, DateTimeOffset ExpiresAt)> _tokens = new();
-
     public async Task<DependencyDto> ProbeAsync(DependencyTarget target, CancellationToken ct)
     {
-        if (string.IsNullOrWhiteSpace(target.BaseUrl))
+        if (!target.IsConfigured)
             return Result(target, DependencyStatus.Unconfigured, error: "no base URL configured");
 
         var client = httpFactory.CreateClient(ProbeClientName);
@@ -26,15 +23,13 @@ public sealed class DependencyProbe(IHttpClientFactory httpFactory)
         {
             try
             {
-                request.Headers.Authorization = new("Bearer", await MintAsync(target, client, ct));
+                var token = await cache.GetOrMintAsync(TokenCache.ClientCredentialsKey(target), token => tokens.ClientCredentialsAsync(target, token), null, ct);
+                request.Headers.Authorization = new("Bearer", token);
             }
-            catch (OperationCanceledException) when (ct.IsCancellationRequested)
+            catch (TokenEndpointException ex)
             {
-                throw;
-            }
-            catch (Exception ex)
-            {
-                return Result(target, DependencyStatus.NoCredential, error: $"token mint failed: {ex.Message}");
+                return Result(target, DependencyStatus.NoCredential,
+                    error: $"token mint failed: {ex.Kind} ({ex.StatusCode?.ToString() ?? "no response"}) {ex.Description}");
             }
         }
         else if (!string.IsNullOrWhiteSpace(target.DevUser))
@@ -66,36 +61,6 @@ public sealed class DependencyProbe(IHttpClientFactory httpFactory)
             return Result(target, DependencyStatus.Down, stopwatch.Elapsed.TotalMilliseconds, ex.Message);
         }
     }
-
-    private async Task<string> MintAsync(DependencyTarget target, HttpClient client, CancellationToken ct)
-    {
-        if (_tokens.TryGetValue(target.Name, out var cached) && DateTimeOffset.UtcNow < cached.ExpiresAt)
-            return cached.Token;
-
-        var form = new Dictionary<string, string>
-        {
-            ["grant_type"] = "client_credentials",
-            ["client_id"] = target.ClientId!,
-            ["client_secret"] = target.ClientSecret!,
-        };
-        // The scope pulls in the audience mapping; binding it on the provider alone is not enough.
-        if (!string.IsNullOrWhiteSpace(target.Scope)) form["scope"] = target.Scope!;
-
-        using var response = await client.PostAsync(target.TokenUrl, new FormUrlEncodedContent(form), ct);
-        var raw = await response.Content.ReadAsStringAsync(ct);
-        // The IdP's error body (invalid_client / invalid_scope / unauthorized_client) is the whole
-        // diagnostic — a bare status code says nothing about which side is misconfigured.
-        if (!response.IsSuccessStatusCode)
-            throw new InvalidOperationException($"HTTP {(int) response.StatusCode}: {Truncate(raw)}");
-        using var payload = JsonDocument.Parse(raw);
-        var token = payload.RootElement.GetProperty("access_token").GetString()
-            ?? throw new InvalidOperationException("token response had no access_token");
-        var expiresIn = payload.RootElement.TryGetProperty("expires_in", out var e) ? e.GetInt32() : 300;
-        _tokens[target.Name] = (token, DateTimeOffset.UtcNow.AddSeconds(expiresIn - 30));
-        return token;
-    }
-
-    private static string Truncate(string s) => s.Length <= 300 ? s : s[..300];
 
     private static DependencyDto Result(DependencyTarget target, DependencyStatus status, double? latencyMs = null, string? error = null)
     {

@@ -2,9 +2,8 @@ namespace LupiraCalApi.Clients;
 
 /// <summary>
 /// Binds <c>Contacts</c> — the cal → LupiraContactApi hop (validate contact ids referenced by attendees and item
-/// details, list birthdays). Member requests exchange the caller's bearer for <see cref="Audience"/>; calls with no
-/// member use client credentials (<see cref="TokenUrl"/> + client id/secret); Development sends <c>X-Dev-User</c>.
-/// Unset <see cref="BaseUrl"/> ⇒ not configured ⇒ contact refs are stored unvalidated.
+/// details, list birthdays), authenticated per <see cref="OutboundAuthProvider"/>. Unset <see cref="BaseUrl"/> ⇒ not
+/// configured ⇒ contact refs are stored unvalidated.
 /// </summary>
 public sealed class ContactApiOptions : IOutboundHopOptions
 {

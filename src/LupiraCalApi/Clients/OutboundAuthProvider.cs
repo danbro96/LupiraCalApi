@@ -1,3 +1,4 @@
+using System.Net.Http.Headers;
 using System.Security.Claims;
 using LupiraCalApi.Auth;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
@@ -9,7 +10,7 @@ namespace LupiraCalApi.Clients;
 /// One rule for every outbound hop: a member behind the request → exchange their bearer for the hop's audience
 /// (RFC 8693) and act as them, so the target's ACL applies; no member (DAV gateway, background) → client
 /// credentials. A failed exchange never falls back to the service credential — that would silently re-widen the
-/// ACL — it returns null and the caller fails open.
+/// ACL — it returns false and the caller fails open.
 /// </summary>
 public sealed class OutboundAuthProvider(
     IHttpContextAccessor http,
@@ -19,11 +20,13 @@ public sealed class OutboundAuthProvider(
     IOptions<DavGatewayOptions> davGateway,
     ILogger<OutboundAuthProvider> logger)
 {
+    private const string DevUserHeader = "X-Dev-User";
+
     public static InboundCaller Classify(HttpContext? ctx, string? davGatewayClientId)
     {
         var user = ctx?.User;
         if (user?.Identity?.IsAuthenticated != true) return new InboundCaller(InboundIdentity.Service);
-        if (davGatewayClientId is not null && user.HasClaim("azp", davGatewayClientId)) return new InboundCaller(InboundIdentity.Service);
+        if (DavGatewayOptions.IsGateway(user, davGatewayClientId)) return new InboundCaller(InboundIdentity.Service);
         if (user.Identity.AuthenticationType == DevAuthHandler.SchemeName)
             return new InboundCaller(InboundIdentity.DevMember, DevEmail: user.FindFirstValue("email"));
 
@@ -34,20 +37,24 @@ public sealed class OutboundAuthProvider(
         return new InboundCaller(InboundIdentity.Member, header[(JwtBearerDefaults.AuthenticationScheme.Length + 1)..].Trim(), exp);
     }
 
-    /// <summary>The headers that authenticate one outbound call, or null when no credential could be obtained (the
+    /// <summary>Authenticates <paramref name="req"/> for the hop; false when no credential could be obtained (the
     /// caller skips the call and fails open).</summary>
-    public async Task<IReadOnlyDictionary<string, string>?> ResolveHeadersAsync(IOutboundHopOptions hop, CancellationToken ct)
+    public async Task<bool> TryAuthorizeAsync(HttpRequestMessage req, IOutboundHopOptions hop, CancellationToken ct)
     {
         var caller = Classify(http.HttpContext, davGateway.Value.ClientId);
-        return caller.Kind switch
+        switch (caller.Kind)
         {
-            InboundIdentity.Member => await MemberAsync(caller, hop, ct),
-            InboundIdentity.DevMember => new Dictionary<string, string> { ["X-Dev-User"] = caller.DevEmail ?? string.Empty },
-            _ => await ServiceAsync(hop, ct),
-        };
+            case InboundIdentity.Member:
+                return SetBearer(req, await ExchangeAsync(caller, hop, ct));
+            case InboundIdentity.DevMember:
+                req.Headers.TryAddWithoutValidation(DevUserHeader, caller.DevEmail ?? string.Empty);
+                return true;
+            default:
+                return await AuthorizeAsServiceAsync(req, hop, ct);
+        }
     }
 
-    private async Task<IReadOnlyDictionary<string, string>?> MemberAsync(InboundCaller caller, IOutboundHopOptions hop, CancellationToken ct)
+    private async Task<string?> ExchangeAsync(InboundCaller caller, IOutboundHopOptions hop, CancellationToken ct)
     {
         var opts = exchange.Value;
         if (!opts.IsConfigured || string.IsNullOrWhiteSpace(hop.Audience))
@@ -58,11 +65,10 @@ public sealed class OutboundAuthProvider(
 
         try
         {
-            var token = await cache.GetOrMintAsync(
+            return await cache.GetOrMintAsync(
                 TokenCache.ExchangeKey(caller.SubjectToken!, hop.Audience!),
-                () => tokens.ExchangeAsync(opts, caller.SubjectToken!, hop.Audience!, ct),
+                token => tokens.ExchangeAsync(opts, caller.SubjectToken!, hop.Audience!, token),
                 caller.SubjectExpiresAt, ct);
-            return Bearer(token);
         }
         catch (TokenEndpointException ex)
         {
@@ -72,26 +78,30 @@ public sealed class OutboundAuthProvider(
         }
     }
 
-    private async Task<IReadOnlyDictionary<string, string>?> ServiceAsync(IOutboundHopOptions hop, CancellationToken ct)
+    private async Task<bool> AuthorizeAsServiceAsync(HttpRequestMessage req, IOutboundHopOptions hop, CancellationToken ct)
     {
         if (!string.IsNullOrWhiteSpace(hop.TokenUrl) && !string.IsNullOrWhiteSpace(hop.ClientId) && !string.IsNullOrWhiteSpace(hop.ClientSecret))
         {
             try
             {
-                return Bearer(await cache.GetOrMintAsync(TokenCache.ClientCredentialsKey(hop), () => tokens.ClientCredentialsAsync(hop, ct), null, ct));
+                return SetBearer(req, await cache.GetOrMintAsync(TokenCache.ClientCredentialsKey(hop), token => tokens.ClientCredentialsAsync(hop, token), null, ct));
             }
             catch (TokenEndpointException ex)
             {
                 logger.LogWarning("Client-credentials token for {ClientId} failed: {Kind} ({StatusCode}) {Description}",
                     hop.ClientId, ex.Kind, ex.StatusCode, ex.Description);
-                return null;
+                return false;
             }
         }
 
-        return string.IsNullOrWhiteSpace(hop.DevUser)
-            ? new Dictionary<string, string>()
-            : new Dictionary<string, string> { ["X-Dev-User"] = hop.DevUser! };
+        if (!string.IsNullOrWhiteSpace(hop.DevUser)) req.Headers.TryAddWithoutValidation(DevUserHeader, hop.DevUser);
+        return true;
     }
 
-    private static Dictionary<string, string> Bearer(string token) => new() { ["Authorization"] = $"Bearer {token}" };
+    private static bool SetBearer(HttpRequestMessage req, string? token)
+    {
+        if (token is null) return false;
+        req.Headers.Authorization = new AuthenticationHeaderValue(JwtBearerDefaults.AuthenticationScheme, token);
+        return true;
+    }
 }

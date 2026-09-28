@@ -42,12 +42,8 @@ public sealed class ContactApiClient(HttpClient http, IOptions<ContactApiOptions
     {
         try
         {
-            var headers = await auth.ResolveHeadersAsync(_opts, ct);
-            if (headers is null) return null;
-
             using var req = build();
-            foreach (var (key, value) in headers)
-                req.Headers.TryAddWithoutValidation(key, value);
+            if (!await auth.TryAuthorizeAsync(req, _opts, ct)) return null;
 
             using var resp = await http.SendAsync(req, ct);
             if (!resp.IsSuccessStatusCode)

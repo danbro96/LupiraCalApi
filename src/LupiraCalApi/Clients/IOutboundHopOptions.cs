@@ -15,4 +15,6 @@ public interface IOutboundHopOptions
     string? Scope { get; }
 
     string? DevUser { get; }
+
+    bool IsConfigured { get; }
 }

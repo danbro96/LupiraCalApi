@@ -12,7 +12,7 @@ public class TokenCacheTests
     {
         var cache = new TokenCache(new FakeClock(T0));
         var mints = 0;
-        Task<IssuedToken> Mint() { mints++; return Task.FromResult(new IssuedToken("a", TimeSpan.FromMinutes(5))); }
+        Task<IssuedToken> Mint(CancellationToken _) { mints++; return Task.FromResult(new IssuedToken("a", TimeSpan.FromMinutes(5))); }
 
         await cache.GetOrMintAsync("k", Mint, null, default);
         await cache.GetOrMintAsync("k", Mint, null, default);
@@ -36,7 +36,7 @@ public class TokenCacheTests
         var clock = new FakeClock(T0);
         var cache = new TokenCache(clock);
         var mints = 0;
-        Task<IssuedToken> Mint() { mints++; return Task.FromResult(new IssuedToken($"t{mints}", TimeSpan.FromMinutes(5))); }
+        Task<IssuedToken> Mint(CancellationToken _) { mints++; return Task.FromResult(new IssuedToken($"t{mints}", TimeSpan.FromMinutes(5))); }
 
         await cache.GetOrMintAsync("k", Mint, T0.AddMinutes(1), default);
         clock.Now = T0.AddSeconds(59);
@@ -56,7 +56,7 @@ public class TokenCacheTests
         var cache = new TokenCache(new FakeClock(T0));
         var gate = new TaskCompletionSource();
         var mints = 0;
-        async Task<IssuedToken> Mint() { Interlocked.Increment(ref mints); await gate.Task; return new IssuedToken("a", TimeSpan.FromMinutes(5)); }
+        async Task<IssuedToken> Mint(CancellationToken _) { Interlocked.Increment(ref mints); await gate.Task; return new IssuedToken("a", TimeSpan.FromMinutes(5)); }
 
         var callers = Enumerable.Range(0, 20).Select(_ => cache.GetOrMintAsync("k", Mint, null, default)).ToArray();
         gate.SetResult();
@@ -70,7 +70,7 @@ public class TokenCacheTests
     {
         var cache = new TokenCache(new FakeClock(T0));
         var attempts = 0;
-        Task<IssuedToken> Mint() => ++attempts == 1
+        Task<IssuedToken> Mint(CancellationToken _) => ++attempts == 1
             ? throw new TokenEndpointException(TokenErrorKind.Unavailable, null, "down")
             : Task.FromResult(new IssuedToken("a", TimeSpan.FromMinutes(5)));
 

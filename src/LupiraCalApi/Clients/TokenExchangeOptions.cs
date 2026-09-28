@@ -1,9 +1,8 @@
 namespace LupiraCalApi.Clients;
 
 /// <summary>
-/// Binds <c>Auth:Exchange</c> — cal-api as the RFC 8693 requester. The member's inbound bearer (issued by the
-/// <c>lupira-cal</c> provider) is exchanged for a token scoped to the target's audience, authenticated with this
-/// confidential client. The target providers federate <c>lupira-cal</c>.
+/// Binds <c>Auth:Exchange</c> — cal-api's confidential client as the RFC 8693 requester for
+/// <see cref="OutboundAuthProvider"/>. The target providers federate <c>lupira-cal</c>.
 /// </summary>
 public sealed class TokenExchangeOptions
 {

@@ -28,9 +28,7 @@ services:
       # client-credentials identity (azp). LAN-only surface; not routed through the tunnel.
       DavGateway__ClientId: ${DAV_GATEWAY_CLIENT_ID:-lupira-dav-svc}
 
-      # Outbound identity — member requests exchange the caller's bearer (RFC 8693) for each hop's Audience,
-      # authenticated as this confidential client; calls with no member (DAV seam, /depz) use the hop's service
-      # client below. Required whenever a Geo/Contacts hop is configured.
+      # Outbound token-exchange client (see OutboundAuthProvider). Required whenever a Geo/Contacts hop is configured.
       Auth__Exchange__TokenUrl: ${AUTH_TOKEN_URL:-https://auth.lupira.com/application/o/token/}
       Auth__Exchange__ClientId: ${AUTH_EXCHANGE_CLIENT_ID:-lupira-cal}
       Auth__Exchange__ClientSecret: ${AUTH_EXCHANGE_CLIENT_SECRET:?required}

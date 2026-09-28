@@ -12,23 +12,28 @@ public sealed class TokenCache(TimeProvider clock)
     private const int PruneThreshold = 256;
 
     private readonly ConcurrentDictionary<string, Entry> _entries = new();
-    private readonly ConcurrentDictionary<string, SemaphoreSlim> _gates = new();
+    private readonly ConcurrentDictionary<string, Lazy<Task<string>>> _inFlight = new();
 
     public static string ExchangeKey(string subjectToken, string audience) =>
         $"ex:{Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(subjectToken)))}:{audience}";
 
     public static string ClientCredentialsKey(IOutboundHopOptions hop) => $"cc:{hop.TokenUrl}|{hop.ClientId}|{hop.Scope}";
 
-    public async Task<string> GetOrMintAsync(string key, Func<Task<IssuedToken>> mint, DateTimeOffset? notAfter, CancellationToken ct)
+    public async Task<string> GetOrMintAsync(string key, Func<CancellationToken, Task<IssuedToken>> mint, DateTimeOffset? notAfter, CancellationToken ct)
     {
         if (TryGetValid(key, out var cached)) return cached;
 
-        var gate = _gates.GetOrAdd(key, _ => new SemaphoreSlim(1, 1));
-        await gate.WaitAsync(ct);
+        Lazy<Task<string>>? created = null;
+        created = new Lazy<Task<string>>(() => MintAndStoreAsync(key, created!, mint, notAfter));
+        return await _inFlight.GetOrAdd(key, created).Value.WaitAsync(ct);
+    }
+
+    private async Task<string> MintAndStoreAsync(string key, Lazy<Task<string>> self, Func<CancellationToken, Task<IssuedToken>> mint, DateTimeOffset? notAfter)
+    {
         try
         {
-            if (TryGetValid(key, out cached)) return cached;
-            var issued = await mint();
+            if (TryGetValid(key, out var cached)) return cached;
+            var issued = await mint(CancellationToken.None);
             var expiresAt = clock.GetUtcNow() + issued.ExpiresIn - Skew;
             if (notAfter is { } limit && limit < expiresAt) expiresAt = limit;
             if (_entries.Count >= PruneThreshold) Prune();
@@ -37,7 +42,7 @@ public sealed class TokenCache(TimeProvider clock)
         }
         finally
         {
-            gate.Release();
+            _inFlight.TryRemove(KeyValuePair.Create(key, self));
         }
     }
 
@@ -58,7 +63,7 @@ public sealed class TokenCache(TimeProvider clock)
         var now = clock.GetUtcNow();
         foreach (var (key, entry) in _entries)
         {
-            if (entry.ExpiresAt <= now && _entries.TryRemove(key, out _)) _gates.TryRemove(key, out _);
+            if (entry.ExpiresAt <= now) _entries.TryRemove(key, out _);
         }
     }
 

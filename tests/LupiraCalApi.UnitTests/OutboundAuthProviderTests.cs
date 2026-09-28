@@ -47,6 +47,15 @@ public class OutboundAuthProviderTests
         return (provider, tokens);
     }
 
+    private static async Task<HttpRequestMessage?> AuthorizeAsync(OutboundAuthProvider provider, IOutboundHopOptions hop)
+    {
+        var req = new HttpRequestMessage(HttpMethod.Get, "http://hop.test/");
+        return await provider.TryAuthorizeAsync(req, hop, default) ? req : null;
+    }
+
+    private static string? Header(HttpRequestMessage req, string name) =>
+        req.Headers.TryGetValues(name, out var values) ? string.Join(",", values) : null;
+
     [Fact]
     public void Classify_matrix()
     {
@@ -74,9 +83,9 @@ public class OutboundAuthProviderTests
     {
         var (provider, tokens) = Create(Context("Bearer", [new Claim("sub", "a")], "Bearer member-token"));
 
-        var headers = await provider.ResolveHeadersAsync(Hop, default);
+        var req = await AuthorizeAsync(provider, Hop);
 
-        Assert.Equal("Bearer tok-lupira-contact", headers!["Authorization"]);
+        Assert.Equal("Bearer tok-lupira-contact", Header(req!, "Authorization"));
         var form = Assert.Single(tokens.Forms);
         Assert.Equal("urn:ietf:params:oauth:grant-type:token-exchange", form["grant_type"]);
         Assert.Equal("lupira-cal", form["client_id"]);
@@ -89,9 +98,9 @@ public class OutboundAuthProviderTests
     {
         var (provider, tokens) = Create(Context("Bearer", [new Claim("azp", DavClient)], "Bearer dav-token"));
 
-        var headers = await provider.ResolveHeadersAsync(Hop, default);
+        var req = await AuthorizeAsync(provider, Hop);
 
-        Assert.Equal("Bearer tok-lupira-contact-svc", headers!["Authorization"]);
+        Assert.Equal("Bearer tok-lupira-contact-svc", Header(req!, "Authorization"));
         var form = Assert.Single(tokens.Forms);
         Assert.Equal("client_credentials", form["grant_type"]);
         Assert.Equal("lupira-contact-svc", form["client_id"]);
@@ -102,9 +111,9 @@ public class OutboundAuthProviderTests
     {
         var (provider, tokens) = Create(Context(DevAuthHandler.SchemeName, [new Claim("email", "a@x.test")]));
 
-        var headers = await provider.ResolveHeadersAsync(Hop, default);
+        var req = await AuthorizeAsync(provider, Hop);
 
-        Assert.Equal("a@x.test", headers!["X-Dev-User"]);
+        Assert.Equal("a@x.test", Header(req!, "X-Dev-User"));
         Assert.Empty(tokens.Forms);
     }
 
@@ -114,7 +123,7 @@ public class OutboundAuthProviderTests
         var (provider, tokens) = Create(Context("Bearer", [new Claim("sub", "a")], "Bearer member-token"));
         tokens.Respond = _ => (HttpStatusCode.BadRequest, """{"error":"access_denied"}""");
 
-        Assert.Null(await provider.ResolveHeadersAsync(Hop, default));
+        Assert.Null(await AuthorizeAsync(provider, Hop));
         Assert.DoesNotContain(tokens.Forms, f => f["grant_type"] == "client_credentials");
     }
 
@@ -123,7 +132,7 @@ public class OutboundAuthProviderTests
     {
         var (provider, tokens) = Create(Context("Bearer", [new Claim("sub", "a")], "Bearer member-token"), exchangeConfigured: false);
 
-        Assert.Null(await provider.ResolveHeadersAsync(Hop, default));
+        Assert.Null(await AuthorizeAsync(provider, Hop));
         Assert.Empty(tokens.Forms);
     }
 
@@ -132,10 +141,10 @@ public class OutboundAuthProviderTests
     {
         var (provider, _) = Create(Context(null));
 
-        var dev = await provider.ResolveHeadersAsync(new GeoApiOptions { BaseUrl = "http://geo.test/", DevUser = "svc@x.test" }, default);
-        var none = await provider.ResolveHeadersAsync(new GeoApiOptions { BaseUrl = "http://geo.test/" }, default);
+        var dev = await AuthorizeAsync(provider, new GeoApiOptions { BaseUrl = "http://geo.test/", DevUser = "svc@x.test" });
+        var none = await AuthorizeAsync(provider, new GeoApiOptions { BaseUrl = "http://geo.test/" });
 
-        Assert.Equal("svc@x.test", dev!["X-Dev-User"]);
-        Assert.Empty(none!);
+        Assert.Equal("svc@x.test", Header(dev!, "X-Dev-User"));
+        Assert.Empty(none!.Headers);
     }
 }

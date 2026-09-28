@@ -65,8 +65,7 @@ if (contactOptions.IsConfigured)
         c.BaseAddress = new Uri(contactOptions.BaseUrl.EndsWith('/') ? contactOptions.BaseUrl : contactOptions.BaseUrl + "/"));
 }
 
-// Outbound auth for the geo/contact hops: a member behind the request → RFC 8693 exchange of their bearer; no
-// member (the DAV seam) → client credentials. Token state lives in singletons, so the typed clients stay transient.
+// Outbound auth per OutboundAuthProvider. Token state lives in singletons, so the typed clients stay transient.
 builder.Services.Configure<TokenExchangeOptions>(builder.Configuration.GetSection(TokenExchangeOptions.SectionName));
 builder.Services.Configure<DavGatewayOptions>(builder.Configuration.GetSection(DavGatewayOptions.SectionName));
 builder.Services.AddHttpClient(TokenEndpointClient.HttpClientName, c => c.Timeout = TimeSpan.FromSeconds(10));
@@ -93,16 +92,16 @@ if (depzOptions.Enabled)
 var isOpenApiBuild = Environment.GetCommandLineArgs()
     .Any(a => a.Contains("getdocument", StringComparison.OrdinalIgnoreCase));
 
+var enforceConfig = !isOpenApiBuild && !builder.Environment.IsDevelopment();
+
 var oidc = builder.Configuration.GetSection(OidcAuthOptions.SectionName).Get<OidcAuthOptions>() ?? new OidcAuthOptions();
-if (!isOpenApiBuild && !builder.Environment.IsDevelopment()
-    && (string.IsNullOrWhiteSpace(oidc.Authority) || string.IsNullOrWhiteSpace(oidc.Audience)))
+if (enforceConfig && (string.IsNullOrWhiteSpace(oidc.Authority) || string.IsNullOrWhiteSpace(oidc.Audience)))
     throw new InvalidOperationException("Auth:Oidc Authority + Audience are required outside Development.");
 
 var exchangeOptions = builder.Configuration.GetSection(TokenExchangeOptions.SectionName).Get<TokenExchangeOptions>() ?? new TokenExchangeOptions();
-if (!isOpenApiBuild && !builder.Environment.IsDevelopment()
-    && ((geoOptions.IsConfigured && string.IsNullOrWhiteSpace(geoOptions.Audience))
-        || (contactOptions.IsConfigured && string.IsNullOrWhiteSpace(contactOptions.Audience))
-        || ((geoOptions.IsConfigured || contactOptions.IsConfigured) && !exchangeOptions.IsConfigured)))
+IOutboundHopOptions[] configuredHops = [.. new IOutboundHopOptions[] { geoOptions, contactOptions }.Where(h => h.IsConfigured)];
+if (enforceConfig && configuredHops.Length > 0
+    && (!exchangeOptions.IsConfigured || configuredHops.Any(h => string.IsNullOrWhiteSpace(h.Audience))))
     throw new InvalidOperationException("Geo/Contacts hops need an Audience and Auth:Exchange TokenUrl + ClientId + ClientSecret outside Development.");
 
 var authBuilder = builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
@@ -146,7 +145,7 @@ builder.Services.AddAuthorizationBuilder()
     .AddPolicy("DavBackendPolicy", p => p.AddAuthenticationSchemes(apiSchemes).RequireAuthenticatedUser()
         .RequireAssertion(ctx =>
             ctx.User.Identity?.AuthenticationType == DevAuthHandler.SchemeName
-            || (davGatewayClientId is not null && ctx.User.HasClaim("azp", davGatewayClientId))))
+            || DavGatewayOptions.IsGateway(ctx.User, davGatewayClientId)))
     // internal:read is granted only to service clients — user tokens authenticate but never pass this.
     .AddPolicy("InternalPolicy", p => p.AddAuthenticationSchemes(apiSchemes).RequireAuthenticatedUser()
         .RequireAssertion(ctx => ctx.User.FindAll("scope")
