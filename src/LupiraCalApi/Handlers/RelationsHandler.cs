@@ -15,6 +15,13 @@ public sealed class RelationsHandler(CurrentUser user, RelationService relations
         return OpResultMap.OkNotFoundProblem(await relations.LinkItemAsync(u.Id, id, body, ct));
     }
 
+    public async Task<Results<Ok<List<RelationDto>>, NotFound, ProblemHttpResult, UnauthorizedHttpResult>> LinkItemBatchAsync(
+        Guid id, CreateRelationsBatchRequest body, CancellationToken ct)
+    {
+        var u = await user.GetAsync(ct);
+        return OpResultMap.OkNotFoundProblem(await relations.LinkItemBatchAsync(u.Id, id, body, ct));
+    }
+
     public async Task<Results<Ok<List<RelationDto>>, NotFound, ProblemHttpResult, UnauthorizedHttpResult>> ListForItemAsync(Guid id, CancellationToken ct)
     {
         var u = await user.GetAsync(ct);

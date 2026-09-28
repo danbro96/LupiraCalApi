@@ -87,4 +87,37 @@ public sealed class RelationsTests(CalApiTestFactory factory) : IntegrationTest(
         var resp = await api.PostAsJsonAsync($"/items/{Guid.NewGuid()}/relations", new CreateRelationRequest { ToKind = "task", ToRef = "x", RelationType = "derived-from" });
         Assert.Equal(HttpStatusCode.NotFound, resp.StatusCode);
     }
+
+    [Fact]
+    public async Task Batch_links_are_idempotent_per_reference()
+    {
+        var api = Factory.ApiClient(Email);
+        var calId = await CreateCalendarAsync(api);
+        var itemId = await CreateItemAsync(api, calId);
+
+        var first = await api.PostAsJsonAsync($"/items/{itemId}/relations/batch",
+            new CreateRelationsBatchRequest { ToKind = "photo", RelationType = "depicts", ToRefs = ["p1", "p2"] });
+        first.EnsureSuccessStatusCode();
+        var second = await api.PostAsJsonAsync($"/items/{itemId}/relations/batch",
+            new CreateRelationsBatchRequest { ToKind = "photo", RelationType = "depicts", ToRefs = ["p2", "p3", "p3"] });
+        second.EnsureSuccessStatusCode();
+
+        var edges = await second.Content.ReadFromJsonAsync<List<RelationDto>>();
+        Assert.Equal(["p1", "p2", "p3"], edges!.Select(e => e.ToRef).Order());
+        var all = await api.GetFromJsonAsync<List<RelationDto>>($"/items/{itemId}/relations");
+        Assert.Equal(3, all!.Count(r => r.ToKind == "photo"));
+    }
+
+    [Fact]
+    public async Task Batch_link_needs_write_access()
+    {
+        var owner = Factory.ApiClient(Email);
+        var calId = await CreateCalendarAsync(owner);
+        var itemId = await CreateItemAsync(owner, calId);
+
+        var stranger = Factory.ApiClient("mallory@x.test");
+        var resp = await stranger.PostAsJsonAsync($"/items/{itemId}/relations/batch",
+            new CreateRelationsBatchRequest { ToKind = "photo", RelationType = "depicts", ToRefs = ["p1"] });
+        Assert.True(resp.StatusCode is HttpStatusCode.Forbidden or HttpStatusCode.NotFound);
+    }
 }

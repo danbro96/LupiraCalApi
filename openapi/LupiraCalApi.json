@@ -1781,6 +1781,86 @@
         ]
       }
     },
+    "/items/{id}/relations/batch": {
+      "post": {
+        "tags": [
+          "Relations"
+        ],
+        "summary": "Link many references of one kind to an item at once (idempotent per reference) — e.g. an album's photos to its event.",
+        "operationId": "CreateItemRelationsBatch",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateRelationsBatchRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/RelationDto"
+                  }
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not Found",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal server error",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "Bearer": [ ]
+          }
+        ]
+      }
+    },
     "/relations/edges": {
       "get": {
         "tags": [
@@ -3744,6 +3824,29 @@
             ]
           }
         }
+      },
+      "CreateRelationsBatchRequest": {
+        "required": [
+          "toKind",
+          "relationType",
+          "toRefs"
+        ],
+        "type": "object",
+        "properties": {
+          "toKind": {
+            "type": "string"
+          },
+          "relationType": {
+            "type": "string"
+          },
+          "toRefs": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        },
+        "description": "Many references of one kind linked to one item in a single call (e.g. an album's photos to its event)."
       },
       "DatePrecision": {
         "enum": [

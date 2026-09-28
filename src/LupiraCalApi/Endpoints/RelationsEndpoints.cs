@@ -17,6 +17,13 @@ public static class RelationsEndpoints
             .Produces<RelationDto>(StatusCodes.Status200OK)
             .ProducesProblem(StatusCodes.Status404NotFound);
 
+        group.MapPost("/items/{id:guid}/relations/batch", (Guid id, CreateRelationsBatchRequest body, RelationsHandler h, CancellationToken ct) =>
+                h.LinkItemBatchAsync(id, body, ct))
+            .WithName("CreateItemRelationsBatch")
+            .WithSummary("Link many references of one kind to an item at once (idempotent per reference) — e.g. an album's photos to its event.")
+            .Produces<List<RelationDto>>(StatusCodes.Status200OK)
+            .ProducesProblem(StatusCodes.Status404NotFound);
+
         group.MapGet("/items/{id:guid}/relations", (Guid id, RelationsHandler h, CancellationToken ct) =>
                 h.ListForItemAsync(id, ct))
             .WithName("ListItemRelations")

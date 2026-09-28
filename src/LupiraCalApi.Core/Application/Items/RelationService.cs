@@ -36,6 +36,41 @@ public sealed class RelationService(IDocumentSession session, AccessResolver acc
         return OpResult<RelationDto>.Ok(rel.ToResponse());
     }
 
+    public const int BatchMax = 500;
+
+    /// <summary>Idempotent per (item, kind, ref, type): references already linked are skipped, so a retried or
+    /// overlapping batch never duplicates an edge. Returns every edge of that kind and type on the item.</summary>
+    public async Task<OpResult<List<RelationDto>>> LinkItemBatchAsync(
+        Guid principalId, Guid itemId, CreateRelationsBatchRequest r, CancellationToken ct = default)
+    {
+        if (r.ToRefs.Count > BatchMax) return OpResult<List<RelationDto>>.Invalid($"At most {BatchMax} references per batch.");
+        var item = await session.LoadAsync<CalendarItem>(itemId, ct);
+        if (item is null || item.DeletedAt is not null) return OpResult<List<RelationDto>>.NotFound();
+        if (!await access.CanWriteItemAsync(principalId, item, ct)) return OpResult<List<RelationDto>>.Forbidden("No write access to this item.");
+
+        var existing = await session.Query<Relation>()
+            .Where(x => x.FromKind == "item" && x.FromId == itemId && x.ToKind == r.ToKind && x.RelationType == r.RelationType)
+            .ToListAsync(ct);
+        var known = existing.Select(x => x.ToRef).ToHashSet(StringComparer.Ordinal);
+        var added = r.ToRefs.Where(known.Add).Select(toRef => new Relation
+        {
+            Id = Guid.NewGuid(),
+            FromKind = "item",
+            FromId = itemId,
+            ToKind = r.ToKind,
+            ToRef = toRef,
+            RelationType = r.RelationType,
+        }).ToList();
+
+        if (added.Count > 0)
+        {
+            session.Store(added.ToArray());
+            await session.SaveChangesAsync(ct);
+        }
+
+        return OpResult<List<RelationDto>>.Ok(existing.Concat(added).Select(RelationMapper.ToResponse).ToList());
+    }
+
     public async Task<OpResult<List<RelationDto>>> ListForItemAsync(Guid principalId, Guid itemId, CancellationToken ct = default)
     {
         var item = await session.LoadAsync<CalendarItem>(itemId, ct);
