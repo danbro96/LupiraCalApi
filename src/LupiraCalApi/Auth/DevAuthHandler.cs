@@ -32,6 +32,8 @@ public sealed class DevAuthHandler : AuthenticationHandler<AuthenticationSchemeO
         };
         if (Request.Headers.TryGetValue("X-Dev-Scopes", out var scopes) && !string.IsNullOrWhiteSpace(scopes))
             claims.Add(new Claim("scope", scopes.ToString()));
+        if (Request.Headers.TryGetValue("X-Dev-Client", out var client) && !string.IsNullOrWhiteSpace(client))
+            claims.Add(new Claim("azp", client.ToString()));
         var principal = new ClaimsPrincipal(new ClaimsIdentity(claims, SchemeName));
         return Task.FromResult(AuthenticateResult.Success(new AuthenticationTicket(principal, SchemeName)));
     }

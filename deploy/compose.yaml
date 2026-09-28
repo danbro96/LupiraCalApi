@@ -28,18 +28,27 @@ services:
       # client-credentials identity (azp). LAN-only surface; not routed through the tunnel.
       DavGateway__ClientId: ${DAV_GATEWAY_CLIENT_ID:-lupira-dav-svc}
 
-      # Contacts — LupiraContactApi owns contacts (client-credentials, aud lupira-contact). Attendee/detail
-      # contact ids validate against it; clear CONTACT_BASE_URL to disable (refs stored unvalidated).
+      # Outbound identity — member requests exchange the caller's bearer (RFC 8693) for each hop's Audience,
+      # authenticated as this confidential client; calls with no member (DAV seam, /depz) use the hop's service
+      # client below. Required whenever a Geo/Contacts hop is configured.
+      Auth__Exchange__TokenUrl: ${AUTH_TOKEN_URL:-https://auth.lupira.com/application/o/token/}
+      Auth__Exchange__ClientId: ${AUTH_EXCHANGE_CLIENT_ID:-lupira-cal}
+      Auth__Exchange__ClientSecret: ${AUTH_EXCHANGE_CLIENT_SECRET:?required}
+      Auth__Exchange__Scope: ${AUTH_EXCHANGE_SCOPE:-openid profile email}
+
+      # Contacts — LupiraContactApi owns contacts. Attendee/detail contact ids validate against the caller's readable
+      # address books; clear CONTACT_BASE_URL to disable (refs stored unvalidated).
       Contacts__BaseUrl: ${CONTACT_BASE_URL:-http://lupira-contact-api:8080/}   # in-network hop
+      Contacts__Audience: ${CONTACT_AUDIENCE:-lupira-contact}
       Contacts__TokenUrl: ${CONTACT_TOKEN_URL:-https://auth.lupira.com/application/o/token/}
       Contacts__ClientId: ${CONTACT_CLIENT_ID:-lupira-contact-svc}
       Contacts__ClientSecret: ${CONTACT_CLIENT_SECRET:-}
-      # Must include internal:read — contact's /internal endpoints require the service-only scope.
-      Contacts__Scope: ${CONTACT_SCOPE:-}
+      Contacts__Scope: ${CONTACT_SCOPE:-lupira-contact-aud}
 
-      # Gazetteer — cal delegates free-text location resolution to LupiraGeoApi (client-credentials, aud lupira-geo)
-      # storing the geo place id + a denormalized label on the item. Set GEO_CLIENT_SECRET to authenticate; clear GEO_BASE_URL to disable.
+      # Gazetteer — cal delegates free-text location resolution to LupiraGeoApi, storing the geo place id + a
+      # denormalized label on the item. Clear GEO_BASE_URL to disable.
       Geo__BaseUrl: ${GEO_BASE_URL:-http://lupira-geo-api:8080/}   # in-network hop, not the public tunnel URL
+      Geo__Audience: ${GEO_AUDIENCE:-lupira-geo}
       Geo__TokenUrl: ${GEO_TOKEN_URL:-https://auth.lupira.com/application/o/token/}
       Geo__ClientId: ${GEO_CLIENT_ID:-lupira-geo-svc}
       Geo__ClientSecret: ${GEO_CLIENT_SECRET:-}
@@ -103,11 +112,11 @@ services:
       ConnectionStrings__Postgres: "Host=postgres;Port=5432;Database=lupira_cal;Username=lupira_cal_user;Password=${LUPIRA_CAL_DB_PASSWORD:?required}"
 
       # assistant-api hop — service-authed push to POST /fires. Client-credentials against Authentik in prod;
-      # the client's audience must be the assistant's internal one (lupira-assistant-internal).
+      # the client's audience must be the assistant's internal one (lupira-assistant-svc).
       Assistant__BaseUrl: ${ASSISTANT_BASE_URL:-https://assistant-api.lupira.com/}
       Assistant__TokenUrl: ${ASSISTANT_TOKEN_URL:-https://auth.lupira.com/application/o/token/}
       Assistant__ClientId: ${ASSISTANT_CLIENT_ID:?required}
-      Assistant__Scope: ${ASSISTANT_SCOPE:?required}
+      Assistant__Scope: ${ASSISTANT_SCOPE:-}
       Assistant__ClientSecret: ${ASSISTANT_CLIENT_SECRET:?required}
 
       # OTEL — optional OTLP export. Unset endpoint = silent no-op.

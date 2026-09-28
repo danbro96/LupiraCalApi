@@ -13,13 +13,12 @@ public sealed class AssistantOptions
 
     public string? TokenUrl { get; set; }
 
-    /// <summary>The assistant service provider's slug, not its audience.</summary>
+    /// <summary>The assistant service client, <c>lupira-assistant-svc</c>; its token's audience is the same id.</summary>
     public string? ClientId { get; set; }
 
     public string? ClientSecret { get; set; }
 
-    /// <summary>Scope to request — the Authentik mapping that injects <c>aud=lupira-assistant-internal</c>.
-    /// Binding it on the provider alone is not enough; assistant rejects a token without that aud.</summary>
+    /// <summary>Optional scope to request; empty for the assistant service client.</summary>
     public string? Scope { get; set; }
 
     public string? DevServiceId { get; set; }

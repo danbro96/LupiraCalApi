@@ -9,11 +9,11 @@ public interface IContactResolver
 {
     bool IsConfigured { get; }
 
-    /// <summary>Resolve ids to live contacts. <c>null</c> = resolution unavailable (unconfigured or transport
-    /// failure) — callers must not treat it as "not found"; absent ids in a non-null result are definitive.</summary>
+    /// <summary>Resolve ids to live contacts the caller can read. <c>null</c> = resolution unavailable (unconfigured,
+    /// transport or token failure) — callers must not treat it as "not found"; absent ids in a non-null result are definitive.</summary>
     Task<IReadOnlyList<ContactSummary>?> ResolveAsync(IReadOnlyCollection<Guid> contactIds, CancellationToken ct = default);
 
-    /// <summary>Every live contact carrying a birthday — the source for the read-time Birthdays projection.
-    /// <c>null</c> = unavailable (unconfigured or transport failure); an empty list means "none have one".</summary>
+    /// <summary>Live contacts carrying a birthday in the caller's readable address books — the source for the read-time
+    /// Birthdays projection. <c>null</c> = unavailable; an empty list means "none have one".</summary>
     Task<IReadOnlyList<ContactBirthday>?> BirthdaysAsync(CancellationToken ct = default);
 }

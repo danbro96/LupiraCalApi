@@ -65,6 +65,16 @@ if (contactOptions.IsConfigured)
         c.BaseAddress = new Uri(contactOptions.BaseUrl.EndsWith('/') ? contactOptions.BaseUrl : contactOptions.BaseUrl + "/"));
 }
 
+// Outbound auth for the geo/contact hops: a member behind the request → RFC 8693 exchange of their bearer; no
+// member (the DAV seam) → client credentials. Token state lives in singletons, so the typed clients stay transient.
+builder.Services.Configure<TokenExchangeOptions>(builder.Configuration.GetSection(TokenExchangeOptions.SectionName));
+builder.Services.Configure<DavGatewayOptions>(builder.Configuration.GetSection(DavGatewayOptions.SectionName));
+builder.Services.AddHttpClient(TokenEndpointClient.HttpClientName, c => c.Timeout = TimeSpan.FromSeconds(10));
+builder.Services.AddSingleton(TimeProvider.System);
+builder.Services.AddSingleton<TokenEndpointClient>();
+builder.Services.AddSingleton<TokenCache>();
+builder.Services.AddSingleton<OutboundAuthProvider>();
+
 // Non-gating dependency probe (/depz): edges derive from the options above, probed on a dedicated client.
 builder.Services.Configure<DepzOptions>(builder.Configuration.GetSection(DepzOptions.SectionName));
 var depzOptions = builder.Configuration.GetSection(DepzOptions.SectionName).Get<DepzOptions>() ?? new DepzOptions();
@@ -75,9 +85,9 @@ builder.Services.AddHttpClient(DependencyProbe.ProbeClientName, c => c.Timeout =
 if (depzOptions.Enabled)
     builder.Services.AddHostedService<DependencyPollWorker>();
 
-// --- Auth: OIDC JWT for the REST/MCP surface (the agent obtains a member-scoped token via Authentik
-//           token-exchange); the /dav-backend seam additionally requires the DAV gateway's client identity (azp).
-//           One identity authority (Authentik). ---
+// --- Auth: OIDC JWT for the REST/MCP surface (members, and the agent via its device-code grant); the
+//           /dav-backend seam additionally requires the DAV gateway's client identity (azp). One identity
+//           authority (Authentik). ---
 // `dotnet build` regenerates openapi/ via getdocument, which boots this Program with no real config —
 // skip the guard there (and in Development, where the dev-header scheme needs no authority).
 var isOpenApiBuild = Environment.GetCommandLineArgs()
@@ -87,6 +97,13 @@ var oidc = builder.Configuration.GetSection(OidcAuthOptions.SectionName).Get<Oid
 if (!isOpenApiBuild && !builder.Environment.IsDevelopment()
     && (string.IsNullOrWhiteSpace(oidc.Authority) || string.IsNullOrWhiteSpace(oidc.Audience)))
     throw new InvalidOperationException("Auth:Oidc Authority + Audience are required outside Development.");
+
+var exchangeOptions = builder.Configuration.GetSection(TokenExchangeOptions.SectionName).Get<TokenExchangeOptions>() ?? new TokenExchangeOptions();
+if (!isOpenApiBuild && !builder.Environment.IsDevelopment()
+    && ((geoOptions.IsConfigured && string.IsNullOrWhiteSpace(geoOptions.Audience))
+        || (contactOptions.IsConfigured && string.IsNullOrWhiteSpace(contactOptions.Audience))
+        || ((geoOptions.IsConfigured || contactOptions.IsConfigured) && !exchangeOptions.IsConfigured)))
+    throw new InvalidOperationException("Geo/Contacts hops need an Audience and Auth:Exchange TokenUrl + ClientId + ClientSecret outside Development.");
 
 var authBuilder = builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
     .AddJwtBearer(options =>
@@ -121,7 +138,7 @@ string[] apiSchemes = builder.Environment.IsDevelopment()
     ? [JwtBearerDefaults.AuthenticationScheme, DevAuthHandler.SchemeName]
     : [JwtBearerDefaults.AuthenticationScheme];
 
-var davGatewayClientId = builder.Configuration["DavGateway:ClientId"];
+var davGatewayClientId = builder.Configuration.GetSection(DavGatewayOptions.SectionName).Get<DavGatewayOptions>()?.ClientId;
 builder.Services.AddAuthorizationBuilder()
     .AddPolicy("ApiPolicy", p => p.AddAuthenticationSchemes(apiSchemes).RequireAuthenticatedUser())
     // The DAV gateway's service identity: a valid token for this API (aud) minted by the gateway's
