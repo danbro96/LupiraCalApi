@@ -290,23 +290,37 @@ public sealed class CalendarItemService(IDocumentSession session, AccessResolver
     }
 
     /// <summary>Reverse index: items anchored to a place — as their location (<c>PlaceId</c>) or a travel/car endpoint.
-    /// Full items (not recurrence-expanded), scoped to calendars the principal can read.</summary>
+    /// Full items (not recurrence-expanded), scoped to calendars the principal can read. Merge-aware: items anchored to a
+    /// place geo has since merged away are listed under its survivor (and the merged-away id finds them too).</summary>
     public async Task<OpResult<List<CalendarItemDto>>> ByPlaceAsync(Guid principalId, Guid placeId, CancellationToken ct = default)
     {
         var calIds = await access.AccessibleCalendarIdsAsync(principalId, ct);
         var candidates = await session.Query<CalendarItem>().Where(i => i.DeletedAt == null).ToListAsync(ct);
-        var items = candidates
-            .Where(i => i.Calendars.Any(m => m.Status == CalendarEntryStatus.Accepted && calIds.Contains(m.CalendarId))
-                && ReferencesPlace(i, placeId))
+        var readable = candidates
+            .Where(i => i.Calendars.Any(m => m.Status == CalendarEntryStatus.Accepted && calIds.Contains(m.CalendarId)))
+            .ToList();
+        var survivors = await SurvivorIdsAsync(readable, placeId, ct);
+        var target = survivors.GetValueOrDefault(placeId, placeId);
+        var items = readable
+            .Where(i => PlaceRefs(i).Any(p => survivors.GetValueOrDefault(p, p) == target))
             .OrderBy(i => i.StartsAt).ThenBy(i => i.Title)
             .ToList();
         var scores = await completeness.ScoreItemsAsync(items, ct);
         return OpResult<List<CalendarItemDto>>.Ok(items.Select(i => i.ToResponse(scores[i.Id])).ToList());
     }
 
-    private static bool ReferencesPlace(CalendarItem i, Guid placeId) =>
-        i.PlaceId == placeId
-        || (i.Details?.Travel is { } t && (t.ToPlaceId == placeId || t.FromPlaceId == placeId));
+    // Geo merges never rewrite the ids stored on items — a merged-away id only redirects to its survivor on read — so
+    // every referenced id is mapped through geo before matching. Geo unavailable ⇒ empty map ⇒ exact-id matching.
+    private async Task<Dictionary<Guid, Guid>> SurvivorIdsAsync(IEnumerable<CalendarItem> items, Guid placeId, CancellationToken ct)
+    {
+        if (!geo.IsConfigured) return [];
+        var ids = items.SelectMany(PlaceRefs).Append(placeId).Distinct().ToList();
+        var found = await geo.LookupAsync(ids, ct);
+        return found?.ToDictionary(kv => kv.Key, kv => kv.Value.PlaceId) ?? [];
+    }
+
+    private static IEnumerable<Guid> PlaceRefs(CalendarItem i) =>
+        new[] { i.PlaceId, i.Details?.Travel?.ToPlaceId, i.Details?.Travel?.FromPlaceId }.OfType<Guid>();
 
     /// <summary>Check-in worklist: scoreable items ranked thinnest-first (score asc, most recent start first on ties).
     /// Item-granular — no recurrence expansion. Exempt items (system/Birthdays/Availability calendars, cancelled,
