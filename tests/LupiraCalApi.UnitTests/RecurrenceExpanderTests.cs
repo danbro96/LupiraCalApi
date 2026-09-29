@@ -108,6 +108,38 @@ public class RecurrenceExpanderTests
         Assert.Equal([Utc(2026, 3, 29, 22), Utc(2026, 4, 5, 23)], occ);
     }
 
+    [Fact]
+    public void Utc_until_keeps_the_last_occurrence_of_a_series_east_of_utc()
+    {
+        // Daily 18:00 Stockholm; UNTIL names the last occurrence as an instant (18:00 CET = 17:00Z).
+        var item = Series(Utc(2026, 10, 23, 16), "FREQ=DAILY;UNTIL=20261027T170000Z", "Europe/Stockholm");
+
+        var occ = Expander.Expand(item, Utc(2026, 10, 1), Utc(2026, 11, 1));
+
+        Assert.Equal(Utc(2026, 10, 27, 17), occ[^1]);
+        Assert.Equal(5, occ.Count);
+    }
+
+    [Fact]
+    public void Utc_until_stops_a_series_west_of_utc_at_the_instant()
+    {
+        // Daily 18:00 New York (22:00Z on EDT). UNTIL 2026-10-27 20:00Z falls before that day's 22:00Z occurrence.
+        var item = Series(Utc(2026, 10, 24, 22), "FREQ=DAILY;UNTIL=20261027T200000Z", "America/New_York");
+
+        var occ = Expander.Expand(item, Utc(2026, 10, 1), Utc(2026, 11, 1));
+
+        Assert.Equal([Utc(2026, 10, 24, 22), Utc(2026, 10, 25, 22), Utc(2026, 10, 26, 22)], occ);
+    }
+
+    [Theory]
+    [InlineData("FREQ=DAILY;UNTIL=20261027T180000")]
+    [InlineData("FREQ=DAILY;UNTIL=20261027")]
+    public void Floating_and_date_until_bound_the_wall_clock(string rule)
+    {
+        var occ = Expander.Expand(Series(Utc(2026, 10, 23, 16), rule, "Europe/Stockholm"), Utc(2026, 10, 1), Utc(2026, 11, 1));
+        Assert.Equal(Utc(2026, 10, 27, 17), occ[^1]);
+    }
+
     [Theory]
     [InlineData(null)]
     [InlineData("Not/AZone")]

@@ -69,7 +69,10 @@ DateTimeOffset Utc(int y, int m, int d, int h, int min = 0) => new(y, m, d, h, m
 Add("zoned-weekly-autumn-shift", "FREQ=WEEKLY", Utc(2026, 10, 11, 16), 60, Utc(2026, 10, 1, 0), Utc(2026, 11, 15, 0), "Europe/Stockholm");
 Add("zoned-daily-spring-gap", "FREQ=DAILY", Utc(2026, 3, 27, 1, 30), 30, Utc(2026, 3, 26, 0), Utc(2026, 4, 1, 0), "Europe/Stockholm");
 Add("zoned-daily-autumn-ambiguous", "FREQ=DAILY", Utc(2026, 10, 23, 0, 30), 30, Utc(2026, 10, 22, 0), Utc(2026, 10, 28, 0), "Europe/Stockholm");
-Add("zoned-until-reads-as-wall-clock", "FREQ=DAILY;UNTIL=20261027T170000Z", Utc(2026, 10, 23, 16), 60, Utc(2026, 10, 1, 0), Utc(2026, 11, 1, 0), "Europe/Stockholm");
+Add("zoned-until-is-an-instant", "FREQ=DAILY;UNTIL=20261027T170000Z", Utc(2026, 10, 23, 16), 60, Utc(2026, 10, 1, 0), Utc(2026, 11, 1, 0), "Europe/Stockholm");
+Add("zoned-until-is-an-instant-west", "FREQ=DAILY;UNTIL=20261027T200000Z", Utc(2026, 10, 24, 22), 60, Utc(2026, 10, 1, 0), Utc(2026, 11, 1, 0), "America/New_York");
+Add("zoned-floating-until-reads-the-wall-clock", "FREQ=DAILY;UNTIL=20261027T180000", Utc(2026, 10, 23, 16), 60, Utc(2026, 10, 1, 0), Utc(2026, 11, 1, 0), "Europe/Stockholm");
+Add("zoned-date-until-covers-its-day", "FREQ=DAILY;UNTIL=20261027", Utc(2026, 10, 23, 16), 60, Utc(2026, 10, 1, 0), Utc(2026, 11, 1, 0), "Europe/Stockholm");
 Add("zoned-count", "FREQ=WEEKLY;COUNT=4", Utc(2026, 10, 11, 16), 60, Utc(2026, 10, 1, 0), Utc(2026, 12, 1, 0), "Europe/Stockholm");
 Add("zoned-monthly-second-tuesday", "FREQ=MONTHLY;BYDAY=2TU", Utc(2026, 1, 13, 23), 60, Utc(2026, 1, 1, 0), Utc(2026, 7, 1, 0), "America/New_York");
 Add("zoned-byday-is-local-weekday", "FREQ=WEEKLY;BYDAY=MO", Utc(2026, 1, 4, 23), 60, Utc(2026, 1, 1, 0), Utc(2026, 2, 1, 0), "Asia/Tokyo");

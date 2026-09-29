@@ -58,17 +58,13 @@ public sealed class RecurrenceExpander
             yield break;
         }
 
-        var anchorLocal = WallClock(anchorAt, zone);
-        // Evaluate from a day before the window so a zone offset can't hide an occurrence at its edge; a window opening
-        // before the series (e.g. an all-time search's MinValue) starts at the anchor itself.
-        var from = windowStart <= anchorAt ? anchorLocal : WallClock(windowStart, zone).PlusDays(-1);
-        foreach (var local in RecurrenceRuleEvaluator.Evaluate(rule, anchorLocal, from, item.IsAllDay))
+        var starts = RecurrenceRuleEvaluator.Evaluate(
+            rule, Instant.FromDateTimeOffset(anchorAt), zone, Instant.FromDateTimeOffset(windowStart), item.IsAllDay);
+        foreach (var instant in starts)
         {
-            var start = local.InZoneLeniently(zone).ToInstant().ToDateTimeOffset();
+            var start = instant.ToDateTimeOffset();
             if (start >= windowEnd) yield break;
             if (start >= windowStart) yield return start;
         }
     }
-
-    private static LocalDateTime WallClock(DateTimeOffset at, DateTimeZone zone) => Instant.FromDateTimeOffset(at).InZone(zone).LocalDateTime;
 }
