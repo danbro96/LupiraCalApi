@@ -396,7 +396,10 @@ public sealed class CalendarItemService(IDocumentSession session, AccessResolver
         if (r.PlaceIdProvided || r.PlaceId is not null)
         {
             placeId = r.PlaceId;
-            locationLabel = r.Location is not null ? Trimmed(r.Location) : item.LocationLabel;
+            // A moved anchor invalidates the old label; matches create (no label ⇒ null).
+            locationLabel = r.Location is not null ? Trimmed(r.Location)
+                : placeId == item.PlaceId ? item.LocationLabel
+                : null;
         }
         else if (r.Location is not null && Trimmed(r.Location) != item.LocationLabel)
         {

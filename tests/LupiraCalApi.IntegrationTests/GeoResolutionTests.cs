@@ -203,4 +203,51 @@ public sealed class GeoResolutionTests(CalApiTestFactory factory) : IntegrationT
         Assert.Equal("Cafe Central", dto.LocationLabel);
         Assert.Equal("Coffee v2", dto.Title);
     }
+
+    [Fact]
+    public async Task Update_to_a_different_place_without_a_label_drops_the_stale_one()
+    {
+        var api = Factory.ApiClient(Email);
+        var calId = await CreateCalendarAsync(api);
+        var item = await CreateWithPlaceAsync(api, calId, Guid.NewGuid(), "Cafe Central");
+
+        var newPlace = Guid.NewGuid();
+        var resp = await api.PutAsJsonAsync($"/items/{item.Id}",
+            new UpdateCalendarItemRequest { PlaceId = newPlace, PlaceIdProvided = true });
+        resp.EnsureSuccessStatusCode();
+        var dto = (await resp.Content.ReadFromJsonAsync<CalendarItemDto>())!;
+        Assert.Equal(newPlace, dto.PlaceId);
+        Assert.Null(dto.LocationLabel);
+    }
+
+    [Fact]
+    public async Task Update_re_sending_the_same_place_without_a_label_keeps_it()
+    {
+        var api = Factory.ApiClient(Email);
+        var calId = await CreateCalendarAsync(api);
+        var placeId = Guid.NewGuid();
+        var item = await CreateWithPlaceAsync(api, calId, placeId, "Cafe Central");
+
+        var resp = await api.PutAsJsonAsync($"/items/{item.Id}",
+            new UpdateCalendarItemRequest { Title = "Coffee v3", PlaceId = placeId });
+        resp.EnsureSuccessStatusCode();
+        var dto = (await resp.Content.ReadFromJsonAsync<CalendarItemDto>())!;
+        Assert.Equal(placeId, dto.PlaceId);
+        Assert.Equal("Cafe Central", dto.LocationLabel);
+    }
+
+    [Fact]
+    public async Task Update_clearing_the_place_without_a_label_drops_the_stale_one()
+    {
+        var api = Factory.ApiClient(Email);
+        var calId = await CreateCalendarAsync(api);
+        var item = await CreateWithPlaceAsync(api, calId, Guid.NewGuid(), "Cafe Central");
+
+        var resp = await api.PutAsJsonAsync($"/items/{item.Id}",
+            new UpdateCalendarItemRequest { PlaceIdProvided = true, PlaceId = null });
+        resp.EnsureSuccessStatusCode();
+        var dto = (await resp.Content.ReadFromJsonAsync<CalendarItemDto>())!;
+        Assert.Null(dto.PlaceId);
+        Assert.Null(dto.LocationLabel);
+    }
 }
