@@ -42,6 +42,28 @@ public sealed class ParticipationTests(CalApiTestFactory factory) : IntegrationT
     }
 
     [Fact]
+    public async Task Invite_reads_the_ical_role_and_rejects_unknown_roles_and_statuses()
+    {
+        var api = Factory.ApiClient(Email);
+        var calId = await CreateCalendarAsync(api);
+        var start = new DateTimeOffset(2026, 7, 1, 9, 0, 0, TimeSpan.Zero);
+        var create = await api.PostAsJsonAsync("/items", new CreateCalendarItemRequest { CalendarId = calId, Title = "Mtg", IsAllDay = false, StartsAt = start, EndsAt = start.AddHours(1) });
+        var itemId = (await create.Content.ReadFromJsonAsync<CalendarItemDto>())!.Id;
+
+        (await api.PostAsync($"/items/{itemId}/participants?contactId={Guid.NewGuid()}&role=opt-participant", null)).EnsureSuccessStatusCode();
+        Assert.Equal(HttpStatusCode.BadRequest, (await api.PostAsync($"/items/{itemId}/participants?contactId={Guid.NewGuid()}&role=optional", null)).StatusCode);
+
+        ItemAttendee att;
+        await using (var s = Factory.Store.LightweightSession())
+            att = (await s.LoadAsync<CalendarItem>(itemId))!.Attendees.Single();
+        Assert.Equal(ParticipationRole.OptionalParticipant, att.Role);
+
+        var respond = (string status) => api.PostAsync($"/items/{itemId}/participants/{att.ParticipationId}/respond?status={status}", null);
+        Assert.Equal(HttpStatusCode.BadRequest, (await respond("maybe")).StatusCode);
+        (await respond("needs-action")).EnsureSuccessStatusCode();
+    }
+
+    [Fact]
     public async Task Invite_on_a_missing_item_is_not_found()
     {
         var api = Factory.ApiClient(Email);

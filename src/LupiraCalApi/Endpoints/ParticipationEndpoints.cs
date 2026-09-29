@@ -11,8 +11,8 @@ public static class ParticipationEndpoints
 
         group.MapPost("/", (Guid id, Guid contactId, string? role, ParticipationHandler h, CancellationToken ct) => h.InviteAsync(id, contactId, role, ct))
             .WithName("InviteParticipant")
-            .WithSummary("Invite a contact (must be a Contact id). role = chair|req-participant|opt-participant|non-participant.")
-            .Produces<CalendarItemDto>(StatusCodes.Status200OK).ProducesProblem(StatusCodes.Status404NotFound);
+            .WithSummary("Invite a contact (must be a Contact id). role = chair|req-participant|opt-participant|non-participant (or the enum name); default req-participant, anything else 400s.")
+            .Produces<CalendarItemDto>(StatusCodes.Status200OK).ProducesProblem(StatusCodes.Status404NotFound).ProducesProblem(StatusCodes.Status400BadRequest);
 
         group.MapPut("/", (Guid id, SetParticipantsRequest body, ParticipationHandler h, CancellationToken ct) => h.SetParticipantsAsync(id, body, ct))
             .WithName("SetParticipants")
@@ -23,8 +23,8 @@ public static class ParticipationEndpoints
 
         group.MapPost("/{participationId:guid}/respond", (Guid id, Guid participationId, string? status, ParticipationHandler h, CancellationToken ct) => h.RespondAsync(id, participationId, status, ct))
             .WithName("RespondToInvitation")
-            .WithSummary("Record an RSVP. status = needs-action|accepted|declined|tentative|delegated.")
-            .Produces<CalendarItemDto>(StatusCodes.Status200OK).ProducesProblem(StatusCodes.Status404NotFound);
+            .WithSummary("Record an RSVP. status = needs-action|accepted|declined|tentative|delegated (or the enum name); required, anything else 400s.")
+            .Produces<CalendarItemDto>(StatusCodes.Status200OK).ProducesProblem(StatusCodes.Status404NotFound).ProducesProblem(StatusCodes.Status400BadRequest);
 
         group.MapPost("/{participationId:guid}/attend", (Guid id, Guid participationId, ParticipationHandler h, CancellationToken ct) => h.ConfirmAsync(id, participationId, ct))
             .WithName("ConfirmAttendance")

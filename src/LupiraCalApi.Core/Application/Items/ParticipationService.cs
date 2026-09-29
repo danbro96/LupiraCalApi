@@ -17,6 +17,10 @@ public sealed class ParticipationService(IDocumentSession session, AccessResolve
 {
     public async Task<OpResult<CalendarItemDto>> InviteAsync(Guid principalId, Guid itemId, Guid contactId, string? role, CancellationToken ct = default)
     {
+        var parsedRole = ParticipationRole.RequiredParticipant;
+        if (!string.IsNullOrWhiteSpace(role) && !ParticipationTokens.TryParseRole(role, out parsedRole))
+            return OpResult<CalendarItemDto>.Invalid($"Unknown role '{role}'. Valid values: {ParticipationTokens.RoleTokens}.");
+
         // Fail-open: a null result means resolution is unavailable (unconfigured/transport) — proceed as before.
         // A non-null result missing the id is a definitive "no such contact".
         if (contacts.IsConfigured
@@ -27,11 +31,13 @@ public sealed class ParticipationService(IDocumentSession session, AccessResolve
         // Idempotent by contact: a contact already holding a (non-removed) participation row is not re-invited.
         return await AppendAsync(principalId, itemId, item => item.Attendees.Any(a => a.ContactId == contactId)
             ? null
-            : new AttendeeInvited(itemId, Guid.NewGuid(), contactId, ParseRole(role), DateTimeOffset.UtcNow), ct);
+            : new AttendeeInvited(itemId, Guid.NewGuid(), contactId, parsedRole, DateTimeOffset.UtcNow), ct);
     }
 
     public Task<OpResult<CalendarItemDto>> RespondAsync(Guid principalId, Guid itemId, Guid participationId, string? status, CancellationToken ct = default) =>
-        AppendAsync(principalId, itemId, _ => new InvitationResponded(itemId, participationId, ParseStat(status), DateTimeOffset.UtcNow), ct);
+        ParticipationTokens.TryParseStatus(status, out var parsed)
+            ? AppendAsync(principalId, itemId, _ => new InvitationResponded(itemId, participationId, parsed, DateTimeOffset.UtcNow), ct)
+            : Task.FromResult(OpResult<CalendarItemDto>.Invalid($"Unknown status '{status}'. Valid values: {ParticipationTokens.StatusTokens}."));
 
     public Task<OpResult<CalendarItemDto>> ConfirmAttendanceAsync(Guid principalId, Guid itemId, Guid participationId, CancellationToken ct = default) =>
         AppendAsync(principalId, itemId, _ => new AttendanceConfirmed(itemId, participationId, DateTimeOffset.UtcNow), ct);
@@ -143,8 +149,4 @@ public sealed class ParticipationService(IDocumentSession session, AccessResolve
         var updated = await session.LoadAsync<CalendarItem>(itemId, ct);
         return OpResult<CalendarItemDto>.Ok(updated!.ToResponse(await completeness.ScoreItemAsync(updated!, ct)));
     }
-
-    private static ParticipationRole ParseRole(string? s) => Enum.TryParse<ParticipationRole>(s, true, out var v) ? v : ParticipationRole.RequiredParticipant;
-
-    private static ParticipationStatus ParseStat(string? s) => Enum.TryParse<ParticipationStatus>(s, true, out var v) ? v : ParticipationStatus.NeedsAction;
 }

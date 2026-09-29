@@ -2838,7 +2838,7 @@
         "tags": [
           "Participation"
         ],
-        "summary": "Invite a contact (must be a Contact id). role = chair|req-participant|opt-participant|non-participant.",
+        "summary": "Invite a contact (must be a Contact id). role = chair|req-participant|opt-participant|non-participant (or the enum name); default req-participant, anything else 400s.",
         "operationId": "InviteParticipant",
         "parameters": [
           {
@@ -2880,6 +2880,16 @@
           },
           "404": {
             "description": "Not Found",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request",
             "content": {
               "application/problem+json": {
                 "schema": {
@@ -3006,7 +3016,7 @@
         "tags": [
           "Participation"
         ],
-        "summary": "Record an RSVP. status = needs-action|accepted|declined|tentative|delegated.",
+        "summary": "Record an RSVP. status = needs-action|accepted|declined|tentative|delegated (or the enum name); required, anything else 400s.",
         "operationId": "RespondToInvitation",
         "parameters": [
           {
@@ -3048,6 +3058,16 @@
           },
           "404": {
             "description": "Not Found",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request",
             "content": {
               "application/problem+json": {
                 "schema": {
