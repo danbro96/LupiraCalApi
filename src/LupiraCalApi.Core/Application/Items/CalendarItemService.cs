@@ -430,9 +430,13 @@ public sealed class CalendarItemService(IDocumentSession session, AccessResolver
             return OpResult<CalendarItemDto>.Invalid(parentError);
         var parentItemId = r.ParentItemId ?? item.ParentItemId;
 
+        // Moving the series (time, day, zone, rule) carries its per-occurrence changes along with their occurrences.
+        var deviations = SeriesDeviations.Of(item).Follow(
+            RecurringSeries.Of(item), new RecurringSeries(isAllDay, startsAt, startDate, startTimezone, rrule), item.ExtraOccurrences, expander);
+
         var fields = new CalendarItemFields(title, description, status, isAllDay, startsAt, endsAt,
             startTimezone, endTimezone, startDate, endDate, rrule,
-            item.ExcludedOccurrences, item.ExtraOccurrences, item.OccurrenceOverrides, category, placeId, locationLabel, parentItemId, tags,
+            deviations.Excluded, item.ExtraOccurrences, deviations.Overrides, category, placeId, locationLabel, parentItemId, tags,
             r.StartPrecision ?? item.StartPrecision, r.EndPrecision ?? item.EndPrecision);
 
         var (incoming, detailsUnresolved) = await ItemDetailsMapper.BuildAsync(r.Details, r.Availability, geo, ct);

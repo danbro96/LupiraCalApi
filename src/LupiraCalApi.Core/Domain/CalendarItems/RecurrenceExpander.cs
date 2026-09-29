@@ -18,7 +18,7 @@ public sealed class RecurrenceExpander
         if (windowEnd <= windowStart) return [];
         bool InWindow(DateTimeOffset s) => s >= windowStart && s < windowEnd;
 
-        var starts = new SortedSet<DateTimeOffset>(SeriesStarts(item, item.RecurrenceRule, windowStart, windowEnd));
+        var starts = new SortedSet<DateTimeOffset>(SeriesStarts(RecurringSeries.Of(item), windowStart, windowEnd));
         foreach (var s in item.ExcludedOccurrences ?? []) starts.Remove(s);
         foreach (var s in item.ExtraOccurrences ?? [])
             if (InWindow(s)) starts.Add(s);
@@ -35,31 +35,25 @@ public sealed class RecurrenceExpander
     /// <summary>Whether the unmodified series (or one of its extra occurrences) starts an occurrence at
     /// <paramref name="start"/> — the identity a per-occurrence change keys on.</summary>
     public bool HasSeriesOccurrence(CalendarItem item, DateTimeOffset start) =>
-        (item.ExtraOccurrences ?? []).Contains(start) || SeriesStarts(item, item.RecurrenceRule, start, start.AddTicks(1)).Any();
+        (item.ExtraOccurrences ?? []).Contains(start) || Generates(RecurringSeries.Of(item), start);
 
-    private static IEnumerable<DateTimeOffset> SeriesStarts(CalendarItem item, string? rule, DateTimeOffset windowStart, DateTimeOffset windowEnd)
+    /// <summary>Whether <paramref name="series"/> itself — extra occurrences aside — starts an occurrence at
+    /// <paramref name="start"/>.</summary>
+    public bool Generates(RecurringSeries series, DateTimeOffset start) => SeriesStarts(series, start, start.AddTicks(1)).Any();
+
+    private static IEnumerable<DateTimeOffset> SeriesStarts(RecurringSeries series, DateTimeOffset windowStart, DateTimeOffset windowEnd)
     {
-        DateTimeOffset anchorAt;
-        DateTimeZone zone;
-        if (item.IsAllDay)
-        {
-            if (item.StartDate is not { } d) yield break;
-            (anchorAt, zone) = (new DateTimeOffset(d.Year, d.Month, d.Day, 0, 0, 0, TimeSpan.Zero), DateTimeZone.Utc);
-        }
-        else
-        {
-            if (item.StartsAt is not { } s) yield break;
-            (anchorAt, zone) = (s, TimeZoneIds.Find(item.StartTimezone) ?? DateTimeZone.Utc);
-        }
+        if (series.Anchor is not { } anchor) yield break;
+        var anchorAt = anchor.At.ToDateTimeOffset();
 
-        if (string.IsNullOrWhiteSpace(rule))
+        if (!series.Recurs)
         {
             if (anchorAt >= windowStart && anchorAt < windowEnd) yield return anchorAt;
             yield break;
         }
 
         var starts = RecurrenceRuleEvaluator.Evaluate(
-            rule, Instant.FromDateTimeOffset(anchorAt), zone, Instant.FromDateTimeOffset(windowStart), item.IsAllDay);
+            series.RecurrenceRule, anchor.At, anchor.Zone, Instant.FromDateTimeOffset(windowStart), series.IsAllDay);
         foreach (var instant in starts)
         {
             var start = instant.ToDateTimeOffset();

@@ -87,6 +87,74 @@ public sealed class OccurrenceDeviationTests(CalApiTestFactory factory) : Integr
         Assert.Contains(oct18, (await OccurrencesAsync(api, item.Id)).Select(o => o.Start));
     }
 
+    private static DateTimeOffset Utc(int m, int d, int h) => new(2026, m, d, h, 0, 0, TimeSpan.Zero);
+
+    private static async Task<CalendarItemDto> DeviateAsync(HttpClient api, Guid itemId, DateTimeOffset originalStart, ChangeOccurrenceRequest change)
+    {
+        var resp = await api.PutAsJsonAsync($"/items/{itemId}/occurrences/{originalStart:yyyy-MM-ddTHH:mm:ssZ}", change);
+        resp.EnsureSuccessStatusCode();
+        return (await resp.Content.ReadFromJsonAsync<CalendarItemDto>())!;
+    }
+
+    private static async Task<CalendarItemDto> ReviseAsync(HttpClient api, Guid itemId, UpdateCalendarItemRequest change)
+    {
+        var resp = await api.PutAsJsonAsync($"/items/{itemId}", change);
+        resp.EnsureSuccessStatusCode();
+        return (await resp.Content.ReadFromJsonAsync<CalendarItemDto>())!;
+    }
+
+    [Fact]
+    public async Task Moving_the_series_time_carries_its_deviations_along()
+    {
+        var api = Factory.ApiClient(Email);
+        var item = await CreateWeeklyAsync(api, await CreateCalendarAsync(api));   // Sundays 18:00 Stockholm
+        await DeviateAsync(api, item.Id, Utc(10, 11, 16), new ChangeOccurrenceRequest { Title = "Middag hos mormor" });
+        await DeviateAsync(api, item.Id, Utc(10, 18, 16), new ChangeOccurrenceRequest { Excluded = true });
+
+        // Every Sunday moves to 19:00 local.
+        var moved = await ReviseAsync(api, item.Id, new UpdateCalendarItemRequest { StartsAt = Utc(10, 4, 17), EndsAt = Utc(10, 4, 20) });
+
+        Assert.Equal([Utc(10, 18, 17)], moved.ExcludedOccurrences!);
+        Assert.Equal(Utc(10, 11, 17), Assert.Single(moved.OccurrenceOverrides!).OriginalStart);
+        var occ = await OccurrencesAsync(api, item.Id);
+        Assert.Equal([Utc(10, 4, 17), Utc(10, 11, 17), Utc(10, 25, 18)], occ.Select(o => o.Start).ToList());
+        Assert.Equal("Middag hos mormor", occ[1].Title);
+    }
+
+    [Fact]
+    public async Task Changing_the_series_zone_keeps_deviations_on_their_wall_clock_occurrence()
+    {
+        var api = Factory.ApiClient(Email);
+        var item = await CreateWeeklyAsync(api, await CreateCalendarAsync(api));
+        await DeviateAsync(api, item.Id, Utc(10, 18, 16), new ChangeOccurrenceRequest { Excluded = true });
+
+        // Still 18:00 on the wall clock, now London's: 17:00Z under BST.
+        var moved = await ReviseAsync(api, item.Id, new UpdateCalendarItemRequest
+        {
+            StartsAt = Utc(10, 4, 17), EndsAt = Utc(10, 4, 20), StartTimezone = "Europe/London", StartTimezoneProvided = true,
+        });
+
+        Assert.Equal([Utc(10, 18, 17)], moved.ExcludedOccurrences!);
+    }
+
+    [Fact]
+    public async Task A_rule_change_drops_deviations_the_new_series_no_longer_has()
+    {
+        var api = Factory.ApiClient(Email);
+        var item = await CreateWeeklyAsync(api, await CreateCalendarAsync(api));
+        await DeviateAsync(api, item.Id, Utc(10, 18, 16), new ChangeOccurrenceRequest { Excluded = true });
+        await DeviateAsync(api, item.Id, Utc(10, 11, 16), new ChangeOccurrenceRequest { Title = "Middag hos mormor" });
+
+        // Sundays become every day: both deviations still name an occurrence and stay; Mondays only would drop them.
+        var daily = await ReviseAsync(api, item.Id, new UpdateCalendarItemRequest { RecurrenceRule = "FREQ=DAILY" });
+        Assert.Equal([Utc(10, 18, 16)], daily.ExcludedOccurrences!);
+        Assert.Single(daily.OccurrenceOverrides!);
+
+        var mondays = await ReviseAsync(api, item.Id, new UpdateCalendarItemRequest { RecurrenceRule = "FREQ=WEEKLY;BYDAY=MO" });
+        Assert.Empty(mondays.ExcludedOccurrences ?? []);
+        Assert.Empty(mondays.OccurrenceOverrides ?? []);
+    }
+
     [Fact]
     public async Task Occurrence_changes_are_rejected_off_the_series()
     {
