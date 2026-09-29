@@ -511,7 +511,7 @@
         "tags": [
           "CalendarItems"
         ],
-        "summary": "Search calendar items (text + tag + parent + attendee contact + category/status filter; recurrence expanded in-window). Text queries and parent/contact filters with no from/to match all-time; otherwise the window defaults to ±1 year. skip/take page over occurrences sorted by start (desc=true for newest first). Only items accepted into a calendar you can read.",
+        "summary": "Search calendar items (text + tag + parent + attendee contact + category/status filter; recurrence expanded in-window; from/to match occurrences overlapping the window). Text queries and parent/contact filters with no from/to match all-time; otherwise the window defaults to ±1 year. skip/take page over occurrences sorted by start (desc=true for newest first). Only items accepted into a calendar you can read.",
         "operationId": "SearchItems",
         "parameters": [
           {

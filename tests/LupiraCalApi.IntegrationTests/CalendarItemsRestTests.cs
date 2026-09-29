@@ -172,6 +172,41 @@ public sealed class CalendarItemsRestTests(CalApiTestFactory factory) : Integrat
     }
 
     [Fact]
+    public async Task Window_matches_occurrences_overlapping_it_not_only_starting_in_it()
+    {
+        var api = Factory.ApiClient(Email);
+        var calId = await CreateCalendarAsync(api);
+        await PostItemAsync(api, new CreateCalendarItemRequest
+        {
+            CalendarId = calId, Title = "Weekend", IsAllDay = false, StartTimezone = "UTC",
+            StartsAt = new DateTimeOffset(2026, 5, 30, 4, 45, 0, TimeSpan.Zero), EndsAt = new DateTimeOffset(2026, 5, 31, 14, 0, 0, TimeSpan.Zero),
+        });
+        await PostItemAsync(api, new CreateCalendarItemRequest
+        {
+            CalendarId = calId, Title = "Breakfast", IsAllDay = false, StartTimezone = "UTC",
+            StartsAt = new DateTimeOffset(2026, 5, 30, 4, 45, 0, TimeSpan.Zero), EndsAt = new DateTimeOffset(2026, 5, 30, 5, 45, 0, TimeSpan.Zero),
+        });
+        await PostItemAsync(api, new CreateCalendarItemRequest
+        {
+            CalendarId = calId, Title = "Nightly", IsAllDay = false, StartTimezone = "UTC", RecurrenceRule = "FREQ=DAILY;COUNT=5",
+            StartsAt = new DateTimeOffset(2026, 5, 27, 22, 0, 0, TimeSpan.Zero), EndsAt = new DateTimeOffset(2026, 5, 28, 8, 0, 0, TimeSpan.Zero),
+        });
+        await PostItemAsync(api, new CreateCalendarItemRequest
+        {
+            CalendarId = calId, Title = "Holiday", IsAllDay = true, StartDate = new DateOnly(2026, 5, 30), EndDate = new DateOnly(2026, 5, 30),
+        });
+
+        var found = await api.GetFromJsonAsync<List<CalendarItemOccurrenceDto>>(
+            $"/items?calendarId={calId}&from=2026-05-30T06:46:00Z&to=2026-05-30T08:46:00Z");
+
+        Assert.Equal(["Holiday", "Nightly", "Weekend"], found!.Select(o => o.Title).Order());
+        Assert.Equal(new DateTimeOffset(2026, 5, 29, 22, 0, 0, TimeSpan.Zero), found.Single(o => o.Title == "Nightly").Start);
+    }
+
+    private static async Task PostItemAsync(HttpClient api, CreateCalendarItemRequest request) =>
+        (await api.PostAsJsonAsync("/items", request)).EnsureSuccessStatusCode();
+
+    [Fact]
     public async Task Calendar_ids_report_all_readable_memberships_and_never_unreadable_ones()
     {
         var alice = Factory.ApiClient(Email);

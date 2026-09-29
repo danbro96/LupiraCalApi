@@ -258,15 +258,22 @@ public sealed class CalendarItemService(IDocumentSession session, AccessResolver
                 i.StartsAt is { } s && i.EndsAt is { } en ? en - s
                 : i.IsAllDay && i.StartDate is { } sd && i.EndDate is { } ed ? AllDayInstant(ed) - AllDayInstant(sd)
                 : null;
+            // The window matches occurrences overlapping it, not only those starting in it: a photo taken mid-trip
+            // belongs to a trip that began that morning. An all-day item covers through its inclusive last day.
+            var coverage =
+                i.StartsAt is { } cs && i.EndsAt is { } ce && ce > cs ? ce - cs
+                : i.IsAllDay && i.StartDate is { } csd ? AllDayInstant(i.EndDate ?? csd).AddDays(1) - AllDayInstant(csd)
+                : TimeSpan.Zero;
             if (!string.IsNullOrWhiteSpace(i.RecurrenceRule))
             {
-                foreach (var occ in expander.Expand(i, windowStart, expansionEnd))
+                foreach (var occ in expander.Expand(i, Lookback(windowStart, coverage), expansionEnd))
                 {
                     var change = i.OccurrenceOverrides?.FirstOrDefault(o => (o.StartsAt ?? o.OriginalStart) == occ);
+                    if (!Overlaps(occ, change?.EndsAt ?? occ + coverage, windowStart, windowEnd)) continue;
                     results.Add(new CalendarItemOccurrenceDto { Id = i.Id, Title = change?.Title ?? i.Title, PlaceId = i.PlaceId, LocationLabel = change?.LocationLabel ?? i.LocationLabel, IsAllDay = i.IsAllDay, Start = occ, End = change?.EndsAt ?? (duration is { } d ? occ + d : null), CalendarIds = memberIds, Category = i.Category, Status = change?.Status ?? i.Status, Tags = i.Tags, ParentItemId = i.ParentItemId, ParentTitle = parentTitle, ChildCount = childCount, Completeness = score, Etag = i.ContentHash });
                 }
             }
-            else if (OccurrenceStart(i) is { } start && start >= windowStart && start < windowEnd)
+            else if (OccurrenceStart(i) is { } start && Overlaps(start, start + coverage, windowStart, windowEnd))
             {
                 results.Add(new CalendarItemOccurrenceDto { Id = i.Id, Title = i.Title, PlaceId = i.PlaceId, LocationLabel = i.LocationLabel, IsAllDay = i.IsAllDay, Start = start, End = duration is { } d ? start + d : i.EndsAt, CalendarIds = memberIds, Category = i.Category, Status = i.Status, Tags = i.Tags, ParentItemId = i.ParentItemId, ParentTitle = parentTitle, ChildCount = childCount, Completeness = score, Etag = i.ContentHash });
             }
@@ -725,6 +732,13 @@ public sealed class CalendarItemService(IDocumentSession session, AccessResolver
         if (i.IsAllDay && i.StartDate is { } d) return AllDayInstant(d);
         return i.StartsAt;
     }
+
+    // Half-open [start, end); a zero-length occurrence still matches at its start.
+    private static bool Overlaps(DateTimeOffset start, DateTimeOffset end, DateTimeOffset windowStart, DateTimeOffset windowEnd) =>
+        start < windowEnd && (start >= windowStart || end > windowStart);
+
+    private static DateTimeOffset Lookback(DateTimeOffset windowStart, TimeSpan coverage) =>
+        windowStart - DateTimeOffset.MinValue > coverage ? windowStart - coverage : DateTimeOffset.MinValue;
 
     private async Task<CalendarItemDto> ToDtoAsync(CalendarItem item, CancellationToken ct) =>
         item.ToResponse(await completeness.ScoreItemAsync(item, ct));

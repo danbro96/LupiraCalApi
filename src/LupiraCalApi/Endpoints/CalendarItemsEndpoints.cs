@@ -16,7 +16,7 @@ public static class CalendarItemsEndpoints
                 CalendarItemsHandler h, CancellationToken ct, bool desc = false) =>
                 h.SearchAsync(query, from, to, calendarId, tag, parentId, contactId, category, status, skip, take, desc, ct))
             .WithName("SearchItems")
-            .WithSummary("Search calendar items (text + tag + parent + attendee contact + category/status filter; recurrence expanded in-window). Text queries and parent/contact filters with no from/to match all-time; otherwise the window defaults to ±1 year. skip/take page over occurrences sorted by start (desc=true for newest first). Only items accepted into a calendar you can read.")
+            .WithSummary("Search calendar items (text + tag + parent + attendee contact + category/status filter; recurrence expanded in-window; from/to match occurrences overlapping the window). Text queries and parent/contact filters with no from/to match all-time; otherwise the window defaults to ±1 year. skip/take page over occurrences sorted by start (desc=true for newest first). Only items accepted into a calendar you can read.")
             .Produces<List<CalendarItemOccurrenceDto>>(StatusCodes.Status200OK)
             .ProducesProblem(StatusCodes.Status400BadRequest)
             .ProducesProblem(StatusCodes.Status403Forbidden);

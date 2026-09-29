@@ -23,7 +23,7 @@ namespace LupiraCalApi.Mcp;
 public sealed class CalendarTools
 {
     [McpServerTool(Name = "search_items")]
-    [Description("Search calendar items the caller can access, optionally by text, time window, category/status, tag; pageable.")]
+    [Description("Search calendar items the caller can access, optionally by text, time window (matches occurrences overlapping it), category/status, tag; pageable.")]
     public static async Task<IReadOnlyList<CalendarItemOccurrenceDto>> SearchItems(
         CalendarItemService items, CurrentUser user,
         [Description("Free-text query over title/description. With no from/to, matches all-time.")] string? query = null,
