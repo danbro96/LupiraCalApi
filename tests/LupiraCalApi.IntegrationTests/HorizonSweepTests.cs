@@ -80,6 +80,33 @@ public sealed class HorizonSweepTests(CalApiTestFactory factory) : IntegrationTe
         Assert.True(await CountAsync(itemId) > initial, "sweep should extend the far edge");
     }
 
+    [Fact]
+    public async Task Rematerialize_replaces_future_pending_fires_left_by_an_older_expansion()
+    {
+        var api = Factory.ApiClient(Email);
+        var calId = await CreateCalendarAsync(api);
+        var itemId = await CreatePromptItemAsync(api, calId, DateTimeOffset.UtcNow.AddDays(1), rrule: "FREQ=WEEKLY");
+        await RunMaterializerAsync();
+        var fresh = await CountAsync(itemId);
+
+        await using (var conn = new NpgsqlConnection(Factory.ConnectionString))
+        {
+            await conn.OpenAsync();
+            await using var cmd = new NpgsqlCommand(
+                "insert into cal.scheduled_fire (id, item_id, calendar_id, occurrence_at, status, attempts, dedupe_key) " +
+                "values (@id, @item, @cal, @at, 'pending', 0, 'stale')", conn);
+            cmd.Parameters.AddWithValue("id", Guid.NewGuid());
+            cmd.Parameters.AddWithValue("item", itemId);
+            cmd.Parameters.AddWithValue("cal", calId);
+            cmd.Parameters.AddWithValue("at", DateTimeOffset.UtcNow.AddDays(2));
+            await cmd.ExecuteNonQueryAsync();
+        }
+
+        await Sweep().RematerializeAsync(DateTimeOffset.UtcNow, CancellationToken.None);
+
+        Assert.Equal(fresh, await CountAsync(itemId));
+    }
+
     private async Task<int> CountAsync(Guid itemId)
     {
         await using var conn = new NpgsqlConnection(Factory.ConnectionString);

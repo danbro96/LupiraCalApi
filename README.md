@@ -29,7 +29,8 @@ Interactive API docs: **`/scalar/v1`** (Scalar UI) over the OpenAPI document at 
 |---|---|
 | Runtime | .NET 10 (`net10.0`), ASP.NET Core Minimal APIs |
 | Store | **Marten 9.10.0** — event sourcing + document store (+ async daemon) on PostgreSQL |
-| iCalendar | **Ical.Net 5.2.2** (canonical ICS + recurrence) |
+| Time | **NodaTime 3.3.4** — zoned occurrence expansion (wall-clock time in the item's zone) |
+| iCalendar | **Ical.Net 5.2.2** — DAV representation + recurrence-rule engine |
 | MCP | **ModelContextProtocol.AspNetCore 1.4.0** |
 | API docs | **Scalar.AspNetCore 2.16.5** + `Microsoft.AspNetCore.OpenApi 10.0.9` |
 | Auth | `Microsoft.AspNetCore.Authentication.JwtBearer 10.0.9` (OIDC) |

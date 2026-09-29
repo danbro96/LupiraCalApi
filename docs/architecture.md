@@ -110,7 +110,11 @@ classDiagram
         DateTimeOffset? EndsAt
         DateOnly? StartDate
         DateOnly? EndDate
+        string? StartTimezone
         string? RecurrenceRule
+        DateTimeOffset[]? ExcludedOccurrences
+        DateTimeOffset[]? ExtraOccurrences
+        OccurrenceOverride[]? OccurrenceOverrides
         ItemCategory? Category
         Guid? PlaceId
         string? LocationLabel
@@ -121,6 +125,16 @@ classDiagram
         string ContentHash
         string Metadata
         DateTimeOffset? DeletedAt
+    }
+    class OccurrenceOverride {
+        <<value object>>
+        DateTimeOffset OriginalStart
+        DateTimeOffset? StartsAt
+        DateTimeOffset? EndsAt
+        string? Title
+        string? Description
+        ItemStatus? Status
+        string? LocationLabel
     }
     class ItemAttendee {
         <<embedded>>
@@ -200,6 +214,7 @@ classDiagram
     CalendarItem "1" *-- "*" CalendarMembership
     CalendarMembership "*" --> "1" Calendar
     CalendarItem "1" *-- "*" ItemAttendee
+    CalendarItem "1" *-- "*" OccurrenceOverride
     CalendarItem "1" *-- "0..1" ItemDetails
     CalendarItem "1" *-- "0..1" ItemPrompt : XOR payload
     CalendarItem "1" *-- "0..1" ItemAction : XOR payload

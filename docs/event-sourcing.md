@@ -30,6 +30,9 @@ The rules the `CalendarItem` event store is built to, so it stays evolvable. Pre
   The class form (`EventUpcaster<TOld,TNew>`) is preferred when the transform is non-trivial. `ItemDeletedV1` +
   its upcaster are exercised in `EventEvolutionTests` — the reference to copy. The transform sees only the old
   payload, not event metadata; if you need the server timestamp, keep the new field nullable instead.
+- **Preferred over a permanent upcaster: convert in place.** A one-shot command (in `Data/Migrations`, shipped with
+  the change) rewrites the stored rows into the new shape under the same event names — back up first, run once,
+  `--rebuild-items`, then delete the command and its old-shape types in a follow-up. No legacy code outlives the run.
 - **DTO/API versioning is separate.** Request/response DTOs (`Dtos/`) and their mappers absorb API-shape changes;
   upcasters absorb event-shape changes. Never couple the two.
 
@@ -72,6 +75,8 @@ relative to now and is idempotent (`unique(dedupe_key)`), so it is rebuild-safe 
   `dotnet LupiraCalApi.dll --apply-schema`. `AddCalCore` relaxes to `CreateOrUpdate` only in Development.
 - **Projection rebuild:** the inline `CalendarItem` snapshot and the async `scheduled_fire` projection both
   rebuild from zero via the Marten daemon; rehearse a rebuild against a restored backup before relying on it.
+  One-shots: `--rebuild-items` (after an event-shape or snapshot change) and `--rematerialize-fires` (after a
+  change to occurrence expansion — replaces each payload item's future-pending fires).
 - **Backups:** the event store is ordinary Postgres — covered by the platform DB backup. A restore must be tested.
 
 ## Invariants & concurrency

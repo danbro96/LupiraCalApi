@@ -16,7 +16,7 @@ public class ParticipationSummaryTests
 
     private static CalendarItemFields Fields(DateTimeOffset start) => new(
         "Lunch", null, ItemStatus.Confirmed, false, start, start.AddHours(1),
-        "UTC", null, null, null, null, null, null, ItemCategory.General, null, null, null, null);
+        "UTC", null, null, null, null, null, null, null, ItemCategory.General, null, null, null, null);
 
     private static CalendarItem Item(Guid calendarId, DateTimeOffset start, params Guid[] contactIds)
     {
@@ -94,7 +94,7 @@ public class ParticipationSummaryTests
         var i = new CalendarItem();
         var id = Guid.NewGuid();
         i.Apply(Ev(new ItemScheduled(id, $"{id:N}@x", new CalendarItemFields(
-            "Sometime", null, null, false, null, null, null, null, null, null, null, null, null, null, null, null, null, null), null)));
+            "Sometime", null, null, false, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null), null)));
         i.Apply(Ev(new AddedToCalendar(id, ReadableCal, CalendarEntryStatus.Accepted, DateTimeOffset.UtcNow)));
         i.Apply(Ev(new AttendeeInvited(id, Guid.NewGuid(), anna, ParticipationRole.RequiredParticipant, T1)));
 

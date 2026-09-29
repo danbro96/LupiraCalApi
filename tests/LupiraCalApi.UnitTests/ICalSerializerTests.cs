@@ -1,3 +1,4 @@
+using LupiraCalApi.Core.Domain.CalendarItems;
 using LupiraCalApi.Core.Domain.Shared;
 using LupiraCalApi.Core.Serialization;
 using Xunit;
@@ -85,21 +86,38 @@ public class ICalSerializerTests
     }
 
     [Fact]
-    public void Exdate_and_override_vevents_are_captured_verbatim()
+    public void Exception_dates_and_override_vevents_parse_into_structured_deviations()
     {
         var p = ICalSerializer.ParseICalendar(MasterWithExdateAndOverride);
 
-        Assert.Contains("EXDATE:20260703T090000Z", p.RecurrenceExceptions);
-        Assert.Contains("RECURRENCE-ID:20260702T090000Z", p.RecurrenceOverrides);
-        Assert.Contains("SUMMARY:Override", p.RecurrenceOverrides);
+        Assert.Equal([new DateTimeOffset(2026, 7, 3, 9, 0, 0, TimeSpan.Zero)], p.ExcludedOccurrences!);
+        var o = Assert.Single(p.OccurrenceOverrides!);
+        Assert.Equal(new DateTimeOffset(2026, 7, 2, 9, 0, 0, TimeSpan.Zero), o.OriginalStart);
+        Assert.Equal(new DateTimeOffset(2026, 7, 2, 10, 0, 0, TimeSpan.Zero), o.StartsAt);
+        Assert.Null(o.EndsAt);                // same length as the series
+        Assert.Equal("Override", o.Title);
     }
 
     [Fact]
-    public void Regenerated_ics_re_emits_the_supplement_and_is_byte_stable()
+    public void Zoned_multi_value_exception_dates_and_extra_dates_parse_to_instants()
+    {
+        const string ics = "BEGIN:VCALENDAR\r\nVERSION:2.0\r\nPRODID:-//t//EN\r\nBEGIN:VEVENT\r\nUID:e1@x\r\n" +
+            "DTSTART;TZID=Europe/Stockholm:20260517T180000\r\nDTEND;TZID=Europe/Stockholm:20260517T210000\r\nRRULE:FREQ=WEEKLY;INTERVAL=2;BYDAY=SU\r\n" +
+            "EXDATE;TZID=Europe/Stockholm:20260614T180000,20260628T180000\r\nEXDATE:20260712T160000Z\r\nRDATE:20260801T160000Z\r\nEND:VEVENT\r\nEND:VCALENDAR\r\n";
+
+        var p = ICalSerializer.ParseICalendar(ics);
+
+        Assert.Equal("Europe/Stockholm", p.StartTimezone);
+        Assert.Equal([Utc(2026, 6, 14, 16), Utc(2026, 6, 28, 16), Utc(2026, 7, 12, 16)], p.ExcludedOccurrences!);
+        Assert.Equal([Utc(2026, 8, 1, 16)], p.ExtraOccurrences!);
+    }
+
+    [Fact]
+    public void Regenerated_ics_carries_the_deviations_and_is_byte_stable()
     {
         var p = ICalSerializer.ParseICalendar(MasterWithExdateAndOverride);
         string Regen() => ICalSerializer.ToICalendar("e1@x", p.Title, p.Description, null, null, false,
-            p.StartsAt, p.EndsAt, p.StartDate, p.EndDate, p.RecurrenceRule, p.RecurrenceExceptions, p.RecurrenceOverrides);
+            p.StartsAt, p.EndsAt, p.StartDate, p.EndDate, p.RecurrenceRule, p.ExcludedOccurrences, p.ExtraOccurrences, p.OccurrenceOverrides);
 
         var first = Regen();
         Assert.Equal(first, Regen());                              // deterministic → stable ETag across reads
@@ -108,7 +126,37 @@ public class ICalSerializerTests
         Assert.Contains("SUMMARY:Override", first);
 
         var reparsed = ICalSerializer.ParseICalendar(first);        // survives a full round-trip
-        Assert.Contains("EXDATE:20260703T090000Z", reparsed.RecurrenceExceptions);
-        Assert.Contains("RECURRENCE-ID:20260702T090000Z", reparsed.RecurrenceOverrides);
+        Assert.Equal(p.ExcludedOccurrences, reparsed.ExcludedOccurrences);
+        Assert.Equal(p.OccurrenceOverrides, reparsed.OccurrenceOverrides);
     }
+
+    [Fact]
+    public void All_day_series_deviations_round_trip_as_dates()
+    {
+        var excluded = new[] { Utc(2027, 8, 15) };
+        var moved = new[] { new OccurrenceOverride(Utc(2032, 8, 15), Utc(2032, 8, 16), null, null, null, null, null) };
+
+        var ics = ICalSerializer.ToICalendar("tbe@x", "Vaccinera", null, null, null, true, null, null,
+            new DateOnly(2022, 8, 15), new DateOnly(2022, 8, 22), "FREQ=YEARLY;INTERVAL=5", excluded, null, moved);
+        var p = ICalSerializer.ParseICalendar(ics);
+
+        Assert.Contains("EXDATE;VALUE=DATE:20270815", ics);
+        Assert.Equal(excluded, p.ExcludedOccurrences);
+        Assert.Equal(moved, p.OccurrenceOverrides);
+    }
+
+    [Fact]
+    public void Cancelled_override_parses_as_a_cancelled_occurrence()
+    {
+        const string ics = "BEGIN:VCALENDAR\r\nVERSION:2.0\r\nPRODID:-//t//EN\r\n" +
+            "BEGIN:VEVENT\r\nUID:e1@x\r\nDTSTART:20260701T090000Z\r\nDTEND:20260701T100000Z\r\nSUMMARY:M\r\nRRULE:FREQ=DAILY\r\nEND:VEVENT\r\n" +
+            "BEGIN:VEVENT\r\nUID:e1@x\r\nRECURRENCE-ID:20260702T090000Z\r\nDTSTART:20260702T090000Z\r\nDTEND:20260702T100000Z\r\nSUMMARY:M\r\nSTATUS:CANCELLED\r\nEND:VEVENT\r\n" +
+            "END:VCALENDAR\r\n";
+
+        var o = Assert.Single(ICalSerializer.ParseICalendar(ics).OccurrenceOverrides!);
+
+        Assert.Equal(new OccurrenceOverride(Utc(2026, 7, 2, 9), null, null, null, null, ItemStatus.Cancelled, null), o);
+    }
+
+    private static DateTimeOffset Utc(int y, int m, int d, int h = 0) => new(y, m, d, h, 0, 0, TimeSpan.Zero);
 }

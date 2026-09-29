@@ -43,9 +43,11 @@ public sealed class CalendarItem
 
     public string? RecurrenceRule { get; set; }
 
-    public string? RecurrenceExceptions { get; set; }
+    public DateTimeOffset[]? ExcludedOccurrences { get; set; }
 
-    public string? RecurrenceOverrides { get; set; }
+    public DateTimeOffset[]? ExtraOccurrences { get; set; }
+
+    public OccurrenceOverride[]? OccurrenceOverrides { get; set; }
 
     public ItemCategory? Category { get; set; }
 
@@ -317,8 +319,9 @@ public sealed class CalendarItem
         StartPrecision = f.StartPrecision;
         EndPrecision = f.EndPrecision;
         RecurrenceRule = f.RecurrenceRule;
-        RecurrenceExceptions = f.RecurrenceExceptions;
-        RecurrenceOverrides = f.RecurrenceOverrides;
+        ExcludedOccurrences = f.ExcludedOccurrences;
+        ExtraOccurrences = f.ExtraOccurrences;
+        OccurrenceOverrides = f.OccurrenceOverrides;
         if (f.Category is { } c) Category = c;
         PlaceId = f.PlaceId;
         LocationLabel = f.LocationLabel;

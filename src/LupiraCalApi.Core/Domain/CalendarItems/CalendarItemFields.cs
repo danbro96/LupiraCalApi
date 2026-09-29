@@ -6,9 +6,8 @@ namespace LupiraCalApi.Core.Domain.CalendarItems;
 /// The structured, mutable fields of a <see cref="CalendarItem"/> — bundled so the REST/MCP authoring path and the
 /// DAV PUT path converge on one shape. These fields are canonical (no raw blob is stored); <c>ContentHash</c> (the
 /// ETag) is derived from the ICS regenerated from them, and they feed REST/MCP queries, search, and time-range.
-/// <see cref="RecurrenceExceptions"/>/<see cref="RecurrenceOverrides"/> are the one exception: they carry the
-/// EXDATE/RDATE lines and RECURRENCE-ID override VEVENTs verbatim, since the structured model has no shape for
-/// per-instance exceptions — a DAV-only concern, re-emitted on GET so single-occurrence edits round-trip.
+/// A recurring item's per-occurrence deviations are <see cref="ExcludedOccurrences"/> (dropped starts),
+/// <see cref="ExtraOccurrences"/> (one-off starts added to the series) and <see cref="OccurrenceOverrides"/>.
 /// </summary>
 public sealed record CalendarItemFields(
     string? Title,
@@ -22,8 +21,9 @@ public sealed record CalendarItemFields(
     DateOnly? StartDate,
     DateOnly? EndDate,
     string? RecurrenceRule,
-    string? RecurrenceExceptions,
-    string? RecurrenceOverrides,
+    DateTimeOffset[]? ExcludedOccurrences,
+    DateTimeOffset[]? ExtraOccurrences,
+    OccurrenceOverride[]? OccurrenceOverrides,
     ItemCategory? Category,
     Guid? PlaceId,
     string? LocationLabel,

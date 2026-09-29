@@ -51,7 +51,7 @@ public class SectionLwwTests
     private static CalendarItemFields Fields(string title) => new(
         title, null, ItemStatus.Confirmed, false,
         new DateTimeOffset(2026, 8, 1, 9, 0, 0, TimeSpan.Zero), new DateTimeOffset(2026, 8, 1, 10, 0, 0, TimeSpan.Zero),
-        "UTC", null, null, null, null, null, null, ItemCategory.General, null, null, null, null);
+        "UTC", null, null, null, null, null, null, null, ItemCategory.General, null, null, null, null);
 
     private static CalendarItem Scheduled(Guid id)
     {

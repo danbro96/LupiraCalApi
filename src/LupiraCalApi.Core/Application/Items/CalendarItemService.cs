@@ -106,7 +106,7 @@ public sealed class CalendarItemService(IDocumentSession session, AccessResolver
             return OpResult<CalendarItemDto>.Invalid(parentError);
 
         var fields = new CalendarItemFields(r.Title, r.Description, status, r.IsAllDay, r.StartsAt, r.EndsAt,
-            r.StartTimezone, null, r.StartDate, r.EndDate, r.RecurrenceRule, null, null, category, placeId, locationLabel, parentItemId, r.Tags,
+            r.StartTimezone, null, r.StartDate, r.EndDate, r.RecurrenceRule, null, null, null, category, placeId, locationLabel, parentItemId, r.Tags,
             r.StartPrecision, r.EndPrecision);
 
         var events = new List<object> { new ItemScheduled(id, uid, fields, details) };
@@ -405,7 +405,7 @@ public sealed class CalendarItemService(IDocumentSession session, AccessResolver
 
         var fields = new CalendarItemFields(title, description, status, isAllDay, startsAt, endsAt,
             startTimezone, endTimezone, startDate, endDate, rrule,
-            item.RecurrenceExceptions, item.RecurrenceOverrides, category, placeId, locationLabel, parentItemId, tags,
+            item.ExcludedOccurrences, item.ExtraOccurrences, item.OccurrenceOverrides, category, placeId, locationLabel, parentItemId, tags,
             r.StartPrecision ?? item.StartPrecision, r.EndPrecision ?? item.EndPrecision);
 
         var (incoming, detailsUnresolved) = await ItemDetailsMapper.BuildAsync(r.Details, r.Availability, geo, ct);
@@ -554,7 +554,7 @@ public sealed class CalendarItemService(IDocumentSession session, AccessResolver
         var (placeId, locationLabel, _) = await ResolvePlaceAsync(p.Location, ct);   // DAV stays lenient: external clients send free-text, unresolved → label-only
         var fields = new CalendarItemFields(p.Title, p.Description, null, p.IsAllDay, p.StartsAt, p.EndsAt,
             p.StartTimezone, p.EndTimezone, p.StartDate, p.EndDate, p.RecurrenceRule,
-            p.RecurrenceExceptions, p.RecurrenceOverrides, null, placeId, locationLabel, null, null);
+            p.ExcludedOccurrences, p.ExtraOccurrences, p.OccurrenceOverrides, null, placeId, locationLabel, null, null);
 
         stream.AppendOne(new ItemImported(id, externalId, fields));   // also clears any soft-delete (resurrect)
         if (existing is null || !existing.IsAcceptedIn(calendarId))

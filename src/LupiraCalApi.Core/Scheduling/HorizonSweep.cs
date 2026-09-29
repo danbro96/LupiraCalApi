@@ -32,12 +32,19 @@ public sealed class HorizonSweep(IDocumentStore store, IFireMaterializer materia
         }
     }
 
-    public async Task SweepAsync(DateTimeOffset now, CancellationToken ct)
+    public Task SweepAsync(DateTimeOffset now, CancellationToken ct) => MaterializeAsync(now, replace: false, ct);
+
+    /// <summary>One-shot repair after occurrence expansion itself changed: replaces (rather than extends) every payload
+    /// item's future-pending fires, so rows materialized under the old expansion don't linger.</summary>
+    public Task RematerializeAsync(DateTimeOffset now, CancellationToken ct) => MaterializeAsync(now, replace: true, ct);
+
+    private async Task MaterializeAsync(DateTimeOffset now, bool replace, CancellationToken ct)
     {
         await using var session = store.LightweightSession();
         var candidates = await session.Query<CalendarItem>().Where(i => i.DeletedAt == null).ToListAsync(ct);
         foreach (var item in candidates.Where(i => i.Prompt is not null || i.Action is not null))
         {
+            if (replace) session.QueueSqlCommand(ScheduledFireSchema.DeleteFuturePendingSql, item.Id);
             var context = await SchedulingQueries.FireContextAsync(session, item, ct);
             foreach (var r in materializer.Materialize(item, context, now, SchedulingDefaults.Horizon))
             {
