@@ -317,6 +317,28 @@ public class CompletenessScorerTests
     }
 
     [Fact]
+    public void A_city_level_travel_endpoint_is_weak_while_a_station_is_not()
+    {
+        var city = Guid.NewGuid();
+        var station = Guid.NewGuid();
+        var toCity = new CalendarItem
+        {
+            Category = ItemCategory.Trip,
+            Details = new ItemDetails(Travel: new TravelLeg(TransportMode.Train, city, station, null, null, null, null, null, null, null, null)),
+        };
+        var toStation = new CalendarItem
+        {
+            Category = ItemCategory.Trip,
+            Details = new ItemDetails(Travel: new TravelLeg(TransportMode.Train, station, station, null, null, null, null, null, null, null, null)),
+        };
+        HashSet<Guid> areas = [city];
+
+        Assert.Equal(GapSeverity.Weak, CompletenessScorer.ScoreItem(toCity, false, areaPlaceIds: areas)!.Gaps.Single(g => g.Field == "fromToPlace").Severity);
+        Assert.DoesNotContain(CompletenessScorer.ScoreItem(toStation, false, areaPlaceIds: areas)!.Gaps, g => g.Field == "fromToPlace");
+        Assert.DoesNotContain(CompletenessScorer.ScoreItem(toCity, false)!.Gaps, g => g.Field == "fromToPlace");
+    }
+
+    [Fact]
     public void Child_inherits_the_parents_attendee_presence()
     {
         var outing = new CalendarItem { Category = ItemCategory.Outing };

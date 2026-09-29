@@ -9,17 +9,19 @@ namespace LupiraCalApi.Core.Domain.Completeness;
 /// Pure, kind-aware completeness rubric for items. Scores <em>presence</em>, not quality — crude on purpose,
 /// enough to rank thin-vs-rich. Time-agnostic: past and future items score alike; cutoffs are the caller's
 /// time filters. Exempt records score <c>null</c>. Calendar-context exemption (Birthdays/Availability/system
-/// calendars), <paramref name="hasChildren"/>, and <paramref name="inheritedAttendees"/> (the parent's attendee
-/// presence — a trip's shared list covers its legs) are decided by the caller and passed in; snapshot-local
+/// calendars), <paramref name="hasChildren"/>, <paramref name="inheritedAttendees"/> (the parent's attendee
+/// presence — a trip's shared list covers its legs), and <paramref name="areaPlaceIds"/> (travel endpoints geo
+/// classifies as whole cities/regions) are decided by the caller and passed in; snapshot-local
 /// exemptions (cancelled, a presence segment, a fired payload) are handled here. A field acknowledged as
 /// inapplicable via metadata <c>completeness.na</c> (e.g. no booking for a homemade dinner) is dropped from
 /// the rubric entirely.
 /// </summary>
 public static class CompletenessScorer
 {
-    public const int Version = 2;
+    public const int Version = 3;
 
-    public static CompletenessScore? ScoreItem(CalendarItem item, bool calendarExempt, bool hasChildren = false, double inheritedAttendees = 0)
+    public static CompletenessScore? ScoreItem(
+        CalendarItem item, bool calendarExempt, bool hasChildren = false, double inheritedAttendees = 0, IReadOnlySet<Guid>? areaPlaceIds = null)
     {
         if (calendarExempt || item.Status == ItemStatus.Cancelled
             || item.Details?.Presence is not null || item.Prompt is not null || item.Action is not null)
@@ -35,7 +37,7 @@ public static class CompletenessScorer
         switch (category)
         {
             case ItemCategory.Trip:
-                fields.Add(("fromToPlace", 2, TravelFromTo(d?.Travel)));
+                fields.Add(("fromToPlace", 2, TravelFromTo(d?.Travel, areaPlaceIds)));
                 fields.Add(("departArriveTimes", 1, Math.Max(BothTimes(item), LegTimes(d?.Travel))));
                 if (d?.Travel is { } leg)
                 {
@@ -173,11 +175,12 @@ public static class CompletenessScorer
         return i.Attendees.All(a => a.Status == ParticipationStatus.NeedsAction) ? 0.5 : 1;   // listed but none RSVP'd → weak
     }
 
-    private static double TravelFromTo(TravelLeg? t) =>
-        t is null ? 0 : (Endpoint(t.FromPlaceId, t.FromLabel) + Endpoint(t.ToPlaceId, t.ToLabel)) / 2;
+    private static double TravelFromTo(TravelLeg? t, IReadOnlySet<Guid>? areas) =>
+        t is null ? 0 : (Endpoint(t.FromPlaceId, t.FromLabel, areas) + Endpoint(t.ToPlaceId, t.ToLabel, areas)) / 2;
 
-    private static double Endpoint(Guid? placeId, string? label) =>
-        placeId is not null ? 1 : !string.IsNullOrWhiteSpace(label) ? 0.5 : 0;
+    // A city centroid says which city, not which station or airport — no better than a bare label.
+    private static double Endpoint(Guid? placeId, string? label, IReadOnlySet<Guid>? areas) =>
+        placeId is { } id ? (areas?.Contains(id) == true ? 0.5 : 1) : !string.IsNullOrWhiteSpace(label) ? 0.5 : 0;
 
     private static double Booking(ItemDetails? d)
     {

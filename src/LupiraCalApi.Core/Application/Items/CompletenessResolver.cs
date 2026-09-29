@@ -1,3 +1,4 @@
+using LupiraCalApi.Core.Abstractions;
 using LupiraCalApi.Core.Domain.CalendarItems;
 using LupiraCalApi.Core.Domain.Calendars;
 using LupiraCalApi.Core.Domain.Completeness;
@@ -7,8 +8,9 @@ using Marten;
 namespace LupiraCalApi.Core.Application.Items;
 
 /// <summary>Resolves the derived completeness score for items. It lives outside the snapshot because
-/// item exemption needs the item's calendar kinds — not visible to a single-stream snapshot.</summary>
-public sealed class CompletenessResolver(IQuerySession session)
+/// item exemption needs the item's calendar kinds — not visible to a single-stream snapshot — and travel
+/// scoring needs geo's view of each endpoint.</summary>
+public sealed class CompletenessResolver(IQuerySession session, IGeoResolver geo)
 {
     public async Task<CompletenessScore?> ScoreItemAsync(CalendarItem item, CancellationToken ct = default) =>
         (await ScoreItemsAsync([item], ct))[item.Id];
@@ -18,8 +20,20 @@ public sealed class CompletenessResolver(IQuerySession session)
         var exempt = await ExemptCalendarIdsAsync([.. items.SelectMany(AcceptedIds).Distinct()], ct);
         var parents = await ParentIdsWithChildrenAsync(items, ct);
         var inherited = await InheritedAttendeesAsync(items, ct);
+        var areas = await AreaEndpointIdsAsync(items, ct);
         return items.ToDictionary(i => i.Id, i => CompletenessScorer.ScoreItem(
-            i, AcceptedIds(i).Any(exempt.Contains), parents.Contains(i.Id), inherited.GetValueOrDefault(i.Id)));
+            i, AcceptedIds(i).Any(exempt.Contains), parents.Contains(i.Id), inherited.GetValueOrDefault(i.Id), areas));
+    }
+
+    // Geo unavailable ⇒ nothing flagged: completeness is advisory and must never fail a read.
+    private async Task<HashSet<Guid>> AreaEndpointIdsAsync(IReadOnlyCollection<CalendarItem> items, CancellationToken ct)
+    {
+        if (!geo.IsConfigured) return [];
+        var ids = items.Select(i => i.Details?.Travel).OfType<TravelLeg>()
+            .SelectMany(t => new[] { t.ToPlaceId, t.FromPlaceId }).OfType<Guid>().Distinct().ToList();
+        if (ids.Count == 0) return [];
+        var places = await geo.LookupAsync(ids, ct);
+        return places is null ? [] : [.. places.Where(kv => kv.Value.IsArea).Select(kv => kv.Key)];
     }
 
     // Attendance often lives on the parent (a trip's shared list covers its legs), so a child in an

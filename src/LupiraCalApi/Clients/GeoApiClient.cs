@@ -13,6 +13,9 @@ namespace LupiraCalApi.Clients;
 public sealed class GeoApiClient(HttpClient http, IOptions<GeoApiOptions> options, OutboundAuthProvider auth, ILogger<GeoApiClient> logger) : IGeoResolver
 {
     private const int LookupBatch = 200;
+
+    // Geo's PlaceKind for a whole settlement/administrative area, as serialized on the wire.
+    private const string AreaKind = "Area";
     private static readonly JsonSerializerOptions Json = new(JsonSerializerDefaults.Web);
 
     private readonly GeoApiOptions _opts = options.Value;
@@ -123,7 +126,9 @@ public sealed class GeoApiClient(HttpClient http, IOptions<GeoApiOptions> option
 
         public double? Longitude { get; set; }
 
-        public GeoPlaceSummary ToSummary() => new(Id, Name, Latitude, Longitude);
+        public string? Kind { get; set; }
+
+        public GeoPlaceSummary ToSummary() => new(Id, Name, Latitude, Longitude, string.Equals(Kind, AreaKind, StringComparison.Ordinal));
     }
 
     private sealed class ReverseResponse

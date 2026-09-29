@@ -1,5 +1,9 @@
 using System.Net.Http.Json;
+using LupiraCalApi.Core.Abstractions;
+using LupiraCalApi.Core.Domain.Shared;
 using LupiraCalApi.Core.Dtos.CalendarItems;
+using Microsoft.AspNetCore.TestHost;
+using Microsoft.Extensions.DependencyInjection;
 using Xunit;
 
 namespace LupiraCalApi.IntegrationTests;
@@ -8,6 +12,26 @@ public sealed class CompletenessTests(CalApiTestFactory factory) : IntegrationTe
 {
     const string Email = "alice@x.test";
     static readonly DateTimeOffset Start = new(2026, 7, 1, 9, 0, 0, TimeSpan.Zero);
+    static readonly Guid Stockholm = Guid.NewGuid();
+    static readonly Guid Arlanda = Guid.NewGuid();
+
+    private sealed class AreaGeo : IGeoResolver
+    {
+        public bool IsConfigured => true;
+
+        public Task<GeoPlaceResolution?> ResolveAsync(string text, CancellationToken ct = default) =>
+            Task.FromResult<GeoPlaceResolution?>(null);
+
+        public Task<IReadOnlyDictionary<Guid, GeoPlaceSummary>?> LookupAsync(IReadOnlyCollection<Guid> placeIds, CancellationToken ct = default) =>
+            Task.FromResult<IReadOnlyDictionary<Guid, GeoPlaceSummary>?>(placeIds.ToDictionary(
+                id => id, id => new GeoPlaceSummary(id, id == Stockholm ? "Stockholm" : "Arlanda", 59.3, 18.0, IsArea: id == Stockholm)));
+
+        public Task<GeoPlaceSummary?> NearestAsync(double latitude, double longitude, int radiusM, CancellationToken ct = default) =>
+            Task.FromResult<GeoPlaceSummary?>(null);
+
+        public Task<GeoReverseLabel?> ReverseAsync(double latitude, double longitude, CancellationToken ct = default) =>
+            Task.FromResult<GeoReverseLabel?>(null);
+    }
 
     private static async Task<CalendarItemDto> CreateItemAsync(HttpClient api, Guid calId, string title, string? location = null, string? description = null, string? category = null)
     {
@@ -130,5 +154,36 @@ public sealed class CompletenessTests(CalApiTestFactory factory) : IntegrationTe
         var item = await CreateItemAsync(api, inbox.Id, "Captured");
         var got = await api.GetFromJsonAsync<CalendarItemDto>($"/items/{item.Id}");
         Assert.Null(got!.Completeness);   // system calendar → not applicable
+    }
+
+    [Fact]
+    public async Task A_leg_ending_at_a_city_centroid_reports_a_weak_endpoint()
+    {
+        var api = Factory.WithWebHostBuilder(b => b.ConfigureTestServices(s => s.AddSingleton<IGeoResolver>(new AreaGeo()))).CreateClient();
+        api.DefaultRequestHeaders.Add("X-Dev-User", Email);
+        var calId = await CreateCalendarAsync(api);
+
+        async Task<CalendarItemDto> LegAsync(Guid to)
+        {
+            var resp = await api.PostAsJsonAsync("/items", new CreateCalendarItemRequest
+            {
+                CalendarId = calId,
+                Title = "Flight",
+                Category = "Trip",
+                IsAllDay = false,
+                StartsAt = Start,
+                EndsAt = Start.AddHours(1),
+                StartTimezone = "UTC",
+                Details = new ItemDetailsRequest { Travel = new TravelLegRequest { Mode = TransportMode.Flight, FromPlaceId = Arlanda, ToPlaceId = to } },
+            });
+            var created = (await resp.EnsureSuccessStatusCode().Content.ReadFromJsonAsync<CalendarItemDto>())!;
+            return (await api.GetFromJsonAsync<CalendarItemDto>($"/items/{created.Id}"))!;
+        }
+
+        var toCity = await LegAsync(Stockholm);
+        var toAirport = await LegAsync(Arlanda);
+
+        Assert.Contains(toCity.Completeness!.Gaps, g => g.Field == "fromToPlace");
+        Assert.DoesNotContain(toAirport.Completeness!.Gaps, g => g.Field == "fromToPlace");
     }
 }
