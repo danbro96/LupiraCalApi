@@ -79,6 +79,16 @@ public sealed class CalendarTools
         return $"Deleted calendar item {itemId}.";
     }
 
+    [McpServerTool(Name = "list_items_at_place")]
+    [Description("Calendar items whose location is this LupiraGeoApi place id. Answers 'what still references this place?' before merging, renaming or deleting it in the gazetteer — list_orphans gives the count, this gives the items.")]
+    public static async Task<IReadOnlyList<CalendarItemDto>> ListItemsAtPlace(
+        CalendarItemService items, CurrentUser user,
+        [Description("LupiraGeoApi place id.")] Guid placeId)
+    {
+        var u = await user.GetAsync();
+        return Require(await items.ByPlaceAsync(u.Id, placeId));
+    }
+
     [McpServerTool(Name = "list_thin_items")]
     [Description("Check-in worklist: calendar items ranked thinnest-first by completeness score (0..1, ascending; most recent start first on ties). Item-granular — recurring items appear once. Each item carries Completeness with ranked Gaps: the fields worth asking the user about. Exempt items (system/Birthdays/Availability calendars, cancelled, presence/payload) never appear. When a gap doesn't apply (e.g. no booking for a homemade dinner), acknowledge it via attach_metadata with {\"completeness\":{\"na\":[\"booking\"]}} — the field stops counting and the ask goes away.")]
     public static async Task<IReadOnlyList<CalendarItemDto>> ListThinItems(
