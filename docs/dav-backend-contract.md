@@ -14,7 +14,8 @@ Design invariants:
 - **Blobs cross the seam, not DTOs.** Serialization, LWW merge, unmodeled-prop splicing, and
   deterministic regeneration are domain logic and stay in the backend.
 - **Sync tokens and ctags are opaque strings** minted and parsed only by the owning backend
-  (currently the Marten global event sequence). The gateway shuttles them verbatim.
+  (calendar: the Marten global event sequence, prefixed with a resync epoch once a projection rebuild has advanced it —
+  outstanding tokens then fall back to a full listing). The gateway shuttles them verbatim.
 - **ETags are unquoted in JSON bodies**, standard quoted form in HTTP `ETag`/`If-Match` headers.
 - **The acting user is the `{email}` path segment** (lowercased login email). The gateway verified the
   human credential (HTTP Basic → LDAP bind) before calling; backends resolve/JIT-provision their own

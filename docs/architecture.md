@@ -336,7 +336,7 @@ Birthdays / Availability-calendar items, any item with a `Presence` segment, and
 The schedule **intent** is event-worthy and lives on the item as its `Prompt`/`Action` payload. The **firing** is
 transient operational state in a plain `cal.scheduled_fire` table (raw Npgsql, not a Marten document; the same
 split as location/health-api), rebuildable from the items. A **materializer** — a Marten async-daemon
-`EventProjection` reacting to `ItemPromptSet`/`ItemActionSet`/`ItemRevised` (and clearing on clear/delete/cancel) —
+`EventProjection` reacting to `ItemPromptSet`/`ItemActionSet`/`ItemRevised`/occurrence changes (and clearing on clear/delete/cancel) —
 expands the fired payload + `RecurrenceRule` into rows over a rolling 35-day horizon, idempotent on
 `dedupe_key` (`item_id + occurrence_at`); a nightly hosted sweep advances the far edge (and picks up one-shots
 beyond the window at set-time). `expire_after` keys off the `PromptFire` timing and the calendar kind. Each row

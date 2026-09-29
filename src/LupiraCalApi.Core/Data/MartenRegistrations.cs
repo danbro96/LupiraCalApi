@@ -1,5 +1,6 @@
 using JasperFx;
 using JasperFx.Events.Projections;
+using LupiraCalApi.Core.Application.Dav;
 using LupiraCalApi.Core.Domain.CalendarItems;
 using LupiraCalApi.Core.Domain.CalendarItems.Events;
 using LupiraCalApi.Core.Domain.Calendars;
@@ -49,6 +50,9 @@ public static class MartenRegistrations
         opts.Events.MapEventType<ItemPromptCleared>("item_prompt_cleared");
         opts.Events.MapEventType<ItemActionSet>("item_action_set");
         opts.Events.MapEventType<ItemActionCleared>("item_action_cleared");
+        opts.Events.MapEventType<OccurrenceExcluded>("occurrence_excluded");
+        opts.Events.MapEventType<OccurrenceOverridden>("occurrence_overridden");
+        opts.Events.MapEventType<OccurrenceRestored>("occurrence_restored");
         opts.Events.MapEventType<AttendeeInvited>("attendee_invited");
         opts.Events.MapEventType<InvitationResponded>("invitation_responded");
         opts.Events.MapEventType<AttendanceConfirmed>("attendance_confirmed");
@@ -73,6 +77,7 @@ public static class MartenRegistrations
         // Email stays non-unique — mutable, and a placeholder row shares it until the sub upgrade lands.
         opts.Schema.For<Principal>().Index(x => x.AuthentikSub, i => i.IsUnique = true).Index(x => x.Email);
         opts.Schema.For<Calendar>();
+        opts.Schema.For<DavResyncEpoch>();
         opts.Schema.For<CalendarOwner>().Index(x => x.PrincipalId).Index(x => x.CalendarId);
         opts.Schema.For<Relation>().Index(x => x.FromId);
 

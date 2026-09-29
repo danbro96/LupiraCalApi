@@ -173,6 +173,29 @@ public sealed class CalendarItem
         DeletedAt = null;
     }
 
+    // Per-occurrence edits share the core guard: the schedule they refine is what a revise or import replaces wholesale.
+    public void Apply(IEvent<OccurrenceExcluded> e) => ApplyOccurrence(e, e.Data.OccurredAt, e.Data.CommandId, e.Data.OriginalStart, exclude: true, null);
+
+    public void Apply(IEvent<OccurrenceOverridden> e) =>
+        ApplyOccurrence(e, e.Data.OccurredAt, e.Data.CommandId, e.Data.Override.OriginalStart, exclude: false, e.Data.Override);
+
+    public void Apply(IEvent<OccurrenceRestored> e) => ApplyOccurrence(e, e.Data.OccurredAt, e.Data.CommandId, e.Data.OriginalStart, exclude: false, null);
+
+    private void ApplyOccurrence<T>(IEvent<T> e, DateTimeOffset? occurredAt, Guid? commandId, DateTimeOffset originalStart, bool exclude, OccurrenceOverride? change)
+        where T : class
+    {
+        Touch(e);
+        var (ts, cmd) = SectionLww.Stamp(e, occurredAt, commandId);
+        if (DeletedAt is not null || !SectionLww.Wins(ts, cmd, CoreTs, CoreCmd)) return;
+        var excluded = (ExcludedOccurrences ?? []).Where(s => s != originalStart).Concat(exclude ? [originalStart] : []).Order().ToArray();
+        var overrides = (OccurrenceOverrides ?? []).Where(o => o.OriginalStart != originalStart).Concat(change is null ? [] : [change])
+            .OrderBy(o => o.OriginalStart).ToArray();
+        ExcludedOccurrences = excluded.Length > 0 ? excluded : null;
+        OccurrenceOverrides = overrides.Length > 0 ? overrides : null;
+        (CoreTs, CoreCmd) = (ts, cmd);
+        RecomputeHash();
+    }
+
     /// <summary>The ETag is a pure function of the canonical ICS — recomputed here (in the snapshot projection) whenever
     /// a canonical field changes, never stored on the event, so a serializer fix heals every item on rebuild.</summary>
     private void RecomputeHash() => ContentHash = ICalSerializer.HashOf(this, LocationLabel);

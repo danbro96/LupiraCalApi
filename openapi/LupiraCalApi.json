@@ -1196,6 +1196,206 @@
         ]
       }
     },
+    "/items/{id}/occurrences/{originalStart}": {
+      "put": {
+        "tags": [
+          "CalendarItems"
+        ],
+        "summary": "Change one occurrence of a recurring item, addressed by its unmodified start (UTC, e.g. 2026-05-31T16:00:00Z). Excluded=true removes it from the series; otherwise StartsAt/EndsAt/Title/Description/Status override the series for that occurrence (omitted = inherit). Replaces the occurrence's previous change.",
+        "operationId": "ChangeOccurrence",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "originalStart",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "date-time"
+            }
+          },
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ChangeOccurrenceRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CalendarItemDto"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not Found",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal server error",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "Bearer": [ ]
+          }
+        ]
+      },
+      "delete": {
+        "tags": [
+          "CalendarItems"
+        ],
+        "summary": "Revert one occurrence of a recurring item to the series (drops its exclusion or override).",
+        "operationId": "RestoreOccurrence",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "originalStart",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "date-time"
+            }
+          },
+          {
+            "name": "occurredAt",
+            "in": "query",
+            "schema": {
+              "type": [
+                "null",
+                "string"
+              ],
+              "format": "date-time"
+            }
+          },
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "No Content"
+          },
+          "404": {
+            "description": "Not Found",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal server error",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "Bearer": [ ]
+          }
+        ]
+      }
+    },
     "/items/{id}/metadata": {
       "post": {
         "tags": [
@@ -3435,11 +3635,41 @@
               }
             ]
           },
+          "startTimezone": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
           "recurrenceRule": {
             "type": [
               "null",
               "string"
             ]
+          },
+          "excludedOccurrences": {
+            "type": [
+              "null",
+              "array"
+            ],
+            "description": "Recurring items: unmodified starts removed from the series."
+          },
+          "extraOccurrences": {
+            "type": [
+              "null",
+              "array"
+            ],
+            "description": "Recurring items: one-off starts added to the series."
+          },
+          "occurrenceOverrides": {
+            "type": [
+              "null",
+              "array"
+            ],
+            "items": {
+              "$ref": "#/components/schemas/OccurrenceOverride"
+            },
+            "description": "Recurring items: occurrences that deviate from the series (null members inherit)."
           },
           "category": {
             "oneOf": [
@@ -3723,6 +3953,56 @@
             "$ref": "#/components/schemas/CalendarEntryStatus"
           }
         }
+      },
+      "ChangeOccurrenceRequest": {
+        "type": "object",
+        "properties": {
+          "excluded": {
+            "type": "boolean"
+          },
+          "startsAt": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "date-time"
+          },
+          "endsAt": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "date-time"
+          },
+          "title": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "description": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "status": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "description": "Tentative|Confirmed|Cancelled. Cancelled drops the occurrence while keeping it on record as cancelled."
+          },
+          "occurredAt": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "description": "Client wall-clock of the edit (last-writer-wins with other schedule edits). Omitted ⇒ server receive time.",
+            "format": "date-time"
+          }
+        },
+        "description": "Change one occurrence of a recurring item, identified by its unmodified start. bool ChangeOccurrenceRequest.Excluded removes it\n            from the series; otherwise the given members override the series for that occurrence (omitted = inherit). Each change\n            replaces the occurrence's previous one."
       },
       "CompletenessGap": {
         "required": [
@@ -4595,6 +4875,67 @@
           }
         },
         "description": "Ties a projected occurrence back to the entity it was derived from — the birthday occurrence's\n            Guid OccurrenceOrigin.SourceId is the contact whose birthday it is."
+      },
+      "OccurrenceOverride": {
+        "required": [
+          "originalStart",
+          "startsAt",
+          "endsAt",
+          "title",
+          "description",
+          "status",
+          "locationLabel"
+        ],
+        "type": "object",
+        "properties": {
+          "originalStart": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "startsAt": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "date-time"
+          },
+          "endsAt": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "date-time"
+          },
+          "title": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "description": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "status": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/ItemStatus"
+              }
+            ]
+          },
+          "locationLabel": {
+            "type": [
+              "null",
+              "string"
+            ]
+          }
+        },
+        "description": "A change to one occurrence of a recurring item, identified by the start it would have had unchanged\n            (DateTimeOffset OccurrenceOverride.OriginalStart, UTC; an all-day series uses the date at 00:00Z). Null members inherit from the series;\n            ItemStatus.Cancelled drops the occurrence."
       },
       "OriginKind": {
         "enum": [

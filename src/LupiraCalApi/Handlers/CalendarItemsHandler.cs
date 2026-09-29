@@ -66,6 +66,18 @@ public sealed class CalendarItemsHandler(CurrentUser user, CalendarItemService i
         return OpResultMap.OkNotFoundProblem(await items.AttachMetadataAsync(u.Id, id, patch, occurredAt, idempotencyKey, ct));
     }
 
+    public async Task<Results<Ok<CalendarItemDto>, NotFound, ProblemHttpResult, UnauthorizedHttpResult>> ChangeOccurrenceAsync(Guid id, DateTimeOffset originalStart, ChangeOccurrenceRequest body, Guid? idempotencyKey, CancellationToken ct)
+    {
+        var u = await user.GetAsync(ct);
+        return OpResultMap.OkNotFoundProblem(await items.ChangeOccurrenceAsync(u.Id, id, originalStart, body, idempotencyKey, ct));
+    }
+
+    public async Task<Results<NoContent, NotFound, ProblemHttpResult, UnauthorizedHttpResult>> RestoreOccurrenceAsync(Guid id, DateTimeOffset originalStart, DateTimeOffset? occurredAt, Guid? idempotencyKey, CancellationToken ct)
+    {
+        var u = await user.GetAsync(ct);
+        return OpResultMap.NoContentNotFoundProblem(await items.RestoreOccurrenceAsync(u.Id, id, originalStart, occurredAt, idempotencyKey, ct));
+    }
+
     public async Task<Results<Ok<CalendarItemDto>, NotFound, ProblemHttpResult, UnauthorizedHttpResult>> SetPromptAsync(Guid id, SetItemPromptRequest body, Guid? idempotencyKey, CancellationToken ct)
     {
         var u = await user.GetAsync(ct);

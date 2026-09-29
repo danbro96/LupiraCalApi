@@ -59,6 +59,15 @@ public sealed class CalendarTools
         return Require(await items.CreateBatchAsync(u.Id, request.Items));
     }
 
+    [McpServerTool(Name = "get_item")]
+    [Description("Get one calendar item in full: attendees (with participationIds), details, metadata, per-occurrence changes of a recurring item. Use it to read before editing; search_items returns slim occurrences.")]
+    public static async Task<CalendarItemDto> GetItem(CalendarItemService items, CurrentUser user,
+        [Description("Calendar item id.")] Guid itemId)
+    {
+        var u = await user.GetAsync();
+        return Require(await items.GetAsync(u.Id, itemId));
+    }
+
     [McpServerTool(Name = "update_item")]
     [Description("Update a calendar item: any subset of title, description, location, status, times, recurrence, tags, Category, and composable Details (Booking, Travel). To change location pass PlaceId (a resolved LupiraGeoApi place id; resolve via lupira-geo first) with Location as the display label — a free-text-only Location change is rejected; PlaceIdProvided=true with null PlaceId clears it. Omitted fields are unchanged; a supplied details member replaces that member wholesale (resend the full member; Travel requires ToPlaceId and applies only to Category 'Trip'). Changing Category drops the previous details. The top-level Availability field sets the presence segment's status.")]
     public static async Task<CalendarItemDto> UpdateItem(CalendarItemService items, CurrentUser user,
@@ -66,6 +75,28 @@ public sealed class CalendarTools
     {
         var u = await user.GetAsync();
         return Require(await items.UpdateAsync(u.Id, itemId, request));
+    }
+
+    [McpServerTool(Name = "change_occurrence")]
+    [Description("Change ONE occurrence of a recurring item, addressed by the start it has in the unmodified series (UTC). Excluded=true removes it from the series (skip); otherwise StartsAt/EndsAt/Title/Description/Status override the series for that occurrence only (omitted = inherit; Status Cancelled keeps it on record as cancelled). A move is StartsAt (+ EndsAt). Replaces any earlier change to that occurrence. Use update_item to change the whole series.")]
+    public static async Task<CalendarItemDto> ChangeOccurrence(CalendarItemService items, CurrentUser user,
+        [Description("Calendar item id (the recurring series).")] Guid itemId,
+        [Description("The occurrence's start in the unmodified series, ISO 8601.")] DateTimeOffset originalStart,
+        ChangeOccurrenceRequest request)
+    {
+        var u = await user.GetAsync();
+        return Require(await items.ChangeOccurrenceAsync(u.Id, itemId, originalStart, request));
+    }
+
+    [McpServerTool(Name = "restore_occurrence")]
+    [Description("Revert ONE occurrence of a recurring item to the series, dropping its exclusion or override.")]
+    public static async Task<string> RestoreOccurrence(CalendarItemService items, CurrentUser user,
+        [Description("Calendar item id (the recurring series).")] Guid itemId,
+        [Description("The occurrence's start in the unmodified series, ISO 8601.")] DateTimeOffset originalStart)
+    {
+        var u = await user.GetAsync();
+        Require(await items.RestoreOccurrenceAsync(u.Id, itemId, originalStart));
+        return $"Occurrence {originalStart:O} of {itemId} follows the series.";
     }
 
     [McpServerTool(Name = "delete_item")]
@@ -157,6 +188,17 @@ public sealed class CalendarTools
     {
         var u = await user.GetAsync();
         return Require(await participation.RespondAsync(u.Id, itemId, participationId, status));
+    }
+
+    [McpServerTool(Name = "remove_participant")]
+    [Description("Remove an attendee from an item entirely — for a wrong attendee (data error). Someone who was invited but didn't come is a decline (respond_participant), not a removal.")]
+    public static async Task<CalendarItemDto> RemoveParticipant(
+        ParticipationService participation, CurrentUser user,
+        [Description("Calendar item id.")] Guid itemId,
+        [Description("The participation id (from get_item's attendees).")] Guid participationId)
+    {
+        var u = await user.GetAsync();
+        return Require(await participation.RemoveAsync(u.Id, itemId, participationId));
     }
 
     [McpServerTool(Name = "set_participants")]

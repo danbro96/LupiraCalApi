@@ -75,7 +75,8 @@ relative to now and is idempotent (`unique(dedupe_key)`), so it is rebuild-safe 
   `dotnet LupiraCalApi.dll --apply-schema`. `AddCalCore` relaxes to `CreateOrUpdate` only in Development.
 - **Projection rebuild:** the inline `CalendarItem` snapshot and the async `scheduled_fire` projection both
   rebuild from zero via the Marten daemon; rehearse a rebuild against a restored backup before relying on it.
-  One-shots: `--rebuild-items` (after an event-shape or snapshot change) and `--rematerialize-fires` (after a
+  One-shots: `--rebuild-items` (after an event-shape or snapshot change; it also advances the DAV resync epoch, since a
+  rebuild can change ETags without new events) and `--rematerialize-fires` (after a
   change to occurrence expansion — replaces each payload item's future-pending fires).
 - **Backups:** the event store is ordinary Postgres — covered by the platform DB backup. A restore must be tested.
 

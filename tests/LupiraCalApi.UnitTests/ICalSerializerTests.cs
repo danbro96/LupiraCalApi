@@ -158,5 +158,37 @@ public class ICalSerializerTests
         Assert.Equal(new OccurrenceOverride(Utc(2026, 7, 2, 9), null, null, null, null, ItemStatus.Cancelled, null), o);
     }
 
+    [Fact]
+    public void Recurring_timed_series_is_written_in_its_zone()
+    {
+        var start = Utc(2026, 5, 17, 16);   // 18:00 CEST
+        var ics = ICalSerializer.ToICalendar("theo@x", "Middag", null, null, null, false, start, start.AddHours(3), null, null,
+            "FREQ=WEEKLY;INTERVAL=2;BYDAY=SU", [Utc(2026, 11, 15, 17)], null, null, "Europe/Stockholm");
+
+        Assert.Contains("BEGIN:VTIMEZONE", ics);
+        Assert.Contains("DTSTART;TZID=Europe/Stockholm:20260517T180000", ics);
+        Assert.Contains("EXDATE;TZID=Europe/Stockholm:20261115T180000", ics);
+        Assert.Equal(ics, ICalSerializer.ToICalendar("theo@x", "Middag", null, null, null, false, start, start.AddHours(3), null, null,
+            "FREQ=WEEKLY;INTERVAL=2;BYDAY=SU", [Utc(2026, 11, 15, 17)], null, null, "Europe/Stockholm"));   // byte-stable
+
+        var p = ICalSerializer.ParseICalendar(ics);
+        Assert.Equal(start, p.StartsAt);
+        Assert.Equal("Europe/Stockholm", p.StartTimezone);
+        Assert.Equal([Utc(2026, 11, 15, 17)], p.ExcludedOccurrences!);
+    }
+
+    [Theory]
+    [InlineData(null, "Europe/Stockholm")]    // one-off: an instant needs no zone
+    [InlineData("FREQ=DAILY", "Not/AZone")]   // unknown zone
+    [InlineData("FREQ=DAILY", null)]
+    public void Other_timed_items_stay_in_utc(string? rule, string? zone)
+    {
+        var start = Utc(2026, 5, 17, 16);
+        var ics = ICalSerializer.ToICalendar("x@x", "T", null, null, null, false, start, start.AddHours(1), null, null, rule, startTimezone: zone);
+
+        Assert.DoesNotContain("VTIMEZONE", ics);
+        Assert.Contains("DTSTART:20260517T160000Z", ics);
+    }
+
     private static DateTimeOffset Utc(int y, int m, int d, int h = 0) => new(y, m, d, h, 0, 0, TimeSpan.Zero);
 }

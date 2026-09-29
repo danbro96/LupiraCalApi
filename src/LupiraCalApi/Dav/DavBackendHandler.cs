@@ -60,7 +60,7 @@ public sealed class DavBackendHandler(
                 Kind = DavCollectionKind.EventCalendar,
                 DisplayName = c.DisplayName ?? c.Slug,
                 Ctag = $"seq-{token}",
-                SyncToken = token.ToString(),
+                SyncToken = token,
             })],
         });
     }
@@ -134,12 +134,10 @@ public sealed class DavBackendHandler(
         var principal = await ActingPrincipalAsync(email, ct);
         if (!await IsReadableAgendaAsync(principal.Id, collectionId, ct)) return TypedResults.NotFound();
 
-        // An unparsable/absent token degrades to the full live listing — self-healing resync.
-        long? parsed = long.TryParse(since, out var t) ? t : null;
-        var (token, changes) = await feed.ChangesSinceAsync(collectionId, parsed, ct);
+        var (token, changes) = await feed.ChangesSinceAsync(collectionId, since, ct);
         return TypedResults.Ok(new DavChangesDto
         {
-            SyncToken = token.ToString(),
+            SyncToken = token,
             Changed = [.. changes.Where(c => !c.Deleted).Select(c => new DavChangeDto { Uid = c.Uid, Etag = c.Etag! })],
             Deleted = [.. changes.Where(c => c.Deleted).Select(c => c.Uid)],
         });

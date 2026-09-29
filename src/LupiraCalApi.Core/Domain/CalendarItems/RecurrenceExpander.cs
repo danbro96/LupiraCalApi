@@ -32,6 +32,11 @@ public sealed class RecurrenceExpander
         return [.. starts];
     }
 
+    /// <summary>Whether the unmodified series (or one of its extra occurrences) starts an occurrence at
+    /// <paramref name="start"/> — the identity a per-occurrence change keys on.</summary>
+    public bool HasSeriesOccurrence(CalendarItem item, DateTimeOffset start) =>
+        (item.ExtraOccurrences ?? []).Contains(start) || SeriesStarts(item, item.RecurrenceRule, start, start.AddTicks(1)).Any();
+
     private static IEnumerable<DateTimeOffset> SeriesStarts(CalendarItem item, string? rule, DateTimeOffset windowStart, DateTimeOffset windowEnd)
     {
         DateTimeOffset anchorAt;
@@ -44,7 +49,7 @@ public sealed class RecurrenceExpander
         else
         {
             if (item.StartsAt is not { } s) yield break;
-            (anchorAt, zone) = (s, ZoneOf(item.StartTimezone));
+            (anchorAt, zone) = (s, TimeZoneIds.Find(item.StartTimezone) ?? DateTimeZone.Utc);
         }
 
         if (string.IsNullOrWhiteSpace(rule))
@@ -66,13 +71,4 @@ public sealed class RecurrenceExpander
     }
 
     private static LocalDateTime WallClock(DateTimeOffset at, DateTimeZone zone) => Instant.FromDateTimeOffset(at).InZone(zone).LocalDateTime;
-
-    // Windows zone ids (sent by some clients) are mapped to their IANA equivalent.
-    private static DateTimeZone ZoneOf(string? tz)
-    {
-        if (string.IsNullOrWhiteSpace(tz)) return DateTimeZone.Utc;
-        var zone = DateTimeZoneProviders.Tzdb.GetZoneOrNull(tz);
-        if (zone is null && TimeZoneInfo.TryConvertWindowsIdToIanaId(tz, out var iana)) zone = DateTimeZoneProviders.Tzdb.GetZoneOrNull(iana);
-        return zone ?? DateTimeZone.Utc;
-    }
 }

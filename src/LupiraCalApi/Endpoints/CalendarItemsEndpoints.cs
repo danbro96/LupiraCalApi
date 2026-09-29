@@ -65,6 +65,20 @@ public static class CalendarItemsEndpoints
             .Produces(StatusCodes.Status204NoContent)
             .ProducesProblem(StatusCodes.Status404NotFound);
 
+        group.MapPut("/{id:guid}/occurrences/{originalStart}", (Guid id, DateTimeOffset originalStart, ChangeOccurrenceRequest body, [FromHeader(Name = "Idempotency-Key")] Guid? idempotencyKey, CalendarItemsHandler h, CancellationToken ct) => h.ChangeOccurrenceAsync(id, originalStart, body, idempotencyKey, ct))
+            .WithName("ChangeOccurrence")
+            .WithSummary("Change one occurrence of a recurring item, addressed by its unmodified start (UTC, e.g. 2026-05-31T16:00:00Z). Excluded=true removes it from the series; otherwise StartsAt/EndsAt/Title/Description/Status override the series for that occurrence (omitted = inherit). Replaces the occurrence's previous change.")
+            .Produces<CalendarItemDto>(StatusCodes.Status200OK)
+            .ProducesProblem(StatusCodes.Status400BadRequest)
+            .ProducesProblem(StatusCodes.Status404NotFound);
+
+        group.MapDelete("/{id:guid}/occurrences/{originalStart}", (Guid id, DateTimeOffset originalStart, DateTimeOffset? occurredAt, [FromHeader(Name = "Idempotency-Key")] Guid? idempotencyKey, CalendarItemsHandler h, CancellationToken ct) => h.RestoreOccurrenceAsync(id, originalStart, occurredAt, idempotencyKey, ct))
+            .WithName("RestoreOccurrence")
+            .WithSummary("Revert one occurrence of a recurring item to the series (drops its exclusion or override).")
+            .Produces(StatusCodes.Status204NoContent)
+            .ProducesProblem(StatusCodes.Status400BadRequest)
+            .ProducesProblem(StatusCodes.Status404NotFound);
+
         group.MapPost("/{id:guid}/metadata", (Guid id, JsonNode patch, DateTimeOffset? occurredAt, [FromHeader(Name = "Idempotency-Key")] Guid? idempotencyKey, CalendarItemsHandler h, CancellationToken ct) => h.AttachMetadataAsync(id, patch, occurredAt, idempotencyKey, ct))
             .WithName("MergeItemMetadata")
             .WithSummary("Merge arbitrary JSON metadata into a calendar item. Offline clients pass ?occurredAt= + Idempotency-Key for replay-safe, last-writer-wins merges.")

@@ -1,5 +1,6 @@
 using System.Net;
 using System.Net.Http.Json;
+using LupiraCalApi.Core.Application.Dav;
 using LupiraCalApi.Dav;
 using Xunit;
 
@@ -124,6 +125,25 @@ public sealed class DavBackendTests(CalApiTestFactory factory) : IntegrationTest
         var healed = await ChangesAsync(api, cal, "garbage");
         Assert.Single(healed.Changed, c => c.Uid == "keep@x");
         Assert.Empty(healed.Deleted);
+    }
+
+    [Fact]
+    public async Task Advancing_the_resync_epoch_turns_outstanding_tokens_into_a_full_listing()
+    {
+        var api = Factory.ApiClient(Email);
+        var cal = await CreateCalendarAsync(api);
+        await PutIcsBackendAsync(api, Email, cal, "keep@x", MinimalIcs("keep@x", "Keep", Start));
+        var before = await ChangesAsync(api, cal, null);
+        Assert.Empty((await ChangesAsync(api, cal, before.SyncToken)).Changed);   // incremental: nothing new
+
+        await DavChangeFeed.AdvanceEpochAsync(Store);
+
+        var after = await ChangesAsync(api, cal, before.SyncToken);
+        Assert.Single(after.Changed, c => c.Uid == "keep@x");                      // old token → full listing
+        Assert.StartsWith("1.", after.SyncToken);
+        Assert.Empty((await ChangesAsync(api, cal, after.SyncToken)).Changed);    // new token is incremental again
+        var collections = await (await api.GetAsync($"{DavBackendBase(Email)}/collections")).Content.ReadFromJsonAsync<DavCollectionsDto>();
+        Assert.All(collections!.Collections, c => Assert.StartsWith("seq-1.", c.Ctag));
     }
 
     [Fact]

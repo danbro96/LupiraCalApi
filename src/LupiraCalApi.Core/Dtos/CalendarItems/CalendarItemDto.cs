@@ -35,7 +35,18 @@ public sealed class CalendarItemDto
     [JsonConverter(typeof(JsonStringEnumConverter<DatePrecision>))]
     public DatePrecision? EndPrecision { get; set; }
 
+    public string? StartTimezone { get; set; }
+
     public string? RecurrenceRule { get; set; }
+
+    /// <summary>Recurring items: unmodified starts removed from the series.</summary>
+    public DateTimeOffset[]? ExcludedOccurrences { get; set; }
+
+    /// <summary>Recurring items: one-off starts added to the series.</summary>
+    public DateTimeOffset[]? ExtraOccurrences { get; set; }
+
+    /// <summary>Recurring items: occurrences that deviate from the series (null members inherit).</summary>
+    public OccurrenceOverride[]? OccurrenceOverrides { get; set; }
 
     public ItemCategory? Category { get; set; }
 

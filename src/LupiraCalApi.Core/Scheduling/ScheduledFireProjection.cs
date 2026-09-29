@@ -19,6 +19,12 @@ public sealed partial class ScheduledFireProjection(IFireMaterializer materializ
 
     public Task Project(IEvent<ItemRevised> e, IDocumentOperations ops, CancellationToken ct) => RematerializeAsync(e.StreamId, ops, ct);
 
+    public Task Project(IEvent<OccurrenceExcluded> e, IDocumentOperations ops, CancellationToken ct) => RematerializeAsync(e.StreamId, ops, ct);
+
+    public Task Project(IEvent<OccurrenceOverridden> e, IDocumentOperations ops, CancellationToken ct) => RematerializeAsync(e.StreamId, ops, ct);
+
+    public Task Project(IEvent<OccurrenceRestored> e, IDocumentOperations ops, CancellationToken ct) => RematerializeAsync(e.StreamId, ops, ct);
+
     public void Project(IEvent<ItemPromptCleared> e, IDocumentOperations ops) => DropFuturePending(e.StreamId, ops);
 
     public void Project(IEvent<ItemActionCleared> e, IDocumentOperations ops) => DropFuturePending(e.StreamId, ops);

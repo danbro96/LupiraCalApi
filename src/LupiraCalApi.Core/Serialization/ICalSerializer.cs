@@ -4,6 +4,7 @@ using Ical.Net.DataTypes;
 using Ical.Net.Serialization;
 using LupiraCalApi.Core.Domain.CalendarItems;
 using LupiraCalApi.Core.Domain.Shared;
+using NodaTime;
 using IcalCalendar = Ical.Net.Calendar;
 
 namespace LupiraCalApi.Core.Serialization;
@@ -22,8 +23,15 @@ public static class ICalSerializer
         bool isAllDay, DateTimeOffset? startsAt, DateTimeOffset? endsAt,
         DateOnly? startDate, DateOnly? endDate, string? recurrenceRule,
         IReadOnlyList<DateTimeOffset>? excludedOccurrences = null, IReadOnlyList<DateTimeOffset>? extraOccurrences = null,
-        IReadOnlyList<OccurrenceOverride>? occurrenceOverrides = null)
+        IReadOnlyList<OccurrenceOverride>? occurrenceOverrides = null, string? startTimezone = null)
     {
+        // A timed series is written in its zone, so the client expands it at the same wall-clock time across offset changes.
+        // One-off items stay in UTC: an instant needs no zone.
+        var zone = !isAllDay && startsAt is not null && !string.IsNullOrWhiteSpace(recurrenceRule) ? TimeZoneIds.Find(startTimezone) : null;
+        var vtimezone = zone is null ? null : VTimeZoneBuilder.Build(zone, NodaTime.Instant.FromDateTimeOffset(startsAt!.Value).InZone(zone).Year);
+        if (vtimezone is null) zone = null;
+        CalDateTime At(DateTimeOffset x) => Moment(x, isAllDay, zone);
+
         var calendar = new IcalCalendar();
         var ev = new CalendarEvent { Uid = uid, DtStamp = StableStamp };
 
@@ -40,8 +48,8 @@ public static class ICalSerializer
         }
         else if (startsAt is { } sa)
         {
-            ev.Start = new CalDateTime(sa.UtcDateTime, "UTC");
-            if (endsAt is { } ea) ev.End = new CalDateTime(ea.UtcDateTime, "UTC");
+            ev.Start = At(sa);
+            if (endsAt is { } ea) ev.End = At(ea);
         }
 
         calendar.Events.Add(ev);
@@ -49,16 +57,17 @@ public static class ICalSerializer
         {
             ev.RecurrenceRule = new RecurrencePattern(recurrenceRule);
             // Sorted so the regenerated ICS (and its ETag) is byte-stable.
-            foreach (var x in (excludedOccurrences ?? []).Order()) ev.ExceptionDates.Add(Moment(x, isAllDay));
-            foreach (var x in (extraOccurrences ?? []).Order()) ev.RecurrenceDates.Add(Moment(x, isAllDay));
+            foreach (var x in (excludedOccurrences ?? []).Order()) ev.ExceptionDates.Add(At(x));
+            foreach (var x in (extraOccurrences ?? []).Order()) ev.RecurrenceDates.Add(At(x));
             foreach (var o in (occurrenceOverrides ?? []).OrderBy(o => o.OriginalStart))
-                calendar.Events.Add(OverrideEvent(uid, o, ev, isAllDay, SeriesLength(isAllDay, startsAt, endsAt, startDate, endDate)));
+                calendar.Events.Add(OverrideEvent(uid, o, ev, At, SeriesLength(isAllDay, startsAt, endsAt, startDate, endDate)));
         }
 
-        return new CalendarSerializer().SerializeToString(calendar) ?? string.Empty;
+        var ics = new CalendarSerializer().SerializeToString(calendar) ?? string.Empty;
+        return vtimezone is null ? ics : ics.Insert(ics.IndexOf("BEGIN:VEVENT", StringComparison.Ordinal), vtimezone);
     }
 
-    private static CalendarEvent OverrideEvent(string uid, OccurrenceOverride o, CalendarEvent series, bool isAllDay, TimeSpan? length)
+    private static CalendarEvent OverrideEvent(string uid, OccurrenceOverride o, CalendarEvent series, Func<DateTimeOffset, CalDateTime> at, TimeSpan? length)
     {
         var start = o.StartsAt ?? o.OriginalStart;
         var end = o.EndsAt ?? (length is { } l ? start + l : null);
@@ -66,22 +75,24 @@ public static class ICalSerializer
         {
             Uid = uid,
             DtStamp = StableStamp,
-            RecurrenceIdentifier = new RecurrenceIdentifier(Moment(o.OriginalStart, isAllDay)),
-            Start = Moment(start, isAllDay),
+            RecurrenceIdentifier = new RecurrenceIdentifier(at(o.OriginalStart)),
+            Start = at(start),
             Summary = o.Title ?? series.Summary,
             Description = o.Description ?? series.Description,
             Location = o.LocationLabel ?? series.Location,
             Status = o.Status is { } st ? StatusText(st) : series.Status,
         };
-        if (end is { } e) ev.End = Moment(e, isAllDay);
+        if (end is { } e) ev.End = at(e);
         return ev;
     }
 
-    // A deviation's instant in the series' own form: all-day series address occurrences by date (00:00Z).
-    private static CalDateTime Moment(DateTimeOffset at, bool isAllDay) =>
-        isAllDay ? new CalDateTime(DateOnly.FromDateTime(at.UtcDateTime)) : new CalDateTime(at.UtcDateTime, "UTC");
+    // An instant in the series' own form: a date for all-day series (occurrences at 00:00Z), else zoned wall time or UTC.
+    private static CalDateTime Moment(DateTimeOffset at, bool isAllDay, DateTimeZone? zone) =>
+        isAllDay ? new CalDateTime(DateOnly.FromDateTime(at.UtcDateTime))
+        : zone is null ? new CalDateTime(at.UtcDateTime, "UTC")
+        : new CalDateTime(NodaTime.Instant.FromDateTimeOffset(at).InZone(zone).LocalDateTime.ToDateTimeUnspecified(), zone.Id, true);
 
-    private static DateTimeOffset Instant(CalDateTime d) =>
+    private static DateTimeOffset ToInstant(CalDateTime d) =>
         d.HasTime ? new DateTimeOffset(d.AsUtc, TimeSpan.Zero) : new DateTimeOffset(d.Value.Date, TimeSpan.Zero);
 
     private static TimeSpan? SeriesLength(bool isAllDay, DateTimeOffset? startsAt, DateTimeOffset? endsAt, DateOnly? startDate, DateOnly? endDate) =>
@@ -108,7 +119,7 @@ public static class ICalSerializer
     /// item's denormalized location label.</summary>
     public static string From(CalendarItem i, string? locationLabel) =>
         ToICalendar(i.ExternalId, i.Title, i.Description, locationLabel, i.Status, i.IsAllDay, i.StartsAt, i.EndsAt,
-            i.StartDate, i.EndDate, i.RecurrenceRule, i.ExcludedOccurrences, i.ExtraOccurrences, i.OccurrenceOverrides);
+            i.StartDate, i.EndDate, i.RecurrenceRule, i.ExcludedOccurrences, i.ExtraOccurrences, i.OccurrenceOverrides, i.StartTimezone);
 
     /// <summary>The item's ETag: the hash of its canonical ICS. The one place canonical form and its hash are defined
     /// together, so the DAV bytes served and the stored ETag can never drift.</summary>
@@ -152,9 +163,9 @@ public static class ICalSerializer
         var m = Regex.Match(raw, @"^RRULE:(.+)$", RegexOptions.Multiline);
         var rrule = m.Success ? m.Groups[1].Value.Trim() : null;
 
-        var excluded = ev.ExceptionDates.GetAllDates().Select(Instant).Distinct().Order().ToArray();
-        var extra = ev.RecurrenceDates.GetAllDates().Select(Instant)
-            .Concat(ev.RecurrenceDates.GetAllPeriods().Select(p => Instant(p.StartTime))).Distinct().Order().ToArray();
+        var excluded = ev.ExceptionDates.GetAllDates().Select(ToInstant).Distinct().Order().ToArray();
+        var extra = ev.RecurrenceDates.GetAllDates().Select(ToInstant)
+            .Concat(ev.RecurrenceDates.GetAllPeriods().Select(p => ToInstant(p.StartTime))).Distinct().Order().ToArray();
         var length = SeriesLength(allDay, startsAt, endsAt, startDate, endDate);
         var overrides = calendar.Events.Where(x => x.RecurrenceIdentifier is not null)
             .Select(x => ToOverride(x, ev, length)).OrderBy(o => o.OriginalStart).ToArray();
@@ -167,9 +178,9 @@ public static class ICalSerializer
     // Only what differs from the series is kept; null members inherit.
     private static OccurrenceOverride ToOverride(CalendarEvent o, CalendarEvent series, TimeSpan? length)
     {
-        var original = Instant(o.RecurrenceIdentifier!.StartTime);
-        var start = o.Start is { } s ? Instant(s) : original;
-        DateTimeOffset? end = o.End is { } e ? Instant(e) : null;
+        var original = ToInstant(o.RecurrenceIdentifier!.StartTime);
+        var start = o.Start is { } s ? ToInstant(s) : original;
+        DateTimeOffset? end = o.End is { } e ? ToInstant(e) : null;
         return new OccurrenceOverride(
             original,
             start != original ? start : null,

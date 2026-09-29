@@ -261,7 +261,10 @@ public sealed class CalendarItemService(IDocumentSession session, AccessResolver
             if (!string.IsNullOrWhiteSpace(i.RecurrenceRule))
             {
                 foreach (var occ in expander.Expand(i, windowStart, expansionEnd))
-                    results.Add(new CalendarItemOccurrenceDto { Id = i.Id, Title = i.Title, PlaceId = i.PlaceId, LocationLabel = i.LocationLabel, IsAllDay = i.IsAllDay, Start = occ, End = duration is { } d ? occ + d : null, CalendarIds = memberIds, Category = i.Category, Status = i.Status, Tags = i.Tags, ParentItemId = i.ParentItemId, ParentTitle = parentTitle, ChildCount = childCount, Completeness = score, Etag = i.ContentHash });
+                {
+                    var change = i.OccurrenceOverrides?.FirstOrDefault(o => (o.StartsAt ?? o.OriginalStart) == occ);
+                    results.Add(new CalendarItemOccurrenceDto { Id = i.Id, Title = change?.Title ?? i.Title, PlaceId = i.PlaceId, LocationLabel = change?.LocationLabel ?? i.LocationLabel, IsAllDay = i.IsAllDay, Start = occ, End = change?.EndsAt ?? (duration is { } d ? occ + d : null), CalendarIds = memberIds, Category = i.Category, Status = change?.Status ?? i.Status, Tags = i.Tags, ParentItemId = i.ParentItemId, ParentTitle = parentTitle, ChildCount = childCount, Completeness = score, Etag = i.ContentHash });
+                }
             }
             else if (OccurrenceStart(i) is { } start && start >= windowStart && start < windowEnd)
             {
@@ -490,6 +493,53 @@ public sealed class CalendarItemService(IDocumentSession session, AccessResolver
         var updated = await session.LoadAsync<CalendarItem>(id, ct);
         return OpResult<CalendarItemDto>.Ok(await ToDtoAsync(updated!, ct));
     }
+
+    /// <summary>Exclude or override one occurrence of a recurring item, keyed by its unmodified start.</summary>
+    public async Task<OpResult<CalendarItemDto>> ChangeOccurrenceAsync(Guid principalId, Guid id, DateTimeOffset originalStart, ChangeOccurrenceRequest r, Guid? commandId = null, CancellationToken ct = default)
+    {
+        if (await idempotency.SeenAsync(commandId, ct) is not null) return await ReplayedAsync(id, ct);
+        var stream = await session.Events.FetchForWriting<CalendarItem>(id, ct);
+        var item = stream.Aggregate;
+        if (item is null || item.DeletedAt is not null) return OpResult<CalendarItemDto>.NotFound();
+        if (!await CanWriteItemAsync(principalId, item, ct)) return OpResult<CalendarItemDto>.Forbidden("No write access to this item.");
+        var original = originalStart.ToUniversalTime();
+        if (OccurrenceUnknown(item, original) is { } unknown) return OpResult<CalendarItemDto>.Invalid(unknown);
+        if (!TryParseDefined<ItemStatus>(r.Status, out var status)) return OpResult<CalendarItemDto>.Invalid(UnknownEnum<ItemStatus>("status", r.Status!));
+        if (!r.Excluded && r is { StartsAt: null, EndsAt: null, Title: null, Description: null } && status is null)
+            return OpResult<CalendarItemDto>.Invalid("Nothing to change; restore the occurrence to drop its change.");
+        if (r.StartsAt is { } s && r.EndsAt is { } e && e < s) return OpResult<CalendarItemDto>.Invalid("EndsAt precedes StartsAt.");
+
+        stream.AppendOne(r.Excluded
+            ? new OccurrenceExcluded(id, original, r.OccurredAt, commandId)
+            : new OccurrenceOverridden(id, new OccurrenceOverride(original, r.StartsAt?.ToUniversalTime(), r.EndsAt?.ToUniversalTime(),
+                r.Title, r.Description, status, null), r.OccurredAt, commandId));
+        await SaveGuardedAsync(commandId, id, (int) (stream.CurrentVersion ?? 0) + 1, ct);
+        var updated = await session.LoadAsync<CalendarItem>(id, ct);
+        return OpResult<CalendarItemDto>.Ok(await ToDtoAsync(updated!, ct));
+    }
+
+    /// <summary>Revert one occurrence of a recurring item to the series.</summary>
+    public async Task<OpResult> RestoreOccurrenceAsync(Guid principalId, Guid id, DateTimeOffset originalStart, DateTimeOffset? occurredAt = null, Guid? commandId = null, CancellationToken ct = default)
+    {
+        if (await idempotency.SeenAsync(commandId, ct) is not null) return OpResult.Ok();
+        var stream = await session.Events.FetchForWriting<CalendarItem>(id, ct);
+        var item = stream.Aggregate;
+        if (item is null || item.DeletedAt is not null) return OpResult.NotFound();
+        if (!await CanWriteItemAsync(principalId, item, ct)) return OpResult.Forbidden("No write access to this item.");
+        var original = originalStart.ToUniversalTime();
+        if (OccurrenceUnknown(item, original) is { } unknown) return OpResult.Invalid(unknown);
+        var changed = (item.ExcludedOccurrences ?? []).Contains(original) || (item.OccurrenceOverrides ?? []).Any(o => o.OriginalStart == original);
+        if (!changed) return OpResult.Ok();   // already the series default; don't append a meaningless event
+
+        stream.AppendOne(new OccurrenceRestored(id, original, occurredAt, commandId));
+        await SaveGuardedAsync(commandId, id, (int) (stream.CurrentVersion ?? 0) + 1, ct);
+        return OpResult.Ok();
+    }
+
+    private string? OccurrenceUnknown(CalendarItem item, DateTimeOffset originalStart) =>
+        string.IsNullOrWhiteSpace(item.RecurrenceRule) ? "Only a recurring item has occurrences to change."
+        : expander.HasSeriesOccurrence(item, originalStart) ? null
+        : "No occurrence of this series starts at that time (use the unmodified start, UTC).";
 
     public async Task<OpResult> ClearPromptAsync(Guid principalId, Guid id, DateTimeOffset? occurredAt = null, Guid? commandId = null, CancellationToken ct = default)
     {

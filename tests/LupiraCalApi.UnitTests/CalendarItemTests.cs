@@ -260,4 +260,27 @@ public class CalendarItemTests
 
         Assert.Empty(i.Attendees);
     }
+
+    [Fact]
+    public void Occurrence_changes_replace_each_other_and_restore_to_the_series()
+    {
+        var id = Guid.NewGuid();
+        var i = new CalendarItem();
+        i.Apply(Ev(new ItemScheduled(id, "u@x", Fields() with { RecurrenceRule = "FREQ=WEEKLY" }, null)));
+        var start = new DateTimeOffset(2026, 7, 8, 9, 0, 0, TimeSpan.Zero);
+        var baseHash = i.ContentHash;
+
+        i.Apply(Ev(new OccurrenceExcluded(id, start)));
+        Assert.Equal([start], i.ExcludedOccurrences!);
+        Assert.NotEqual(baseHash, i.ContentHash);
+
+        var moved = new OccurrenceOverride(start, start.AddHours(2), null, "Moved", null, null, null);
+        i.Apply(Ev(new OccurrenceOverridden(id, moved)));   // an override replaces the exclusion
+        Assert.Null(i.ExcludedOccurrences);
+        Assert.Equal(moved, Assert.Single(i.OccurrenceOverrides!));
+
+        i.Apply(Ev(new OccurrenceRestored(id, start)));
+        Assert.Null(i.ExcludedOccurrences);
+        Assert.Null(i.OccurrenceOverrides);
+    }
 }

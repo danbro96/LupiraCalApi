@@ -111,7 +111,7 @@ are scoped to the caller's accessible containers.
 | **Me** | `GET /me` · `POST /me/bootstrap` (idempotently seed the standard calendar set — agenda + agent-managed system calendars) |
 | **Calendars** | `GET /calendars` (each with a `class`/`kind`) · `POST /calendars` |
 | **Sharing** | `POST`/`DELETE /calendars/{id}/owners` |
-| **Items** | `GET /items` (text/time/tag search, recurrence-expanded; carries a derived completeness score) · `POST /items` · `GET`/`PUT`/`DELETE /items/{id}` · `POST /items/{id}/metadata` (merge JSON) · `PUT`/`DELETE /items/{id}/prompt` · `PUT`/`DELETE /items/{id}/action` (event-bound payload, server-side only) |
+| **Items** | `GET /items` (text/time/tag search, recurrence-expanded; carries a derived completeness score) · `POST /items` · `GET`/`PUT`/`DELETE /items/{id}` · `POST /items/{id}/metadata` (merge JSON) · `PUT`/`DELETE /items/{id}/occurrences/{originalStart}` (exclude or override one occurrence of a series; delete reverts) · `PUT`/`DELETE /items/{id}/prompt` · `PUT`/`DELETE /items/{id}/action` (event-bound payload, server-side only) |
 | **Participation** | `POST /items/{id}/participants` (invite) · `…/{participationId}/respond` · `…/attend` · `…/leave` · `DELETE …/{participationId}` |
 | **Curation** | `GET /calendars/{id}/proposed` · `POST /items/{itemId}/calendars/{calId}/accept` · `POST /items/{itemId}/calendars/{calId}` · `DELETE /items/{itemId}/calendars/{calId}` |
 | **Relations** | `POST`/`GET /items/{id}/relations` (link to an external service) · `DELETE /items/{id}/relations/{relationId}` · `POST /items/{id}/relations/batch` · `POST /items/{id}/relations/batch/delete` (idempotent) · `GET /relations/edges` (all edges of one kind) · `GET /relations` (reverse lookup) |

@@ -5,6 +5,7 @@ using System.Text.Json.Serialization;
 using LupiraCalApi.Auth;
 using LupiraCalApi.Clients;
 using LupiraCalApi.Core.Abstractions;
+using LupiraCalApi.Core.Application.Dav;
 using LupiraCalApi.Core.Domain.CalendarItems;
 using LupiraCalApi.Core.Domain.Shared;
 using LupiraCalApi.Core.Scheduling;
@@ -350,14 +351,15 @@ if (args.Contains("--apply-schema"))
     return;
 }
 
-// One-shot item projection rebuild (deploy step after the sync-surface release: pre-existing item documents
-// carry no UpdatedSequence watermark until their snapshots are recomputed from the event log).
+// One-shot item projection rebuild (deploy step after an event-shape or snapshot change). A rebuild can change stored
+// ETags without new events, so it also advances the DAV resync epoch: clients re-list and re-fetch what changed.
 if (args.Contains("--rebuild-items"))
 {
     var store = app.Services.GetRequiredService<IDocumentStore>();
     using var daemon = await store.BuildProjectionDaemonAsync();
     await daemon.RebuildProjectionAsync<CalendarItem>(CancellationToken.None);
-    Console.WriteLine("CalendarItem projection rebuilt.");
+    await DavChangeFeed.AdvanceEpochAsync(store);
+    Console.WriteLine("CalendarItem projection rebuilt; DAV clients will resync.");
     return;
 }
 
