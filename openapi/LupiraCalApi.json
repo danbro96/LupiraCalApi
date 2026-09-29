@@ -2838,7 +2838,7 @@
         "tags": [
           "Participation"
         ],
-        "summary": "Invite a contact (must be a Contact id). role = chair|req-participant|opt-participant|non-participant (or the enum name); default req-participant, anything else 400s.",
+        "summary": "Invite a contact (must be a Contact id). role = chair|req-participant|opt-participant|non-participant (or the enum name); default req-participant, anything else 400s. A contact already invited is a no-op. Offline clients pass ?occurredAt= + Idempotency-Key for replay-safe delivery.",
         "operationId": "InviteParticipant",
         "parameters": [
           {
@@ -2864,6 +2864,25 @@
             "in": "query",
             "schema": {
               "type": "string"
+            }
+          },
+          {
+            "name": "occurredAt",
+            "in": "query",
+            "schema": {
+              "type": [
+                "null",
+                "string"
+              ],
+              "format": "date-time"
+            }
+          },
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
             }
           }
         ],
@@ -3009,6 +3028,88 @@
             "Bearer": [ ]
           }
         ]
+      },
+      "delete": {
+        "tags": [
+          "Participation"
+        ],
+        "summary": "Remove a contact from the item — every participation it holds; a contact holding none is a no-op. For clients that never learned the participation id.",
+        "operationId": "RemoveParticipantByContact",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "contactId",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CalendarItemDto"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not Found",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal server error",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "Bearer": [ ]
+          }
+        ]
       }
     },
     "/items/{id}/participants/{participationId}/respond": {
@@ -3016,7 +3117,7 @@
         "tags": [
           "Participation"
         ],
-        "summary": "Record an RSVP. status = needs-action|accepted|declined|tentative|delegated (or the enum name); required, anything else 400s.",
+        "summary": "Record an RSVP. status = needs-action|accepted|declined|tentative|delegated (or the enum name); required, anything else 400s. The current RSVP again is a no-op. Offline clients pass ?occurredAt= + Idempotency-Key for replay-safe delivery.",
         "operationId": "RespondToInvitation",
         "parameters": [
           {
@@ -3042,6 +3143,25 @@
             "in": "query",
             "schema": {
               "type": "string"
+            }
+          },
+          {
+            "name": "occurredAt",
+            "in": "query",
+            "schema": {
+              "type": [
+                "null",
+                "string"
+              ],
+              "format": "date-time"
+            }
+          },
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
             }
           }
         ],
@@ -3109,7 +3229,7 @@
         "tags": [
           "Participation"
         ],
-        "summary": "Confirm attendance.",
+        "summary": "Confirm attendance; already confirmed is a no-op. Offline clients pass ?occurredAt= + Idempotency-Key for replay-safe delivery.",
         "operationId": "ConfirmAttendance",
         "parameters": [
           {
@@ -3125,6 +3245,25 @@
             "name": "participationId",
             "in": "path",
             "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "occurredAt",
+            "in": "query",
+            "schema": {
+              "type": [
+                "null",
+                "string"
+              ],
+              "format": "date-time"
+            }
+          },
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
             "schema": {
               "type": "string",
               "format": "uuid"
@@ -3185,7 +3324,7 @@
         "tags": [
           "Participation"
         ],
-        "summary": "Record that the participant left.",
+        "summary": "Record that the participant left; already left is a no-op. Offline clients pass ?occurredAt= + Idempotency-Key for replay-safe delivery.",
         "operationId": "LeaveItem",
         "parameters": [
           {
@@ -3201,6 +3340,25 @@
             "name": "participationId",
             "in": "path",
             "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "occurredAt",
+            "in": "query",
+            "schema": {
+              "type": [
+                "null",
+                "string"
+              ],
+              "format": "date-time"
+            }
+          },
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
             "schema": {
               "type": "string",
               "format": "uuid"
@@ -3261,7 +3419,7 @@
         "tags": [
           "Participation"
         ],
-        "summary": "Remove an attendee.",
+        "summary": "Remove an attendee. Pass Idempotency-Key so a redelivered removal succeeds rather than 404s.",
         "operationId": "RemoveParticipant",
         "parameters": [
           {
@@ -3277,6 +3435,14 @@
             "name": "participationId",
             "in": "path",
             "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
             "schema": {
               "type": "string",
               "format": "uuid"

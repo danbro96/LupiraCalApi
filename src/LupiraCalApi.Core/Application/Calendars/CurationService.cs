@@ -85,14 +85,8 @@ public sealed class CurationService(IDocumentSession session, AccessResolver acc
             || await access.CanReadItemAsync(principalId, item, ct);
         if (!mayCurate) return OpResult<CalendarItemDto>.NotFound();
         stream.AppendOne(@event);
-        idempotency.Record(commandId, itemId, (int) (stream.CurrentVersion ?? 0) + 1);
-        try
-        {
-            await session.SaveChangesAsync(ct);
-        }
-        catch (Exception ex) when (Idempotency.IsDuplicate(ex))
-        { /* replayed concurrently — current state is authoritative */
-        }
+        // A lost dedup race means the same command already committed; the state read below is authoritative either way.
+        await idempotency.CommitAsync(commandId, itemId, (int) (stream.CurrentVersion ?? 0) + 1, ct);
 
         var updated = await session.LoadAsync<CalendarItem>(itemId, ct);
         return OpResult<CalendarItemDto>.Ok(updated!.ToResponse(await completeness.ScoreItemAsync(updated!, ct)));

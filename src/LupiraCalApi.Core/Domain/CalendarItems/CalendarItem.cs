@@ -250,7 +250,8 @@ public sealed class CalendarItem
     }
 
     // Participation stays append-ordered (no section guard): edits are per-participation-id and rare enough that
-    // cross-device conflicts resolve acceptably by append order; Idempotency-Key still dedups replays.
+    // cross-device conflicts resolve acceptably by append order. Replays are safe upstream (ParticipationService):
+    // Idempotency-Key dedups them, and a command re-asserting the current state appends nothing.
     public void Apply(IEvent<AttendeeInvited> e)
     {
         Touch(e);

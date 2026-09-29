@@ -23,9 +23,25 @@ public sealed class Idempotency(IDocumentSession session)
     public async Task<ProcessedCommand?> SeenAsync(Guid? commandId, CancellationToken ct) =>
         commandId is { } key ? await session.LoadAsync<ProcessedCommand>(key, ct) : null;
 
-    /// <summary>Stage the ledger row alongside already-staged events; the caller owns the single
-    /// <c>SaveChangesAsync</c> so it can catch the duplicate-key rollback via <see cref="IsDuplicate"/>.</summary>
-    public void Record(Guid? commandId, Guid aggregateId, int resultVersion)
+    /// <summary>Commit the staged events together with the ledger row for <paramref name="commandId"/>, in one
+    /// transaction. False when the dedup race was lost — another request with the same key committed first — and the
+    /// caller returns the already-committed state (idempotent success).</summary>
+    public async Task<bool> CommitAsync(Guid? commandId, Guid aggregateId, int resultVersion, CancellationToken ct)
+    {
+        Record(commandId, aggregateId, resultVersion);
+        try
+        {
+            await session.SaveChangesAsync(ct);
+        }
+        catch (Exception ex) when (IsDuplicate(ex))
+        {
+            return false;
+        }
+
+        return true;
+    }
+
+    private void Record(Guid? commandId, Guid aggregateId, int resultVersion)
     {
         if (commandId is { } id)
         {
@@ -39,7 +55,5 @@ public sealed class Idempotency(IDocumentSession session)
         }
     }
 
-    /// <summary>True when a <c>SaveChangesAsync</c> failure is the dedup race being lost (another request with the
-    /// same key committed first) — the caller should re-read and return the existing aggregate.</summary>
-    public static bool IsDuplicate(Exception ex) => ex is DocumentAlreadyExistsException;
+    private static bool IsDuplicate(Exception ex) => ex is DocumentAlreadyExistsException;
 }

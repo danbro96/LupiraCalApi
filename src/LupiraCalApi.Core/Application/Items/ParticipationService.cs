@@ -1,6 +1,7 @@
 using LupiraCalApi.Core.Abstractions;
 using LupiraCalApi.Core.Application.Results;
 using LupiraCalApi.Core.Auth;
+using LupiraCalApi.Core.Data;
 using LupiraCalApi.Core.Domain.CalendarItems;
 using LupiraCalApi.Core.Domain.CalendarItems.Events;
 using LupiraCalApi.Core.Domain.Shared;
@@ -12,10 +13,15 @@ namespace LupiraCalApi.Core.Application.Items;
 
 /// <summary>First-class participation: invited / responded / attended / left, appended to the item's stream. The
 /// embedded <see cref="ItemAttendee"/> read model composes the timestamps. Every attendee is a LupiraContactApi
-/// contact, referenced by bare Guid and validated via <see cref="IContactResolver"/> when configured.</summary>
-public sealed class ParticipationService(IDocumentSession session, AccessResolver access, CompletenessResolver completeness, IContactResolver contacts)
+/// contact, referenced by bare Guid and validated via <see cref="IContactResolver"/> when configured.
+/// <para>Commands are replay-safe for offline clients: an <c>Idempotency-Key</c> makes a redelivery return the current
+/// item (see <see cref="Idempotency"/>), and a command that re-asserts what the item already says appends nothing.
+/// <c>occurredAt</c> stamps the event with when the client acted.</para></summary>
+public sealed class ParticipationService(
+    IDocumentSession session, AccessResolver access, CompletenessResolver completeness, IContactResolver contacts, Idempotency idempotency)
 {
-    public async Task<OpResult<CalendarItemDto>> InviteAsync(Guid principalId, Guid itemId, Guid contactId, string? role, CancellationToken ct = default)
+    public async Task<OpResult<CalendarItemDto>> InviteAsync(
+        Guid principalId, Guid itemId, Guid contactId, string? role, DateTimeOffset? occurredAt = null, Guid? commandId = null, CancellationToken ct = default)
     {
         var parsedRole = ParticipationRole.RequiredParticipant;
         if (!string.IsNullOrWhiteSpace(role) && !ParticipationTokens.TryParseRole(role, out parsedRole))
@@ -28,25 +34,39 @@ public sealed class ParticipationService(IDocumentSession session, AccessResolve
             && resolved.All(c => c.ContactId != contactId))
             return OpResult<CalendarItemDto>.Invalid("Unknown contact.");
 
-        // Idempotent by contact: a contact already holding a (non-removed) participation row is not re-invited.
-        return await AppendAsync(principalId, itemId, item => item.Attendees.Any(a => a.ContactId == contactId)
+        return await MutateAsync(principalId, itemId, commandId, item => Events(item.Attendees.Any(a => a.ContactId == contactId)
             ? null
-            : new AttendeeInvited(itemId, Guid.NewGuid(), contactId, parsedRole, DateTimeOffset.UtcNow), ct);
+            : new AttendeeInvited(itemId, Guid.NewGuid(), contactId, parsedRole, At(occurredAt))), ct);
     }
 
-    public Task<OpResult<CalendarItemDto>> RespondAsync(Guid principalId, Guid itemId, Guid participationId, string? status, CancellationToken ct = default) =>
+    public Task<OpResult<CalendarItemDto>> RespondAsync(
+        Guid principalId, Guid itemId, Guid participationId, string? status, DateTimeOffset? occurredAt = null, Guid? commandId = null, CancellationToken ct = default) =>
         ParticipationTokens.TryParseStatus(status, out var parsed)
-            ? AppendAsync(principalId, itemId, _ => new InvitationResponded(itemId, participationId, parsed, DateTimeOffset.UtcNow), ct)
+            ? MutateAttendeeAsync(principalId, itemId, participationId, commandId, a => a.Status == parsed
+                ? null
+                : new InvitationResponded(itemId, participationId, parsed, At(occurredAt)), ct)
             : Task.FromResult(OpResult<CalendarItemDto>.Invalid($"Unknown status '{status}'. Valid values: {ParticipationTokens.StatusTokens}."));
 
-    public Task<OpResult<CalendarItemDto>> ConfirmAttendanceAsync(Guid principalId, Guid itemId, Guid participationId, CancellationToken ct = default) =>
-        AppendAsync(principalId, itemId, _ => new AttendanceConfirmed(itemId, participationId, DateTimeOffset.UtcNow), ct);
+    public Task<OpResult<CalendarItemDto>> ConfirmAttendanceAsync(
+        Guid principalId, Guid itemId, Guid participationId, DateTimeOffset? occurredAt = null, Guid? commandId = null, CancellationToken ct = default) =>
+        MutateAttendeeAsync(principalId, itemId, participationId, commandId, a => a.AttendedAt is null
+            ? new AttendanceConfirmed(itemId, participationId, At(occurredAt))
+            : null, ct);
 
-    public Task<OpResult<CalendarItemDto>> MarkLeftAsync(Guid principalId, Guid itemId, Guid participationId, CancellationToken ct = default) =>
-        AppendAsync(principalId, itemId, _ => new ParticipantLeft(itemId, participationId, DateTimeOffset.UtcNow), ct);
+    public Task<OpResult<CalendarItemDto>> MarkLeftAsync(
+        Guid principalId, Guid itemId, Guid participationId, DateTimeOffset? occurredAt = null, Guid? commandId = null, CancellationToken ct = default) =>
+        MutateAttendeeAsync(principalId, itemId, participationId, commandId, a => a.LeftAt is null
+            ? new ParticipantLeft(itemId, participationId, At(occurredAt))
+            : null, ct);
 
-    public Task<OpResult<CalendarItemDto>> RemoveAsync(Guid principalId, Guid itemId, Guid participationId, CancellationToken ct = default) =>
-        AppendAsync(principalId, itemId, _ => new AttendeeRemoved(itemId, participationId), ct);
+    public Task<OpResult<CalendarItemDto>> RemoveAsync(Guid principalId, Guid itemId, Guid participationId, Guid? commandId = null, CancellationToken ct = default) =>
+        MutateAttendeeAsync(principalId, itemId, participationId, commandId, a => new AttendeeRemoved(itemId, a.ParticipationId), ct);
+
+    /// <summary>The counterpart of the contact-keyed invite, for clients that never learned the participation id (an
+    /// invite still in an offline outbox): every row the contact holds goes, and a contact holding none is already done.</summary>
+    public Task<OpResult<CalendarItemDto>> RemoveContactAsync(Guid principalId, Guid itemId, Guid contactId, Guid? commandId = null, CancellationToken ct = default) =>
+        MutateAsync(principalId, itemId, commandId, item => OpResult<IReadOnlyList<object>>.Ok(
+            [.. item.Attendees.Where(a => a.ContactId == contactId).Select(a => new AttendeeRemoved(itemId, a.ParticipationId))]), ct);
 
     public const int MaxAttendees = 200;
 
@@ -72,7 +92,8 @@ public sealed class ParticipationService(IDocumentSession session, AccessResolve
         if (item is null || item.DeletedAt is not null) return OpResult<SetParticipantsResult>.NotFound();
         if (!await access.CanWriteItemAsync(principalId, item, ct)) return OpResult<SetParticipantsResult>.Forbidden("No write access to this item.");
 
-        var existing = item.Attendees.ToDictionary(a => a.ContactId);
+        // A contact should hold one participation, but legacy rows may repeat one; the first stands for all.
+        var existing = item.Attendees.GroupBy(a => a.ContactId).ToDictionary(g => g.Key, g => g.First());
         var added = new List<ParticipationRef>();
         var now = DateTimeOffset.UtcNow;
         var alreadyPresent = 0;
@@ -134,19 +155,41 @@ public sealed class ParticipationService(IDocumentSession session, AccessResolve
             .OrderByDescending(e => e.Count).ThenByDescending(e => e.LastAt ?? DateTimeOffset.MinValue).ThenBy(e => e.ContactId)];
     }
 
-    private async Task<OpResult<CalendarItemDto>> AppendAsync(Guid principalId, Guid itemId, Func<CalendarItem, object?> makeEvent, CancellationToken ct)
+    /// <summary>Runs one command against the item. <paramref name="decide"/> returns the events to append — none when
+    /// the item already says so — or the reason the command can't apply.</summary>
+    private async Task<OpResult<CalendarItemDto>> MutateAsync(
+        Guid principalId, Guid itemId, Guid? commandId, Func<CalendarItem, OpResult<IReadOnlyList<object>>> decide, CancellationToken ct)
     {
+        if (await idempotency.SeenAsync(commandId, ct) is not null) return await CurrentAsync(itemId, ct);
         var stream = await session.Events.FetchForWriting<CalendarItem>(itemId, ct);
         var item = stream.Aggregate;
         if (item is null || item.DeletedAt is not null) return OpResult<CalendarItemDto>.NotFound();
         if (!await access.CanWriteItemAsync(principalId, item, ct)) return OpResult<CalendarItemDto>.Forbidden("No write access to this item.");
-        if (makeEvent(item) is { } evt)
+
+        var decision = decide(item);
+        if (!decision.IsOk) return new OpResult<CalendarItemDto>(decision.Status, null, decision.Error);
+        if (decision.Value is { Count: > 0 } events)
         {
-            stream.AppendOne(evt);
-            await session.SaveChangesAsync(ct);
+            stream.AppendMany(events);
+            await idempotency.CommitAsync(commandId, itemId, (int) (stream.CurrentVersion ?? 0) + events.Count, ct);
         }
 
-        var updated = await session.LoadAsync<CalendarItem>(itemId, ct);
-        return OpResult<CalendarItemDto>.Ok(updated!.ToResponse(await completeness.ScoreItemAsync(updated!, ct)));
+        return await CurrentAsync(itemId, ct);
     }
+
+    /// <summary>A command on one participation; an id the item doesn't hold is not found.</summary>
+    private Task<OpResult<CalendarItemDto>> MutateAttendeeAsync(
+        Guid principalId, Guid itemId, Guid participationId, Guid? commandId, Func<ItemAttendee, object?> decide, CancellationToken ct) =>
+        MutateAsync(principalId, itemId, commandId, item => item.Attendees.FirstOrDefault(a => a.ParticipationId == participationId) is { } attendee
+            ? Events(decide(attendee))
+            : OpResult<IReadOnlyList<object>>.NotFound(), ct);
+
+    private async Task<OpResult<CalendarItemDto>> CurrentAsync(Guid itemId, CancellationToken ct) =>
+        await session.LoadAsync<CalendarItem>(itemId, ct) is { DeletedAt: null } item
+            ? OpResult<CalendarItemDto>.Ok(item.ToResponse(await completeness.ScoreItemAsync(item, ct)))
+            : OpResult<CalendarItemDto>.NotFound();
+
+    private static OpResult<IReadOnlyList<object>> Events(object? single) => OpResult<IReadOnlyList<object>>.Ok(single is null ? [] : [single]);
+
+    private static DateTimeOffset At(DateTimeOffset? occurredAt) => occurredAt?.ToUniversalTime() ?? DateTimeOffset.UtcNow;
 }

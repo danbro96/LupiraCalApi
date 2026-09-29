@@ -25,23 +25,6 @@ namespace LupiraCalApi.Core.Application.Items;
 /// </summary>
 public sealed class CalendarItemService(IDocumentSession session, AccessResolver access, RecurrenceExpander expander, IGeoResolver geo, CompletenessResolver completeness, IContactResolver contacts, Idempotency idempotency)
 {
-    /// <summary>Commit staged events + the dedup ledger row in one transaction. False when the dedup race was
-    /// lost — the caller re-reads and returns the already-committed state (idempotent success).</summary>
-    private async Task<bool> SaveGuardedAsync(Guid? commandId, Guid aggregateId, int resultVersion, CancellationToken ct)
-    {
-        idempotency.Record(commandId, aggregateId, resultVersion);
-        try
-        {
-            await session.SaveChangesAsync(ct);
-        }
-        catch (Exception ex) when (Idempotency.IsDuplicate(ex))
-        {
-            return false;
-        }
-
-        return true;
-    }
-
     /// <summary>Resolve free-text to a (geo place id, label). Geo owns resolution. <c>Unresolved</c> is true only when geo
     /// IS configured but couldn't resolve (unreachable/GeocodeUnavailable) — a retryable failure the REST/MCP paths reject
     /// (fail-closed) while the DAV path ignores (label-only). When geo is unconfigured (dev/test) it degrades to the
@@ -447,7 +430,7 @@ public sealed class CalendarItemService(IDocumentSession session, AccessResolver
             : (categoryChanged ? incoming : ItemDetailsMapper.Merge(item.Details, incoming));
 
         stream.AppendOne(new ItemRevised(id, fields, details, r.OccurredAt, commandId));
-        await SaveGuardedAsync(commandId, id, (int) (stream.CurrentVersion ?? 0) + 1, ct);
+        await idempotency.CommitAsync(commandId, id, (int) (stream.CurrentVersion ?? 0) + 1, ct);
         var updated = await session.LoadAsync<CalendarItem>(id, ct);
         return OpResult<CalendarItemDto>.Ok(await ToDtoAsync(updated!, ct));
     }
@@ -462,7 +445,7 @@ public sealed class CalendarItemService(IDocumentSession session, AccessResolver
         if (item is null || item.DeletedAt is not null) return OpResult.NotFound();
         if (!await CanWriteItemAsync(principalId, item, ct)) return OpResult.Forbidden("No write access to this item.");
         stream.AppendOne(new ItemDeleted(id, DateTimeOffset.UtcNow));
-        await SaveGuardedAsync(commandId, id, (int) (stream.CurrentVersion ?? 0) + 1, ct);
+        await idempotency.CommitAsync(commandId, id, (int) (stream.CurrentVersion ?? 0) + 1, ct);
         return OpResult.Ok();
     }
 
@@ -478,7 +461,7 @@ public sealed class CalendarItemService(IDocumentSession session, AccessResolver
         if (patch is JsonObject obj)
             foreach (var kv in obj) current[kv.Key] = kv.Value?.DeepClone();
         stream.AppendOne(new ItemMetadataAttached(id, current.ToJsonString(), occurredAt, commandId));
-        await SaveGuardedAsync(commandId, id, (int) (stream.CurrentVersion ?? 0) + 1, ct);
+        await idempotency.CommitAsync(commandId, id, (int) (stream.CurrentVersion ?? 0) + 1, ct);
         var updated = await session.LoadAsync<CalendarItem>(id, ct);
         return OpResult<CalendarItemDto>.Ok(await ToDtoAsync(updated!, ct));
     }
@@ -502,7 +485,7 @@ public sealed class CalendarItemService(IDocumentSession session, AccessResolver
         if (item.Action is not null) return OpResult<CalendarItemDto>.Conflict("Item already carries an action; clear it first.");
 
         stream.AppendOne(new ItemPromptSet(id, prompt, occurredAt, commandId));
-        await SaveGuardedAsync(commandId, id, (int) (stream.CurrentVersion ?? 0) + 1, ct);
+        await idempotency.CommitAsync(commandId, id, (int) (stream.CurrentVersion ?? 0) + 1, ct);
         var updated = await session.LoadAsync<CalendarItem>(id, ct);
         return OpResult<CalendarItemDto>.Ok(await ToDtoAsync(updated!, ct));
     }
@@ -517,7 +500,7 @@ public sealed class CalendarItemService(IDocumentSession session, AccessResolver
         if (item.Prompt is not null) return OpResult<CalendarItemDto>.Conflict("Item already carries a prompt; clear it first.");
 
         stream.AppendOne(new ItemActionSet(id, action, occurredAt, commandId));
-        await SaveGuardedAsync(commandId, id, (int) (stream.CurrentVersion ?? 0) + 1, ct);
+        await idempotency.CommitAsync(commandId, id, (int) (stream.CurrentVersion ?? 0) + 1, ct);
         var updated = await session.LoadAsync<CalendarItem>(id, ct);
         return OpResult<CalendarItemDto>.Ok(await ToDtoAsync(updated!, ct));
     }
@@ -541,7 +524,7 @@ public sealed class CalendarItemService(IDocumentSession session, AccessResolver
             ? new OccurrenceExcluded(id, original, r.OccurredAt, commandId)
             : new OccurrenceOverridden(id, new OccurrenceOverride(original, r.StartsAt?.ToUniversalTime(), r.EndsAt?.ToUniversalTime(),
                 r.Title, r.Description, status, null), r.OccurredAt, commandId));
-        await SaveGuardedAsync(commandId, id, (int) (stream.CurrentVersion ?? 0) + 1, ct);
+        await idempotency.CommitAsync(commandId, id, (int) (stream.CurrentVersion ?? 0) + 1, ct);
         var updated = await session.LoadAsync<CalendarItem>(id, ct);
         return OpResult<CalendarItemDto>.Ok(await ToDtoAsync(updated!, ct));
     }
@@ -560,7 +543,7 @@ public sealed class CalendarItemService(IDocumentSession session, AccessResolver
         if (!changed) return OpResult.Ok();   // already the series default; don't append a meaningless event
 
         stream.AppendOne(new OccurrenceRestored(id, original, occurredAt, commandId));
-        await SaveGuardedAsync(commandId, id, (int) (stream.CurrentVersion ?? 0) + 1, ct);
+        await idempotency.CommitAsync(commandId, id, (int) (stream.CurrentVersion ?? 0) + 1, ct);
         return OpResult.Ok();
     }
 
@@ -579,7 +562,7 @@ public sealed class CalendarItemService(IDocumentSession session, AccessResolver
         if (item.Prompt is null) return OpResult.Ok();   // no-op; don't append a meaningless event
 
         stream.AppendOne(new ItemPromptCleared(id, occurredAt, commandId));
-        await SaveGuardedAsync(commandId, id, (int) (stream.CurrentVersion ?? 0) + 1, ct);
+        await idempotency.CommitAsync(commandId, id, (int) (stream.CurrentVersion ?? 0) + 1, ct);
         return OpResult.Ok();
     }
 
@@ -593,7 +576,7 @@ public sealed class CalendarItemService(IDocumentSession session, AccessResolver
         if (item.Action is null) return OpResult.Ok();
 
         stream.AppendOne(new ItemActionCleared(id, occurredAt, commandId));
-        await SaveGuardedAsync(commandId, id, (int) (stream.CurrentVersion ?? 0) + 1, ct);
+        await idempotency.CommitAsync(commandId, id, (int) (stream.CurrentVersion ?? 0) + 1, ct);
         return OpResult.Ok();
     }
 

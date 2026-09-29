@@ -9,34 +9,40 @@ namespace LupiraCalApi.Handlers;
 /// <summary>First-class participation: invite / respond / attend / leave / remove (every attendee is a Contact).</summary>
 public sealed class ParticipationHandler(CurrentUser user, ParticipationService participation)
 {
-    public async Task<Results<Ok<CalendarItemDto>, NotFound, ProblemHttpResult, UnauthorizedHttpResult>> InviteAsync(Guid id, Guid contactId, string? role, CancellationToken ct)
+    public async Task<Results<Ok<CalendarItemDto>, NotFound, ProblemHttpResult, UnauthorizedHttpResult>> InviteAsync(Guid id, Guid contactId, string? role, DateTimeOffset? occurredAt, Guid? idempotencyKey, CancellationToken ct)
     {
         var u = await user.GetAsync(ct);
-        return OpResultMap.OkNotFoundProblem(await participation.InviteAsync(u.Id, id, contactId, role, ct));
+        return OpResultMap.OkNotFoundProblem(await participation.InviteAsync(u.Id, id, contactId, role, occurredAt, idempotencyKey, ct));
     }
 
-    public async Task<Results<Ok<CalendarItemDto>, NotFound, ProblemHttpResult, UnauthorizedHttpResult>> RespondAsync(Guid id, Guid participationId, string? status, CancellationToken ct)
+    public async Task<Results<Ok<CalendarItemDto>, NotFound, ProblemHttpResult, UnauthorizedHttpResult>> RespondAsync(Guid id, Guid participationId, string? status, DateTimeOffset? occurredAt, Guid? idempotencyKey, CancellationToken ct)
     {
         var u = await user.GetAsync(ct);
-        return OpResultMap.OkNotFoundProblem(await participation.RespondAsync(u.Id, id, participationId, status, ct));
+        return OpResultMap.OkNotFoundProblem(await participation.RespondAsync(u.Id, id, participationId, status, occurredAt, idempotencyKey, ct));
     }
 
-    public async Task<Results<Ok<CalendarItemDto>, NotFound, ProblemHttpResult, UnauthorizedHttpResult>> ConfirmAsync(Guid id, Guid participationId, CancellationToken ct)
+    public async Task<Results<Ok<CalendarItemDto>, NotFound, ProblemHttpResult, UnauthorizedHttpResult>> ConfirmAsync(Guid id, Guid participationId, DateTimeOffset? occurredAt, Guid? idempotencyKey, CancellationToken ct)
     {
         var u = await user.GetAsync(ct);
-        return OpResultMap.OkNotFoundProblem(await participation.ConfirmAttendanceAsync(u.Id, id, participationId, ct));
+        return OpResultMap.OkNotFoundProblem(await participation.ConfirmAttendanceAsync(u.Id, id, participationId, occurredAt, idempotencyKey, ct));
     }
 
-    public async Task<Results<Ok<CalendarItemDto>, NotFound, ProblemHttpResult, UnauthorizedHttpResult>> LeaveAsync(Guid id, Guid participationId, CancellationToken ct)
+    public async Task<Results<Ok<CalendarItemDto>, NotFound, ProblemHttpResult, UnauthorizedHttpResult>> LeaveAsync(Guid id, Guid participationId, DateTimeOffset? occurredAt, Guid? idempotencyKey, CancellationToken ct)
     {
         var u = await user.GetAsync(ct);
-        return OpResultMap.OkNotFoundProblem(await participation.MarkLeftAsync(u.Id, id, participationId, ct));
+        return OpResultMap.OkNotFoundProblem(await participation.MarkLeftAsync(u.Id, id, participationId, occurredAt, idempotencyKey, ct));
     }
 
-    public async Task<Results<Ok<CalendarItemDto>, NotFound, ProblemHttpResult, UnauthorizedHttpResult>> RemoveAsync(Guid id, Guid participationId, CancellationToken ct)
+    public async Task<Results<Ok<CalendarItemDto>, NotFound, ProblemHttpResult, UnauthorizedHttpResult>> RemoveAsync(Guid id, Guid participationId, Guid? idempotencyKey, CancellationToken ct)
     {
         var u = await user.GetAsync(ct);
-        return OpResultMap.OkNotFoundProblem(await participation.RemoveAsync(u.Id, id, participationId, ct));
+        return OpResultMap.OkNotFoundProblem(await participation.RemoveAsync(u.Id, id, participationId, idempotencyKey, ct));
+    }
+
+    public async Task<Results<Ok<CalendarItemDto>, NotFound, ProblemHttpResult, UnauthorizedHttpResult>> RemoveContactAsync(Guid id, Guid contactId, Guid? idempotencyKey, CancellationToken ct)
+    {
+        var u = await user.GetAsync(ct);
+        return OpResultMap.OkNotFoundProblem(await participation.RemoveContactAsync(u.Id, id, contactId, idempotencyKey, ct));
     }
 
     public async Task<Results<Ok<SetParticipantsResult>, NotFound, ProblemHttpResult, UnauthorizedHttpResult>> SetParticipantsAsync(Guid id, SetParticipantsRequest body, CancellationToken ct)
