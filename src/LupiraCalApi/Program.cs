@@ -5,7 +5,6 @@ using System.Text.Json.Serialization;
 using LupiraCalApi.Auth;
 using LupiraCalApi.Clients;
 using LupiraCalApi.Core.Abstractions;
-using LupiraCalApi.Core.Data.Migrations;
 using LupiraCalApi.Core.Domain.CalendarItems;
 using LupiraCalApi.Core.Domain.Shared;
 using LupiraCalApi.Core.Scheduling;
@@ -359,16 +358,6 @@ if (args.Contains("--rebuild-items"))
     using var daemon = await store.BuildProjectionDaemonAsync();
     await daemon.RebuildProjectionAsync<CalendarItem>(CancellationToken.None);
     Console.WriteLine("CalendarItem projection rebuilt.");
-    return;
-}
-
-// One-shot, in-place conversion of item events that stored per-occurrence deviations as raw text. Back up first; follow
-// with --rebuild-items.
-if (args.Contains("--convert-occurrence-deviations"))
-{
-    var converted = await OccurrenceDeviationMigration.RunAsync(app.Services.GetRequiredService<IDocumentStore>(),
-        app.Configuration.GetConnectionString("Postgres") ?? CoreServiceCollectionExtensions.DefaultConnectionString, CancellationToken.None);
-    Console.WriteLine($"Converted {converted} item event(s).");
     return;
 }
 
