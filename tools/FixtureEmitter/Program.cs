@@ -26,7 +26,7 @@ var json = new JsonSerializerOptions { WriteIndented = true, DefaultIgnoreCondit
 var expander = new RecurrenceExpander();
 var cases = new List<RecurrenceCase>();
 
-void Add(string name, string rule, DateTimeOffset start, int durationMinutes, DateTimeOffset windowStart, DateTimeOffset windowEnd)
+void Add(string name, string rule, DateTimeOffset start, int durationMinutes, DateTimeOffset windowStart, DateTimeOffset windowEnd, string? timeZone = null)
 {
     var item = new CalendarItem
     {
@@ -36,10 +36,11 @@ void Add(string name, string rule, DateTimeOffset start, int durationMinutes, Da
         StartsAt = start,
         EndsAt = start.AddMinutes(durationMinutes),
         RecurrenceRule = rule,
+        StartTimezone = timeZone,
     };
     cases.Add(new RecurrenceCase(
         name, rule, start, durationMinutes, windowStart, windowEnd,
-        [.. expander.Expand(item, windowStart, windowEnd)]));
+        [.. expander.Expand(item, windowStart, windowEnd)], timeZone));
 }
 
 var mon = new DateTimeOffset(2026, 1, 5, 9, 0, 0, TimeSpan.Zero);   // a Monday
@@ -62,6 +63,18 @@ Add("yearly-thanksgiving", "FREQ=YEARLY;BYMONTH=11;BYDAY=4TH", new DateTimeOffse
 Add("yearly-leap-feb29", "FREQ=YEARLY", new DateTimeOffset(2024, 2, 29, 9, 0, 0, TimeSpan.Zero), 60, new DateTimeOffset(2024, 1, 1, 0, 0, 0, TimeSpan.Zero), new DateTimeOffset(2030, 1, 1, 0, 0, 0, TimeSpan.Zero));
 Add("window-clips-mid-series", "FREQ=DAILY", mon, 60, mon.AddDays(3), mon.AddDays(6));
 Add("infinite-rule-bounded-window", "FREQ=DAILY;INTERVAL=1", mon, 60, mon, mon.AddDays(3));
+
+// Zoned series keep their wall-clock time across offset changes.
+DateTimeOffset Utc(int y, int m, int d, int h, int min = 0) => new(y, m, d, h, min, 0, TimeSpan.Zero);
+Add("zoned-weekly-autumn-shift", "FREQ=WEEKLY", Utc(2026, 10, 11, 16), 60, Utc(2026, 10, 1, 0), Utc(2026, 11, 15, 0), "Europe/Stockholm");
+Add("zoned-daily-spring-gap", "FREQ=DAILY", Utc(2026, 3, 27, 1, 30), 30, Utc(2026, 3, 26, 0), Utc(2026, 4, 1, 0), "Europe/Stockholm");
+Add("zoned-daily-autumn-ambiguous", "FREQ=DAILY", Utc(2026, 10, 23, 0, 30), 30, Utc(2026, 10, 22, 0), Utc(2026, 10, 28, 0), "Europe/Stockholm");
+Add("zoned-until-reads-as-wall-clock", "FREQ=DAILY;UNTIL=20261027T170000Z", Utc(2026, 10, 23, 16), 60, Utc(2026, 10, 1, 0), Utc(2026, 11, 1, 0), "Europe/Stockholm");
+Add("zoned-count", "FREQ=WEEKLY;COUNT=4", Utc(2026, 10, 11, 16), 60, Utc(2026, 10, 1, 0), Utc(2026, 12, 1, 0), "Europe/Stockholm");
+Add("zoned-monthly-second-tuesday", "FREQ=MONTHLY;BYDAY=2TU", Utc(2026, 1, 13, 23), 60, Utc(2026, 1, 1, 0), Utc(2026, 7, 1, 0), "America/New_York");
+Add("zoned-byday-is-local-weekday", "FREQ=WEEKLY;BYDAY=MO", Utc(2026, 1, 4, 23), 60, Utc(2026, 1, 1, 0), Utc(2026, 2, 1, 0), "Asia/Tokyo");
+Add("zoned-window-clips-mid-series", "FREQ=DAILY", Utc(2026, 10, 20, 16), 60, Utc(2026, 10, 24, 12), Utc(2026, 10, 27, 12), "Europe/Stockholm");
+Add("unknown-zone-is-utc", "FREQ=WEEKLY", Utc(2026, 10, 11, 16), 60, Utc(2026, 10, 1, 0), Utc(2026, 11, 15, 0), "Not/AZone");
 
 // Real-store corpus: every distinct rule in a live database, expanded over a canonical window.
 var fromDb = Array.IndexOf(args, "--from-db");
