@@ -18,7 +18,7 @@ public sealed class UpdateCalendarItemRequest
 
     /// <summary>Re-anchor the location to a resolved LupiraGeoApi place; <see cref="Location"/> then carries the display
     /// label. Set <see cref="PlaceIdProvided"/> with a null value to clear. Free-text-only location changes are rejected
-    /// (resolve via geo first); CalDAV remains the lenient path.</summary>
+    /// (resolve via geo first).</summary>
     public Guid? PlaceId { get; set; }
 
     public bool PlaceIdProvided { get; set; }
@@ -42,7 +42,7 @@ public sealed class UpdateCalendarItemRequest
 
     public bool EndDateProvided { get; set; }
 
-    /// <summary>IANA timezone names annotating the timed start/end (not serialized to ICS today).</summary>
+    /// <summary>IANA timezone names annotating the timed start/end.</summary>
     public string? StartTimezone { get; set; }
 
     public bool StartTimezoneProvided { get; set; }

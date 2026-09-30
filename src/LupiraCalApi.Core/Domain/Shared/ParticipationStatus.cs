@@ -1,6 +1,6 @@
 namespace LupiraCalApi.Core.Domain.Shared;
 
-/// <summary>iCalendar <c>PARTSTAT</c> (attendee RSVP).</summary>
+/// <summary>An attendee's RSVP.</summary>
 public enum ParticipationStatus
 {
     NeedsAction,

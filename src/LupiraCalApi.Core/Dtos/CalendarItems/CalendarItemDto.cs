@@ -62,7 +62,7 @@ public sealed class CalendarItemDto
 
     public JsonNode? Metadata { get; set; }
 
-    /// <summary>Event-bound payload (server-side only; never in ICS). At most one of <see cref="Prompt"/>/<see cref="Action"/> is set.</summary>
+    /// <summary>Event-bound payload (server-side only). At most one of <see cref="Prompt"/>/<see cref="Action"/> is set.</summary>
     public ItemPrompt? Prompt { get; set; }
 
     public ItemAction? Action { get; set; }

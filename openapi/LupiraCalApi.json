@@ -678,7 +678,7 @@
         "tags": [
           "CalendarItems"
         ],
-        "summary": "Create a calendar item (filed into CalendarId if given, else unfiled for later curation). A location must be a resolved PlaceId (free text is CalDAV-only).",
+        "summary": "Create a calendar item (filed into CalendarId if given, else unfiled for later curation). A location must be a resolved PlaceId.",
         "operationId": "CreateItem",
         "requestBody": {
           "content": {
@@ -3922,7 +3922,7 @@
                 "type": "null"
               },
               {
-                "description": "Event-bound payload (server-side only; never in ICS). At most one of ItemPrompt? CalendarItemDto.Prompt/ItemAction? CalendarItemDto.Action is set.",
+                "description": "Event-bound payload (server-side only). At most one of ItemPrompt? CalendarItemDto.Prompt/ItemAction? CalendarItemDto.Action is set.",
                 "$ref": "#/components/schemas/ItemPrompt"
               }
             ]
@@ -4449,7 +4449,7 @@
                 "type": "null"
               },
               {
-                "description": "Optional server-side annotations (e.g. import provenance) merged onto the item at creation — same store\n            as `POST /items/{id}/metadata`, saving a second call. Never in ICS.",
+                "description": "Optional server-side annotations (e.g. import provenance) merged onto the item at creation — same store\n            as `POST /items/{id}/metadata`, saving a second call.",
                 "$ref": "#/components/schemas/JsonObject"
               }
             ]
@@ -5203,7 +5203,7 @@
           "OptionalParticipant",
           "NonParticipant"
         ],
-        "description": "iCalendar `ROLE`."
+        "description": "An attendee's role in an item."
       },
       "ParticipationStatus": {
         "enum": [
@@ -5213,7 +5213,7 @@
           "Tentative",
           "Delegated"
         ],
-        "description": "iCalendar `PARTSTAT` (attendee RSVP)."
+        "description": "An attendee's RSVP."
       },
       "ParticipationSummaryEntry": {
         "required": [
@@ -5932,7 +5932,7 @@
               "null",
               "string"
             ],
-            "description": "Re-anchor the location to a resolved LupiraGeoApi place; string? UpdateCalendarItemRequest.Location then carries the display\n            label. Set bool UpdateCalendarItemRequest.PlaceIdProvided with a null value to clear. Free-text-only location changes are rejected\n            (resolve via geo first); CalDAV remains the lenient path.",
+            "description": "Re-anchor the location to a resolved LupiraGeoApi place; string? UpdateCalendarItemRequest.Location then carries the display\n            label. Set bool UpdateCalendarItemRequest.PlaceIdProvided with a null value to clear. Free-text-only location changes are rejected\n            (resolve via geo first).",
             "format": "uuid"
           },
           "placeIdProvided": {
@@ -5990,7 +5990,7 @@
               "null",
               "string"
             ],
-            "description": "IANA timezone names annotating the timed start/end (not serialized to ICS today)."
+            "description": "IANA timezone names annotating the timed start/end."
           },
           "startTimezoneProvided": {
             "type": "boolean"

@@ -23,7 +23,7 @@ public static class CalendarItemsEndpoints
 
         group.MapPost("/", (CreateCalendarItemRequest body, CalendarItemsHandler h, CancellationToken ct) => h.CreateAsync(body, ct))
             .WithName("CreateItem")
-            .WithSummary("Create a calendar item (filed into CalendarId if given, else unfiled for later curation). A location must be a resolved PlaceId (free text is CalDAV-only).")
+            .WithSummary("Create a calendar item (filed into CalendarId if given, else unfiled for later curation). A location must be a resolved PlaceId.")
             .Produces<CalendarItemDto>(StatusCodes.Status200OK)
             .ProducesProblem(StatusCodes.Status403Forbidden);
 

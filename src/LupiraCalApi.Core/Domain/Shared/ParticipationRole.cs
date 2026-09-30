@@ -1,6 +1,6 @@
 namespace LupiraCalApi.Core.Domain.Shared;
 
-/// <summary>iCalendar <c>ROLE</c>.</summary>
+/// <summary>An attendee's role in an item.</summary>
 public enum ParticipationRole
 {
     Chair,

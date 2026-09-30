@@ -61,7 +61,7 @@ public sealed class CreateCalendarItemRequest
     public Domain.Shared.DatePrecision? EndPrecision { get; set; }
 
     /// <summary>Optional server-side annotations (e.g. import provenance) merged onto the item at creation — same store
-    /// as <c>POST /items/{id}/metadata</c>, saving a second call. Never in ICS.</summary>
+    /// as <c>POST /items/{id}/metadata</c>, saving a second call.</summary>
     public JsonObject? Metadata { get; set; }
 
     /// <summary>Sets the item's presence segment status (whole-day or timed via Starts/Ends) — availability lives on the availability calendar.</summary>
