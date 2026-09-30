@@ -222,7 +222,7 @@ builder.Services.AddOpenApi("v1", options =>
             Title = "Lupira Cal API",
             Version = "v1",
             Description =
-                "Calendar backend for Lupira (contacts live in LupiraContactApi; the DAV protocol surface in LupiraDavApi). " +
+                "Calendar backend for Lupira (contacts live in LupiraContactApi). " +
                 "Authenticate with a Bearer token issued by the OIDC provider (Authentik).",
         };
         document.Components ??= new();

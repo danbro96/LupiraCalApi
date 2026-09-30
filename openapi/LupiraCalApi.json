@@ -2,7 +2,7 @@
   "openapi": "3.1.1",
   "info": {
     "title": "Lupira Cal API",
-    "description": "Calendar backend for Lupira (contacts live in LupiraContactApi; the DAV protocol surface in LupiraDavApi). Authenticate with a Bearer token issued by the OIDC provider (Authentik).",
+    "description": "Calendar backend for Lupira (contacts live in LupiraContactApi). Authenticate with a Bearer token issued by the OIDC provider (Authentik).",
     "version": "v1"
   },
   "paths": {
