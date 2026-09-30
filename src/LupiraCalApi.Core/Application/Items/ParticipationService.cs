@@ -18,8 +18,15 @@ namespace LupiraCalApi.Core.Application.Items;
 /// item (see <see cref="Idempotency"/>), and a command that re-asserts what the item already says appends nothing.
 /// <c>occurredAt</c> stamps the event with when the client acted.</para></summary>
 public sealed class ParticipationService(
-    IDocumentSession session, AccessResolver access, CompletenessResolver completeness, IContactResolver contacts, Idempotency idempotency)
+    IDocumentSession session, AccessResolver access, CompletenessResolver completeness, IContactResolver contacts, Idempotency idempotency,
+    RecurrenceExpander expander, TimeProvider clock)
 {
+    private static readonly TimeSpan HalfLife = TimeSpan.FromDays(90);
+
+    // At three half-life-years an occurrence weighs ~0.02%: past that it can't move a ranking, so it isn't expanded.
+    private static readonly TimeSpan ScoreLookback = TimeSpan.FromDays(3 * 365);
+    private static readonly TimeSpan NextLookahead = TimeSpan.FromDays(366);
+
     public async Task<OpResult<CalendarItemDto>> InviteAsync(
         Guid principalId, Guid itemId, Guid contactId, string? role, DateTimeOffset? occurredAt = null, Guid? commandId = null, CancellationToken ct = default)
     {
@@ -123,19 +130,21 @@ public sealed class ParticipationService(
         return OpResult<SetParticipantsResult>.Ok(new SetParticipantsResult(itemId, added, alreadyPresent));
     }
 
-    /// <summary>Per-contact participation across the caller's readable calendars, ordered most-interacted first.
-    /// Optional from/to restricts to items whose occurrence start falls in the window (start-less items only match
-    /// the unbounded query).</summary>
+    /// <summary>Per-contact participation across the caller's readable calendars, ordered by recency-weighted
+    /// <see cref="ParticipationSummaryEntry.Score"/>. Optional from/to restricts to items whose occurrence start falls in
+    /// the window (start-less items only match the unbounded query).</summary>
     public async Task<OpResult<List<ParticipationSummaryEntry>>> SummaryAsync(Guid principalId, DateTimeOffset? from, DateTimeOffset? to, CancellationToken ct = default)
     {
         var calIds = await access.AccessibleCalendarIdsAsync(principalId, ct);
         var items = await session.Query<CalendarItem>().Where(i => i.DeletedAt == null).ToListAsync(ct);
-        return OpResult<List<ParticipationSummaryEntry>>.Ok(Summarize(items, calIds, from, to));
+        return OpResult<List<ParticipationSummaryEntry>>.Ok(Summarize(items, calIds, from, to, clock.GetUtcNow(), expander));
     }
 
-    internal static List<ParticipationSummaryEntry> Summarize(IEnumerable<CalendarItem> items, IReadOnlyCollection<Guid> readableCalendarIds, DateTimeOffset? from, DateTimeOffset? to)
+    internal static List<ParticipationSummaryEntry> Summarize(
+        IEnumerable<CalendarItem> items, IReadOnlyCollection<Guid> readableCalendarIds, DateTimeOffset? from, DateTimeOffset? to,
+        DateTimeOffset now, RecurrenceExpander expander)
     {
-        var perContact = new Dictionary<Guid, (int Count, DateTimeOffset? LastAt)>();
+        var perContact = new Dictionary<Guid, (int Count, DateTimeOffset? LastAt, double Score)>();
         foreach (var i in items)
         {
             if (!i.Calendars.Any(m => m.Status == CalendarEntryStatus.Accepted && readableCalendarIds.Contains(m.CalendarId))) continue;
@@ -143,17 +152,36 @@ public sealed class ParticipationService(
             if (from is { } f && (at is null || at < f)) continue;
             if (to is { } t && (at is null || at >= t)) continue;
             // Withdrawn participations (LeftAt) don't count as interaction; removed attendees are already gone.
-            foreach (var a in i.Attendees.Where(a => a.LeftAt is null).DistinctBy(a => a.ContactId))
+            var attendees = i.Attendees.Where(a => a.LeftAt is null).DistinctBy(a => a.ContactId).ToList();
+            if (attendees.Count == 0) continue;
+            var weight = at is null ? 0 : RecencyWeight(i, now, from, to, expander);
+            foreach (var a in attendees)
             {
                 var prev = perContact.GetValueOrDefault(a.ContactId);
-                perContact[a.ContactId] = (prev.Count + 1, at > prev.LastAt || prev.LastAt is null ? at : prev.LastAt);
+                perContact[a.ContactId] = (prev.Count + 1, at > prev.LastAt || prev.LastAt is null ? at : prev.LastAt, prev.Score + weight);
             }
         }
 
         return [.. perContact
-            .Select(kv => new ParticipationSummaryEntry(kv.Key, kv.Value.Count, kv.Value.LastAt))
-            .OrderByDescending(e => e.Count).ThenByDescending(e => e.LastAt ?? DateTimeOffset.MinValue).ThenBy(e => e.ContactId)];
+            .Select(kv => new ParticipationSummaryEntry(kv.Key, kv.Value.Count, kv.Value.LastAt, Math.Round(kv.Value.Score, 4)))
+            .OrderByDescending(e => e.Score).ThenByDescending(e => e.Count)
+            .ThenByDescending(e => e.LastAt ?? DateTimeOffset.MinValue).ThenBy(e => e.ContactId)];
     }
+
+    /// <summary>Each past occurrence weighs 0.5^(age / 90 days), so a weekly series outranks a one-off and people you
+    /// stopped meeting fade. The next planned occurrence weighs 1 — a meeting on the books is a current relationship —
+    /// and only the next, so an open-ended series doesn't count forever.</summary>
+    internal static double RecencyWeight(CalendarItem item, DateTimeOffset now, DateTimeOffset? from, DateTimeOffset? to, RecurrenceExpander expander)
+    {
+        var past = expander.Expand(item, Later(now - ScoreLookback, from), Earlier(now, to))
+            .Sum(s => Math.Pow(0.5, (now - s) / HalfLife));
+        var planned = expander.Expand(item, Later(now, from), Earlier(now + NextLookahead, to)).Count > 0 ? 1 : 0;
+        return past + planned;
+    }
+
+    private static DateTimeOffset Later(DateTimeOffset a, DateTimeOffset? b) => b is { } v && v > a ? v : a;
+
+    private static DateTimeOffset Earlier(DateTimeOffset a, DateTimeOffset? b) => b is { } v && v < a ? v : a;
 
     /// <summary>Runs one command against the item. <paramref name="decide"/> returns the events to append — none when
     /// the item already says so — or the reason the command can't apply.</summary>

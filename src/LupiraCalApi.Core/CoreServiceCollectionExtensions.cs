@@ -51,6 +51,7 @@ public static class CoreServiceCollectionExtensions
 
         services.AddSingleton<IFireMaterializer, FireMaterializer>();
         services.AddSingleton<RecurrenceExpander>();
+        services.TryAddSingleton(TimeProvider.System);
         services.AddScoped<CompletenessResolver>();
         services.AddScoped<AccessResolver>();
         services.AddScoped<PrincipalDirectory>();

@@ -214,7 +214,7 @@ public sealed class CalendarTools
     }
 
     [McpServerTool(Name = "participation_summary")]
-    [Description("Per-contact participation across the caller's readable calendars: {contactId, count, lastAt}, ordered most-interacted first. Use it to rank ambiguous contact matches (e.g. lupira-contact resolve_contacts candidates) by real interaction. Optional from/to restricts to occurrences in that window.")]
+    [Description("Per-contact participation across the caller's readable calendars: {contactId, count, lastAt, score}, ordered by score — recency-weighted interaction (each past occurrence 0.5^(age / 90 days), the next planned one 1), so people you stopped meeting fade. Use it to rank ambiguous contact matches (e.g. lupira-contact resolve_contacts candidates) by real interaction. Optional from/to restricts to occurrences in that window.")]
     public static async Task<IReadOnlyList<ParticipationSummaryEntry>> ParticipationSummary(
         ParticipationService participation, CurrentUser user,
         [Description("Window start, ISO 8601 (optional; default all-time).")] DateTimeOffset? from = null,

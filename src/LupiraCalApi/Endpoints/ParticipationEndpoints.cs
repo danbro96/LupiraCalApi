@@ -50,7 +50,7 @@ public static class ParticipationEndpoints
         app.MapGet("/participation/summary", (DateTimeOffset? from, DateTimeOffset? to, ParticipationHandler h, CancellationToken ct) => h.SummaryAsync(from, to, ct))
             .RequireAuthorization("ApiPolicy").WithTags("Participation")
             .WithName("GetParticipationSummary")
-            .WithSummary("Per-contact participation across your readable calendars (contactId, item count, most recent occurrence start), ordered most-interacted first. Optional from/to restricts the window. A ranking signal for contact pickers/resolvers.")
+            .WithSummary("Per-contact participation across your readable calendars (contactId, item count, most recent occurrence start, recency-weighted score), ordered by score: each past occurrence weighs 0.5^(age / 90 days), the next planned one 1. Optional from/to restricts the window. A ranking signal for contact pickers/resolvers.")
             .Produces<List<ParticipationSummaryEntry>>(StatusCodes.Status200OK);
 
         return app;
