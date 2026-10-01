@@ -7,14 +7,12 @@ using LupiraCalApi.Core.Dtos.Sync;
 using LupiraCalApi.Core.Mappers;
 using Marten;
 
-namespace LupiraCalApi.Core.Application.Dav;
+namespace LupiraCalApi.Core.Application.Sync;
 
 /// <summary>
-/// The offline-client changes feed: account-wide (everything the caller can read), paged strictly by each item's
-/// <c>UpdatedSequence</c> watermark (index-backed — one document query, never a raw-event scan). Deletions and
-/// visibility losses (membership removed, calendar unshared) surface as tombstone ids on incremental pulls.
-/// Requires the item projection to be rebuilt once after deploy (<c>--rebuild-items</c>) so pre-existing
-/// documents carry a watermark.
+/// The offline-client changes feed: items filed (any status) to a calendar the caller can read, paged by
+/// <c>UpdatedSequence</c> (index-backed). Unfiles and deletes surface as tombstones on deltas; an access change
+/// restarts the stream (<see cref="SyncCursor"/>). Pre-watermark documents need one <c>--rebuild-items</c>.
 /// </summary>
 public sealed class SyncFeed(IQuerySession session, AccessResolver access, CompletenessResolver completeness)
 {
@@ -23,16 +21,24 @@ public sealed class SyncFeed(IQuerySession session, AccessResolver access, Compl
 
     public async Task<OpResult<SyncChangesResponse>> ChangesAsync(Guid principalId, string? since, int? limit, CancellationToken ct = default)
     {
-        long cursor = 0;
-        if (!string.IsNullOrWhiteSpace(since) && (!long.TryParse(since, out cursor) || cursor < 0))
-            return OpResult<SyncChangesResponse>.Invalid("since must be a cursor previously returned by this endpoint (or omitted for a full sync).");
+        SyncCursor? given = null;
+        if (!string.IsNullOrWhiteSpace(since))
+        {
+            if (!SyncCursor.TryParse(since, out var parsed))
+                return OpResult<SyncChangesResponse>.Invalid("since must be a cursor previously returned by this endpoint (or omitted for a full sync).");
+            given = parsed;
+        }
         var take = Math.Clamp(limit ?? DefaultLimit, 1, MaxLimit);
+
+        var readable = (await access.AccessibleCalendarIdsAsync(principalId, ct)).ToArray();
+        var scope = SyncCursor.ScopeOf(readable);
+        var reset = given?.Scope != scope;
+        var cursor = reset ? 0 : given!.Value.Sequence;
         var fullSync = cursor == 0;
 
-        var visible = (await access.AccessibleCalendarIdsAsync(principalId, ct)).ToHashSet();
-
+        // Memberships are re-statused, never dropped, so unfiled items still match and get tombstoned.
         var page = await session.Query<CalendarItem>()
-            .Where(i => i.UpdatedSequence > cursor)
+            .Where(i => i.UpdatedSequence > cursor && i.Calendars.Any(m => readable.Contains(m.CalendarId)))
             .OrderBy(i => i.UpdatedSequence)
             .Take(take + 1)
             .ToListAsync(ct);
@@ -45,9 +51,9 @@ public sealed class SyncFeed(IQuerySession session, AccessResolver access, Compl
         foreach (var i in rows)
         {
             var visibleLive = i.DeletedAt is null
-                && i.Calendars.Any(m => m.Status == CalendarEntryStatus.Accepted && visible.Contains(m.CalendarId));
+                && i.Calendars.Any(m => m.Status == CalendarEntryStatus.Accepted && readable.Contains(m.CalendarId));
             if (visibleLive) changed.Add(i);
-            // Full sync replaces the mirror wholesale, so tombstones would be noise; bare ids leak nothing.
+            // Full sync replaces the mirror wholesale, so tombstones would be noise.
             else if (!fullSync) deleted.Add(i.Id);
         }
 
@@ -55,8 +61,9 @@ public sealed class SyncFeed(IQuerySession session, AccessResolver access, Compl
         var next = rows.Count > 0 ? rows[^1].UpdatedSequence : cursor;
         return OpResult<SyncChangesResponse>.Ok(new SyncChangesResponse
         {
-            Cursor = next.ToString(),
+            Cursor = new SyncCursor(next, scope).ToString(),
             HasMore = hasMore,
+            Reset = reset,
             Changed = [.. changed.Select(i => new SyncChangeDto { Item = i.ToResponse(scores[i.Id]), Guards = SectionGuardsDto.From(i) })],
             Deleted = deleted,
         });

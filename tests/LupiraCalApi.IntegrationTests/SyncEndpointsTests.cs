@@ -127,6 +127,74 @@ public class SyncEndpointsTests(CalApiTestFactory factory) : IntegrationTest(fac
     }
 
     [Fact]
+    public async Task Another_callers_churn_is_neither_content_nor_tombstones()
+    {
+        var api = Factory.ApiClient("a@x");
+        var stranger = Factory.ApiClient("b@x");
+        var cal = await CreateCalendarAsync(api);
+        await CreateItemAsync(api, cal, "Before");
+
+        var full = await ChangesAsync(stranger);
+        Assert.Empty(full.Changed);
+        Assert.False(full.HasMore);
+
+        var item = await CreateItemAsync(api, cal, "After");
+        (await api.DeleteAsync($"/items/{item.Id}")).EnsureSuccessStatusCode();
+        var delta = await ChangesAsync(stranger, full.Cursor);
+        Assert.False(delta.Reset);
+        Assert.Empty(delta.Changed);
+        Assert.Empty(delta.Deleted);
+        Assert.Equal(full.Cursor, delta.Cursor);
+    }
+
+    [Fact]
+    public async Task A_grant_restarts_the_stream_so_the_shared_calendar_arrives()
+    {
+        var api = Factory.ApiClient("a@x");
+        var partner = Factory.ApiClient("b@x");
+        var cal = await CreateCalendarAsync(api);
+        var item = await CreateItemAsync(api, cal, "Shared");
+
+        var before = await ChangesAsync(partner);
+        Assert.True(before.Reset);
+        Assert.Empty(before.Changed);
+
+        (await api.PostAsJsonAsync($"/calendars/{cal}/owners", new GrantOwnerRequest { Email = "b@x", Access = "owner" })).EnsureSuccessStatusCode();
+        var afterGrant = await ChangesAsync(partner, before.Cursor);
+        Assert.True(afterGrant.Reset);
+        Assert.Contains(afterGrant.Changed, c => c.Item.Id == item.Id);
+
+        var settled = await ChangesAsync(partner, afterGrant.Cursor);
+        Assert.False(settled.Reset);
+        Assert.Empty(settled.Changed);
+
+        (await api.DeleteAsync($"/calendars/{cal}/owners?email=b@x")).EnsureSuccessStatusCode();
+        var afterRevoke = await ChangesAsync(partner, settled.Cursor);
+        Assert.True(afterRevoke.Reset);
+        Assert.DoesNotContain(afterRevoke.Changed, c => c.Item.Id == item.Id);
+    }
+
+    [Fact]
+    public async Task A_bare_sequence_cursor_restarts_the_stream_once()
+    {
+        var api = Factory.ApiClient("a@x");
+        var cal = await CreateCalendarAsync(api);
+        var item = await CreateItemAsync(api, cal, "Lunch");
+
+        var legacy = await ChangesAsync(api, "999999999");
+        Assert.True(legacy.Reset);
+        Assert.Contains(legacy.Changed, c => c.Item.Id == item.Id);
+        Assert.False((await ChangesAsync(api, legacy.Cursor)).Reset);
+    }
+
+    [Fact]
+    public async Task A_garbage_cursor_is_rejected()
+    {
+        var resp = await Factory.ApiClient("a@x").GetAsync("/sync/changes?since=nope");
+        Assert.Equal(HttpStatusCode.BadRequest, resp.StatusCode);
+    }
+
+    [Fact]
     public async Task Replayed_update_with_same_idempotency_key_does_not_reapply()
     {
         var api = Factory.ApiClient("a@x");

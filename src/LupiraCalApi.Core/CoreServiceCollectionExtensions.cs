@@ -7,6 +7,7 @@ using LupiraCalApi.Core.Application.Calendars;
 using LupiraCalApi.Core.Application.Dav;
 using LupiraCalApi.Core.Application.Hotspots;
 using LupiraCalApi.Core.Application.Items;
+using LupiraCalApi.Core.Application.Sync;
 using LupiraCalApi.Core.Auth;
 using LupiraCalApi.Core.Data;
 using LupiraCalApi.Core.Domain.CalendarItems;
