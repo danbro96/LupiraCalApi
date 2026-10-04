@@ -213,6 +213,8 @@ builder.Services.ConfigureHttpJsonOptions(o =>
 builder.Services.AddProblemDetails(o => o.CustomizeProblemDetails = ctx =>
     ctx.ProblemDetails.Extensions["traceId"] = Activity.Current?.Id ?? ctx.HttpContext.TraceIdentifier);
 builder.Services.AddExceptionHandler<ProblemExceptionHandler>();
+// Binding failures throw into ProblemExceptionHandler outside Development too, so a 400 says which input was wrong.
+builder.Services.Configure<RouteHandlerOptions>(o => o.ThrowOnBadRequest = true);
 
 builder.Services.AddOpenApi("v1", options =>
 {

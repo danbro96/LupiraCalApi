@@ -18,7 +18,7 @@ internal static class ItemDetailsMapper
         if (details?.Travel is { } t)
         {
             if (category != ItemCategory.Trip)
-                return $"Travel detail applies only to category 'Trip', not '{Name(category)}'.";
+                return $"Travel detail applies only to category 'Trip'; the item's category is {Name(category)}. Set Category to Trip in the same request.";
             // REST/MCP require resolved place ids (free-text places are a CalDAV-only affordance). ToPlace/FromPlace, if sent, are labels.
             if (t.ToPlaceId is null)
                 return "Travel destination must be a resolved place — set ToPlaceId (resolve via geo first). Travel is replaced wholesale — resend the full member.";
@@ -29,7 +29,7 @@ internal static class ItemDetailsMapper
         return null;
     }
 
-    private static string Name(ItemCategory? c) => c?.ToString() ?? "none";
+    private static string Name(ItemCategory? c) => c is { } known ? $"'{known}'" : "unset";
 
     /// <summary>Resolve the request into a details carrier. <c>Details</c> is null when nothing is set (so the caller preserves
     /// existing details). <c>Unresolved</c> is true when a travel place had text but geo (configured) couldn't resolve it — a

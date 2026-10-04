@@ -171,7 +171,8 @@ public sealed class OutboundIdentityTests(CalApiTestFactory factory) : Integrati
         Assert.Equal((1, 4, 3), (hotspot.EventCount, hotspot.PhotoCount, hotspot.ActiveDays));
         Assert.Equal("Cafe Central", hotspot.Label);
         Assert.Equal(Email, Assert.Single(net.Calls, c => c.Path == "/photos/density").DevUser);
-        Assert.Equal(Email, Assert.Single(net.Calls, c => c.Path == "/places/lookup").DevUser);
+        // One lookup checks the place id on create, one anchors the hotspot.
+        Assert.Equal([Email, Email], net.Calls.Where(c => c.Path == "/places/lookup").Select(c => c.DevUser));
         Assert.DoesNotContain(net.Calls, c => c.GrantType is not null);
     }
 }

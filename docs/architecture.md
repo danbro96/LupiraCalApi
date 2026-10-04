@@ -253,8 +253,10 @@ via `IContactResolver` (fail-open: an unreachable resolver never blocks the writ
 
 Places live in **LupiraGeoApi**, not here. A calendar item (`PlaceId` + denormalized `LocationLabel`) and a
 travel leg (`ToPlaceId`/`FromPlaceId` + `ToLabel`/`FromLabel`) reference a geo place by id (no FK, no local
-catalog). Free-text locations are resolved once at write time via `IGeoResolver` (the host's `GeoApiClient`
-→ geo, or a no-op when geo is unconfigured, in which case the label is the raw text). The denormalized
+catalog). REST/MCP writes take resolved ids only: each newly supplied place id (item or travel leg) is looked up in
+geo — an unknown id is rejected, a merged-away id is stored as its survivor, and an unreachable geo fails the write.
+Free-text locations (DAV only) are resolved once at write time via `IGeoResolver` (the host's `GeoApiClient`
+→ geo, or a no-op when geo is unconfigured, in which case the label is the raw text and ids pass unchecked). The denormalized
 label means ICS generation and the read DTOs never call geo. `GET /items/by-place/{placeId}` is the
 reverse index (items at a geo place).
 
@@ -290,7 +292,7 @@ surfaced on the agenda via a `Relation`.
 | Detail | Applies to | Key fields |
 |---|---|---|
 | `Booking` (`BookingDetail`) | any category | `ProviderContactId`, `ConfirmationNumber`, `Reference`, `Url`, `Amount`, `Currency`, `PartySize` |
-| `Travel` (`TravelLeg`) | a `Trip` | `Mode`, `ToPlaceId`/`ToLabel`, `FromPlaceId`/`FromLabel`, `DepartAt`, `ArriveAt`, `Carrier`, `ServiceNumber`, `DeparturePoint`, `ArrivalPoint`, `Seat`, `DriverContactId` (`ToPlace` free-text required on write) |
+| `Travel` (`TravelLeg`) | a `Trip` | `Mode`, `ToPlaceId`/`ToLabel`, `FromPlaceId`/`FromLabel`, `DepartAt`, `ArriveAt`, `Carrier`, `ServiceNumber`, `DeparturePoint`, `ArrivalPoint`, `Seat`, `DriverContactId` (`ToPlaceId` required on write) |
 | `Presence` (`PresenceDetail`) | authored via the request's `Availability` field | `Status` (whole-day or timed presence segment; a day may hold several) |
 
 ## Calendar classification

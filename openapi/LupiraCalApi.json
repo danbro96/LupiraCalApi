@@ -4355,7 +4355,7 @@
               "null",
               "string"
             ],
-            "description": "A pre-resolved LupiraGeoApi place id. When set, it is attached directly (no geocoding, no fail-closed risk) and\n            string? CreateCalendarItemRequest.Location, if any, is kept as the label. Trust the caller resolved it via geo first.",
+            "description": "A pre-resolved LupiraGeoApi place id, kept with string? CreateCalendarItemRequest.Location as its label. Checked against geo: an\n            unknown id is rejected, a merged-away id is stored as its survivor.",
             "format": "uuid"
           },
           "status": {
@@ -4385,7 +4385,8 @@
             "type": [
               "null",
               "string"
-            ]
+            ],
+            "description": "IANA zone of a timed item. Omitted ⇒ the calendar's zone, else the server default; the end zone follows it."
           },
           "startDate": {
             "type": [
@@ -5841,7 +5842,7 @@
               "null",
               "string"
             ],
-            "description": "Pre-resolved place ids (places-first imports). When set, used directly instead of resolving\n            string? TravelLegRequest.ToPlace/string? TravelLegRequest.FromPlace text; the text, if any, is kept as the label.",
+            "description": "Pre-resolved place ids (places-first imports), checked against geo like the item's PlaceId. When set, used\n            instead of resolving string? TravelLegRequest.ToPlace/string? TravelLegRequest.FromPlace text; the text, if any, is kept as the label.",
             "format": "uuid"
           },
           "fromPlaceId": {
@@ -5937,7 +5938,7 @@
               "null",
               "string"
             ],
-            "description": "Re-anchor the location to a resolved LupiraGeoApi place; string? UpdateCalendarItemRequest.Location then carries the display\n            label. Set bool UpdateCalendarItemRequest.PlaceIdProvided with a null value to clear. Free-text-only location changes are rejected\n            (resolve via geo first).",
+            "description": "Re-anchor the location to a resolved LupiraGeoApi place; string? UpdateCalendarItemRequest.Location then carries the display\n            label. Set bool UpdateCalendarItemRequest.PlaceIdProvided with a null value to clear. Free-text-only location changes are rejected\n            (resolve via geo first); an id geo doesn't know is rejected, a merged-away id is stored as its survivor.",
             "format": "uuid"
           },
           "placeIdProvided": {
@@ -5995,7 +5996,7 @@
               "null",
               "string"
             ],
-            "description": "IANA timezone names annotating the timed start/end."
+            "description": "IANA timezone names annotating the timed start/end. An update that makes the item timed or sets a recurrence\n            rule without a zone gets the calendar's zone, else the server default; the end zone follows the start."
           },
           "startTimezoneProvided": {
             "type": "boolean"

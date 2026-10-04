@@ -15,9 +15,10 @@ Docs: `docs/` (architecture, event-sourcing, temporal-backbone, dav-backend-cont
 ## Time zones
 - Ical.Net `VTimeZone.FromDateTimeZone` emits wrong offsets for some anchors. `VTimeZoneBuilder` (NodaTime tzdb) is the replacement for DAV TZID output.
 - Server-side expansion is unaffected: Ical.Net recurrence resolves IANA ids via NodaTime.
+- REST/MCP timed writes without a start zone get the calendar's zone, else `Items:DefaultTimezone` (Europe/Stockholm); end zone follows. Fixed-UTC calendar zones are bootstrap placeholders and skipped. All-day stays zone-less.
 
 ## API
-- `Idempotency-Key` binds as `Guid?`. A non-GUID key returns a bare 400 that reads like payload validation.
+- `Idempotency-Key` binds as `Guid?`. `ThrowOnBadRequest` routes binding failures to `ProblemExceptionHandler`; a non-GUID key returns detail "Idempotency-Key must be a GUID.".
 
 ## Event-shape changes
 - One-shot in-place conversion command: rewrite stored rows into the new shape under the same event names, back up first, run once, `--rebuild-items`, then delete the command and the old-shape types.

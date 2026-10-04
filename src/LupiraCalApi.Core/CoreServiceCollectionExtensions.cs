@@ -11,6 +11,7 @@ using LupiraCalApi.Core.Application.Sync;
 using LupiraCalApi.Core.Auth;
 using LupiraCalApi.Core.Data;
 using LupiraCalApi.Core.Domain.CalendarItems;
+using LupiraCalApi.Core.Domain.Shared;
 using LupiraCalApi.Core.Scheduling;
 using Marten;
 using Microsoft.Extensions.Configuration;
@@ -64,6 +65,9 @@ public static class CoreServiceCollectionExtensions
         services.TryAddSingleton<IPhotoDensitySource, NullPhotoDensitySource>();
         services.AddScoped<LupiraCalApi.Core.Data.Idempotency>();
         services.AddScoped<CalendarService>();
+        services.AddOptions<ItemTimeZoneOptions>().BindConfiguration(ItemTimeZoneOptions.SectionName)
+            .Validate(o => TimeZoneIds.Find(o.DefaultTimezone) is not null, "Items:DefaultTimezone is not a known time zone.")
+            .ValidateOnStart();
         services.AddScoped<CalendarItemService>();
         services.AddScoped<CurationService>();
         services.AddScoped<ParticipationService>();

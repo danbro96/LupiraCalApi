@@ -30,8 +30,8 @@ public sealed class CreateCalendarItemRequest
     /// is used only as the display label.</summary>
     public string? Location { get; set; }
 
-    /// <summary>A pre-resolved LupiraGeoApi place id. When set, it is attached directly (no geocoding, no fail-closed risk) and
-    /// <see cref="Location"/>, if any, is kept as the label. Trust the caller resolved it via geo first.</summary>
+    /// <summary>A pre-resolved LupiraGeoApi place id, kept with <see cref="Location"/> as its label. Checked against geo: an
+    /// unknown id is rejected, a merged-away id is stored as its survivor.</summary>
     public Guid? PlaceId { get; set; }
 
     public string? Status { get; set; }
@@ -42,6 +42,7 @@ public sealed class CreateCalendarItemRequest
 
     public DateTimeOffset? EndsAt { get; set; }
 
+    /// <summary>IANA zone of a timed item. Omitted ⇒ the calendar's zone, else the server default; the end zone follows it.</summary>
     public string? StartTimezone { get; set; }
 
     public DateOnly? StartDate { get; set; }

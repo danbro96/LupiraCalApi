@@ -72,8 +72,11 @@ public sealed class ItemsByPlaceTests(CalApiTestFactory factory) : IntegrationTe
         PlaceId = placeId,
     };
 
-    private static async Task SeedAsync(HttpClient api, Guid calId)
+    // Written without geo so the stored ids predate the merge; a write through geo stores the survivor.
+    private async Task SeedBeforeMergeAsync()
     {
+        var api = Factory.ApiClient(Alice);
+        var calId = await CreateCalendarAsync(api);
         (await api.PostAsJsonAsync("/items", Flight(calId, "Out", Arlanda, Riga))).EnsureSuccessStatusCode();
         (await api.PostAsJsonAsync("/items", Flight(calId, "Home", Riga, ArlandaDuplicate))).EnsureSuccessStatusCode();
         (await api.PostAsJsonAsync("/items", Meeting(calId, ArlandaDuplicate))).EnsureSuccessStatusCode();
@@ -85,8 +88,8 @@ public sealed class ItemsByPlaceTests(CalApiTestFactory factory) : IntegrationTe
     [Fact]
     public async Task Items_on_a_merged_away_place_are_listed_under_its_survivor()
     {
+        await SeedBeforeMergeAsync();
         var api = Client(new MergingGeo());
-        await SeedAsync(api, await CreateCalendarAsync(api));
 
         Assert.Equal(["Check-in", "Home", "Out"], await TitlesAtAsync(api, Arlanda));
         Assert.Equal(["Check-in", "Home", "Out"], await TitlesAtAsync(api, ArlandaDuplicate));
@@ -96,8 +99,8 @@ public sealed class ItemsByPlaceTests(CalApiTestFactory factory) : IntegrationTe
     [Fact]
     public async Task Geo_unavailable_falls_back_to_exact_ids()
     {
+        await SeedBeforeMergeAsync();
         var api = Client(new MergingGeo(down: true));
-        await SeedAsync(api, await CreateCalendarAsync(api));
 
         Assert.Equal(["Out"], await TitlesAtAsync(api, Arlanda));
         Assert.Equal(["Check-in", "Home"], await TitlesAtAsync(api, ArlandaDuplicate));

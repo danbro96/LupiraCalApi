@@ -11,8 +11,8 @@ public sealed class TravelLegRequest
 
     public string? FromPlace { get; set; }
 
-    /// <summary>Pre-resolved place ids (places-first imports). When set, used directly instead of resolving
-    /// <see cref="ToPlace"/>/<see cref="FromPlace"/> text; the text, if any, is kept as the label.</summary>
+    /// <summary>Pre-resolved place ids (places-first imports), checked against geo like the item's PlaceId. When set, used
+    /// instead of resolving <see cref="ToPlace"/>/<see cref="FromPlace"/> text; the text, if any, is kept as the label.</summary>
     public Guid? ToPlaceId { get; set; }
 
     public Guid? FromPlaceId { get; set; }

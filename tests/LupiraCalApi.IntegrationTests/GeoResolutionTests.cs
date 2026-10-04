@@ -1,6 +1,9 @@
 using System.Net;
 using System.Net.Http.Json;
+using System.Text.Json;
+using System.Text.Json.Serialization;
 using LupiraCalApi.Core.Abstractions;
+using LupiraCalApi.Core.Domain.Shared;
 using LupiraCalApi.Core.Dtos.CalendarItems;
 using Microsoft.AspNetCore.TestHost;
 using Microsoft.Extensions.DependencyInjection;
@@ -36,6 +39,26 @@ public sealed class GeoResolutionTests(CalApiTestFactory factory) : IntegrationT
             Task.FromResult<GeoPlaceResolution?>(null);
         public Task<IReadOnlyDictionary<Guid, GeoPlaceSummary>?> LookupAsync(IReadOnlyCollection<Guid> placeIds, CancellationToken ct = default) =>
             Task.FromResult<IReadOnlyDictionary<Guid, GeoPlaceSummary>?>(null);
+        public Task<GeoPlaceSummary?> NearestAsync(double latitude, double longitude, int radiusM, CancellationToken ct = default) =>
+            Task.FromResult<GeoPlaceSummary?>(null);
+        public Task<GeoReverseLabel?> ReverseAsync(double latitude, double longitude, CancellationToken ct = default) =>
+            Task.FromResult<GeoReverseLabel?>(null);
+    }
+
+    // A gazetteer of known ids; a merged-away id looks up as its survivor.
+    private sealed class GazetteerGeo(Dictionary<Guid, Guid> survivors, bool down = false) : IGeoResolver
+    {
+        public bool IsConfigured => true;
+        public List<Guid> LookedUp { get; } = [];
+        public Task<GeoPlaceResolution?> ResolveAsync(string text, CancellationToken ct = default) =>
+            Task.FromResult<GeoPlaceResolution?>(null);
+        public Task<IReadOnlyDictionary<Guid, GeoPlaceSummary>?> LookupAsync(IReadOnlyCollection<Guid> placeIds, CancellationToken ct = default)
+        {
+            LookedUp.AddRange(placeIds);
+            return Task.FromResult<IReadOnlyDictionary<Guid, GeoPlaceSummary>?>(down ? null : placeIds
+                .Where(survivors.ContainsKey)
+                .ToDictionary(id => id, id => new GeoPlaceSummary(survivors[id], "Place", null, null)));
+        }
         public Task<GeoPlaceSummary?> NearestAsync(double latitude, double longitude, int radiusM, CancellationToken ct = default) =>
             Task.FromResult<GeoPlaceSummary?>(null);
         public Task<GeoReverseLabel?> ReverseAsync(double latitude, double longitude, CancellationToken ct = default) =>
@@ -249,5 +272,107 @@ public sealed class GeoResolutionTests(CalApiTestFactory factory) : IntegrationT
         var dto = (await resp.Content.ReadFromJsonAsync<CalendarItemDto>())!;
         Assert.Null(dto.PlaceId);
         Assert.Null(dto.LocationLabel);
+    }
+    // ---- Supplied place ids are checked against geo (merge redirects followed) ----
+
+    private static CreateCalendarItemRequest Trip(Guid calId, Guid to, Guid? from = null) => new()
+    {
+        CalendarId = calId,
+        Title = "Flight",
+        Category = "Trip",
+        IsAllDay = false,
+        StartsAt = new DateTimeOffset(2026, 7, 1, 9, 0, 0, TimeSpan.Zero),
+        EndsAt = new DateTimeOffset(2026, 7, 1, 11, 0, 0, TimeSpan.Zero),
+        StartTimezone = "UTC",
+        Details = new ItemDetailsRequest { Travel = new TravelLegRequest { Mode = TransportMode.Flight, ToPlaceId = to, FromPlaceId = from } },
+    };
+
+    [Fact]
+    public async Task Rest_create_rejects_a_place_id_geo_does_not_know()
+    {
+        var api = ClientWith(new GazetteerGeo([]));
+        var calId = await CreateCalendarAsync(api);
+        var ghost = Guid.NewGuid();
+
+        var resp = await api.PostAsJsonAsync("/items", Coffee(calId, location: "Ghost", placeId: ghost));
+
+        Assert.Equal(HttpStatusCode.BadRequest, resp.StatusCode);
+        var body = await resp.Content.ReadAsStringAsync();
+        Assert.Contains("Unknown place id", body);
+        Assert.Contains(ghost.ToString(), body);
+    }
+
+    [Fact]
+    public async Task Rest_create_with_a_merged_away_place_id_stores_the_survivor()
+    {
+        var (mergedAway, survivor) = (Guid.NewGuid(), Guid.NewGuid());
+        var api = ClientWith(new GazetteerGeo(new() { [mergedAway] = survivor }));
+        var calId = await CreateCalendarAsync(api);
+
+        var resp = await api.PostAsJsonAsync("/items", Coffee(calId, location: "Cafe Central", placeId: mergedAway));
+
+        resp.EnsureSuccessStatusCode();
+        Assert.Equal(survivor, (await resp.Content.ReadFromJsonAsync<CalendarItemDto>())!.PlaceId);
+    }
+
+    [Fact]
+    public async Task Rest_create_with_a_place_id_fails_when_geo_is_unreachable()
+    {
+        var api = ClientWith(new GazetteerGeo([], down: true));
+        var calId = await CreateCalendarAsync(api);
+
+        var resp = await api.PostAsJsonAsync("/items", Coffee(calId, location: "Cafe Central", placeId: Guid.NewGuid()));
+
+        Assert.Equal(HttpStatusCode.BadRequest, resp.StatusCode);
+        Assert.Contains("geo unavailable", await resp.Content.ReadAsStringAsync());
+    }
+
+    [Fact]
+    public async Task Rest_update_rejects_a_new_place_id_geo_does_not_know()
+    {
+        var known = Guid.NewGuid();
+        var api = ClientWith(new GazetteerGeo(new() { [known] = known }));
+        var calId = await CreateCalendarAsync(api);
+        var item = await CreateWithPlaceAsync(api, calId, known);
+
+        var resp = await api.PutAsJsonAsync($"/items/{item.Id}", new UpdateCalendarItemRequest { PlaceId = Guid.NewGuid(), Location = "Ghost" });
+
+        Assert.Equal(HttpStatusCode.BadRequest, resp.StatusCode);
+        Assert.Contains("Unknown place id", await resp.Content.ReadAsStringAsync());
+    }
+
+    [Fact]
+    public async Task Rest_update_re_sending_the_stored_place_id_does_not_consult_geo()
+    {
+        var known = Guid.NewGuid();
+        var geo = new GazetteerGeo(new() { [known] = known });
+        var api = ClientWith(geo);
+        var calId = await CreateCalendarAsync(api);
+        var item = await CreateWithPlaceAsync(api, calId, known);
+        geo.LookedUp.Clear();
+
+        var resp = await api.PutAsJsonAsync($"/items/{item.Id}", new UpdateCalendarItemRequest { Title = "Coffee v2", PlaceId = known });
+
+        resp.EnsureSuccessStatusCode();
+        Assert.DoesNotContain(known, geo.LookedUp);
+    }
+
+    [Fact]
+    public async Task Rest_travel_place_ids_are_checked_and_redirected()
+    {
+        var (to, mergedFrom, survivorFrom) = (Guid.NewGuid(), Guid.NewGuid(), Guid.NewGuid());
+        var api = ClientWith(new GazetteerGeo(new() { [to] = to, [mergedFrom] = survivorFrom }));
+        var calId = await CreateCalendarAsync(api);
+
+        var unknown = await api.PostAsJsonAsync("/items", Trip(calId, Guid.NewGuid()));
+        Assert.Equal(HttpStatusCode.BadRequest, unknown.StatusCode);
+        Assert.Contains("Unknown place id", await unknown.Content.ReadAsStringAsync());
+
+        var ok = await api.PostAsJsonAsync("/items", Trip(calId, to, mergedFrom));
+        ok.EnsureSuccessStatusCode();
+        var json = new JsonSerializerOptions(JsonSerializerDefaults.Web) { Converters = { new JsonStringEnumConverter() } };
+        var travel = (await ok.Content.ReadFromJsonAsync<CalendarItemDto>(json))!.Details!.Travel!;
+        Assert.Equal(to, travel.ToPlaceId);
+        Assert.Equal(survivorFrom, travel.FromPlaceId);
     }
 }

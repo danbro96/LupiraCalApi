@@ -18,7 +18,7 @@ public sealed class UpdateCalendarItemRequest
 
     /// <summary>Re-anchor the location to a resolved LupiraGeoApi place; <see cref="Location"/> then carries the display
     /// label. Set <see cref="PlaceIdProvided"/> with a null value to clear. Free-text-only location changes are rejected
-    /// (resolve via geo first).</summary>
+    /// (resolve via geo first); an id geo doesn't know is rejected, a merged-away id is stored as its survivor.</summary>
     public Guid? PlaceId { get; set; }
 
     public bool PlaceIdProvided { get; set; }
@@ -42,7 +42,8 @@ public sealed class UpdateCalendarItemRequest
 
     public bool EndDateProvided { get; set; }
 
-    /// <summary>IANA timezone names annotating the timed start/end.</summary>
+    /// <summary>IANA timezone names annotating the timed start/end. An update that makes the item timed or sets a recurrence
+    /// rule without a zone gets the calendar's zone, else the server default; the end zone follows the start.</summary>
     public string? StartTimezone { get; set; }
 
     public bool StartTimezoneProvided { get; set; }

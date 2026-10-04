@@ -17,7 +17,7 @@ internal sealed class ProblemExceptionHandler(ILogger<ProblemExceptionHandler> l
         {
             await Results.Problem(
                 title: "Bad request",
-                detail: bad.Message,
+                detail: IsIdempotencyKeyFailure(context.Request, bad) ? "Idempotency-Key must be a GUID." : bad.Message,
                 statusCode: bad.StatusCode,
                 type: $"https://httpstatuses.com/{bad.StatusCode}").ExecuteAsync(context);
             return true;
@@ -31,4 +31,9 @@ internal sealed class ProblemExceptionHandler(ILogger<ProblemExceptionHandler> l
             type: "https://httpstatuses.com/500").ExecuteAsync(context);
         return true;
     }
+
+    // Endpoints bind the header as `Guid? idempotencyKey`; the framework message names that parameter.
+    private static bool IsIdempotencyKeyFailure(HttpRequest request, BadHttpRequestException bad) =>
+        request.Headers.TryGetValue("Idempotency-Key", out var key) && !Guid.TryParse(key.ToString(), out _)
+        && bad.Message.Contains("idempotencyKey", StringComparison.Ordinal);
 }

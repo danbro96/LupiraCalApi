@@ -13,6 +13,8 @@ using LupiraCalApi.Core.Dtos.CalendarItems;
 using LupiraCalApi.Core.Mappers;
 using LupiraCalApi.Core.Serialization;
 using Marten;
+using Microsoft.Extensions.Options;
+using NodaTime;
 
 namespace LupiraCalApi.Core.Application.Items;
 
@@ -24,7 +26,7 @@ namespace LupiraCalApi.Core.Application.Items;
 /// <c>occurredAt</c> client stamp (see <see cref="SectionLww"/>); creates need neither — <c>SourceKey</c>
 /// already makes them replay-safe.
 /// </summary>
-public sealed class CalendarItemService(IDocumentSession session, AccessResolver access, RecurrenceExpander expander, IGeoResolver geo, CompletenessResolver completeness, IContactResolver contacts, Idempotency idempotency)
+public sealed class CalendarItemService(IDocumentSession session, AccessResolver access, RecurrenceExpander expander, IGeoResolver geo, CompletenessResolver completeness, IContactResolver contacts, Idempotency idempotency, IOptions<ItemTimeZoneOptions> zones)
 {
     /// <summary>Resolve free-text to a (geo place id, label). Geo owns resolution. <c>Unresolved</c> is true only when geo
     /// IS configured but couldn't resolve (unreachable/GeocodeUnavailable) — a retryable failure the REST/MCP paths reject
@@ -41,6 +43,44 @@ public sealed class CalendarItemService(IDocumentSession session, AccessResolver
     private const string LocationUnresolved = "Location could not be resolved to a place (geo unavailable) — retry.";
     private const string TravelUnresolved = "A travel location could not be resolved to a place (geo unavailable) — retry.";
     private const string LocationNeedsPlaceId = "Resolve the location to a LupiraGeoApi place first and pass PlaceId — free-text Location is accepted only over CalDAV.";
+    private const string PlaceUnverified = "A place id could not be verified (geo unavailable) — retry.";
+
+    /// <summary>Checks supplied place ids against geo and maps each to its surviving id (a merged-away id redirects).
+    /// Ids in <paramref name="stored"/> are already on the item and pass unchecked. Geo unconfigured (dev/test) ⇒ ids pass as-is.</summary>
+    private async Task<OpResult<Dictionary<Guid, Guid>>> CanonicalPlacesAsync(IEnumerable<Guid?> supplied, IEnumerable<Guid> stored, CancellationToken ct)
+    {
+        var ids = supplied.OfType<Guid>().Except(stored).Distinct().ToList();
+        if (ids.Count == 0 || !geo.IsConfigured) return OpResult<Dictionary<Guid, Guid>>.Ok([]);
+        if (await geo.LookupAsync(ids, ct) is not { } found) return OpResult<Dictionary<Guid, Guid>>.Invalid(PlaceUnverified);
+        var unknown = ids.Where(id => !found.ContainsKey(id)).ToList();
+        if (unknown.Count > 0)
+            return OpResult<Dictionary<Guid, Guid>>.Invalid(
+                $"Unknown place id {string.Join(", ", unknown)}: no such LupiraGeoApi place. Resolve or create the place in geo first.");
+        return OpResult<Dictionary<Guid, Guid>>.Ok(found.ToDictionary(kv => kv.Key, kv => kv.Value.PlaceId));
+    }
+
+    private static Guid? Canonical(Dictionary<Guid, Guid> survivors, Guid? id) =>
+        id is { } g ? survivors.GetValueOrDefault(g, g) : null;
+
+    private static ItemDetails? WithCanonicalTravel(ItemDetails? details, Dictionary<Guid, Guid> survivors) =>
+        details?.Travel is { } leg
+            ? details with { Travel = leg with { ToPlaceId = Canonical(survivors, leg.ToPlaceId), FromPlaceId = Canonical(survivors, leg.FromPlaceId) } }
+            : details;
+
+    /// <summary>The zone a timed item written without one gets: the first of its calendars carrying a real zone, else
+    /// <see cref="ItemTimeZoneOptions.DefaultTimezone"/>.</summary>
+    private async Task<string> DefaultZoneAsync(IEnumerable<Guid> calendarIds, CancellationToken ct)
+    {
+        foreach (var calendarId in calendarIds)
+        {
+            // Bootstrap stamps calendars "UTC" as a placeholder; a fixed-UTC zone carries no wall-clock intent.
+            if (await session.LoadAsync<Calendar>(calendarId, ct) is { DefaultTimezone: { } id }
+                && TimeZoneIds.Find(id) is { } zone && !(zone.MinOffset == Offset.Zero && zone.MaxOffset == Offset.Zero))
+                return id;
+        }
+
+        return zones.Value.DefaultTimezone;
+    }
 
     public async Task<OpResult<CalendarItemDto>> CreateAsync(Guid principalId, CreateCalendarItemRequest r, CancellationToken ct = default)
     {
@@ -81,8 +121,20 @@ public sealed class CalendarItemService(IDocumentSession session, AccessResolver
         if (!TryParseDefined<ItemCategory>(r.Category, out var category)) return OpResult<CalendarItemDto>.Invalid(UnknownEnum<ItemCategory>("category", r.Category!));
         if (ItemDetailsMapper.Validate(category, r.Details) is { } detailsError)
             return OpResult<CalendarItemDto>.Invalid(detailsError);
+        var places = await CanonicalPlacesAsync([placeId, r.Details?.Travel?.ToPlaceId, r.Details?.Travel?.FromPlaceId], [], ct);
+        if (places.Status != OpStatus.Ok) return OpResult<CalendarItemDto>.Invalid(places.Error!);
+        placeId = Canonical(places.Value!, placeId);
         var (details, detailsUnresolved) = await ItemDetailsMapper.BuildAsync(r.Details, r.Availability, geo, ct);
         if (detailsUnresolved) return OpResult<CalendarItemDto>.Invalid(TravelUnresolved);
+        details = WithCanonicalTravel(details, places.Value!);
+
+        var startTimezone = string.IsNullOrWhiteSpace(r.StartTimezone) ? null : r.StartTimezone;
+        string? endTimezone = null;
+        if (!r.IsAllDay && r.StartsAt is not null)
+        {
+            startTimezone ??= await DefaultZoneAsync(r.CalendarId is { } zoneCal ? [zoneCal] : [], ct);
+            endTimezone = startTimezone;
+        }
 
         // Parent by explicit id, else by the parent's SourceKey (batch imports resolve it deterministically).
         var parentItemId = r.ParentItemId ?? (string.IsNullOrWhiteSpace(r.ParentSourceKey) ? (Guid?) null : DeterministicGuid.From(r.ParentSourceKey!.Trim()));
@@ -90,7 +142,7 @@ public sealed class CalendarItemService(IDocumentSession session, AccessResolver
             return OpResult<CalendarItemDto>.Invalid(parentError);
 
         var fields = new CalendarItemFields(r.Title, r.Description, status, r.IsAllDay, r.StartsAt, r.EndsAt,
-            r.StartTimezone, null, r.StartDate, r.EndDate, r.RecurrenceRule, null, null, null, category, placeId, locationLabel, parentItemId, r.Tags,
+            startTimezone, endTimezone, r.StartDate, r.EndDate, r.RecurrenceRule, null, null, null, category, placeId, locationLabel, parentItemId, r.Tags,
             r.StartPrecision, r.EndPrecision);
 
         var events = new List<object> { new ItemScheduled(id, uid, fields, details) };
@@ -410,10 +462,20 @@ public sealed class CalendarItemService(IDocumentSession session, AccessResolver
         // Validate against the resolved category (an omitted r.Category means "the item's current category").
         if (ItemDetailsMapper.Validate(category, r.Details) is { } detailsError)
             return OpResult<CalendarItemDto>.Invalid(detailsError);
+        var places = await CanonicalPlacesAsync([placeId, r.Details?.Travel?.ToPlaceId, r.Details?.Travel?.FromPlaceId], PlaceRefs(item), ct);
+        if (places.Status != OpStatus.Ok) return OpResult<CalendarItemDto>.Invalid(places.Error!);
+        placeId = Canonical(places.Value!, placeId);
         if (r.ParentItemId == id) return OpResult<CalendarItemDto>.Invalid("An item cannot be its own parent.");
         if (await ParentInvalidAsync(principalId, r.ParentItemId, ct) is { } parentError)
             return OpResult<CalendarItemDto>.Invalid(parentError);
         var parentItemId = r.ParentItemIdProvided ? r.ParentItemId : r.ParentItemId ?? item.ParentItemId;
+
+        var becameTimed = item.IsAllDay || item.StartsAt is null;
+        if (!isAllDay && startsAt is not null && string.IsNullOrWhiteSpace(startTimezone) && (becameTimed || !string.IsNullOrWhiteSpace(r.RecurrenceRule)))
+        {
+            startTimezone = await DefaultZoneAsync(item.Calendars.Where(m => m.Status == CalendarEntryStatus.Accepted).Select(m => m.CalendarId), ct);
+            if (string.IsNullOrWhiteSpace(endTimezone)) endTimezone = startTimezone;
+        }
 
         // Moving the series (time, day, zone, rule) carries its per-occurrence changes along with their occurrences.
         var deviations = SeriesDeviations.Of(item).Follow(
@@ -426,6 +488,7 @@ public sealed class CalendarItemService(IDocumentSession session, AccessResolver
 
         var (incoming, detailsUnresolved) = await ItemDetailsMapper.BuildAsync(r.Details, r.Availability, geo, ct);
         if (detailsUnresolved) return OpResult<CalendarItemDto>.Invalid(TravelUnresolved);
+        incoming = WithCanonicalTravel(incoming, places.Value!);
         // null incoming keeps existing details (Apply only overwrites when non-null); reclassifying with none clears the previous details.
         var details = incoming is null
             ? (categoryChanged ? new ItemDetails() : null)

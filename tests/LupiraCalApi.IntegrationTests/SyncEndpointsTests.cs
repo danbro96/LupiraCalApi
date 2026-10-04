@@ -220,6 +220,24 @@ public class SyncEndpointsTests(CalApiTestFactory factory) : IntegrationTest(fac
     }
 
     [Fact]
+    public async Task Non_guid_idempotency_key_is_a_problem_naming_the_header()
+    {
+        var api = Factory.ApiClient("a@x");
+        var cal = await CreateCalendarAsync(api);
+        var item = await CreateItemAsync(api, cal, "Original");
+
+        using var req = new HttpRequestMessage(HttpMethod.Put, $"/items/{item.Id}")
+        { Content = JsonContent.Create(new UpdateCalendarItemRequest { Title = "Applied" }, options: Json) };
+        req.Headers.Add("Idempotency-Key", "not-a-guid");
+        var resp = await api.SendAsync(req);
+
+        Assert.Equal(HttpStatusCode.BadRequest, resp.StatusCode);
+        Assert.Equal("application/problem+json", resp.Content.Headers.ContentType?.MediaType);
+        using var problem = JsonDocument.Parse(await resp.Content.ReadAsStringAsync());
+        Assert.Equal("Idempotency-Key must be a GUID.", problem.RootElement.GetProperty("detail").GetString());
+    }
+
+    [Fact]
     public async Task Replayed_delete_with_same_idempotency_key_succeeds_instead_of_404()
     {
         var api = Factory.ApiClient("a@x");

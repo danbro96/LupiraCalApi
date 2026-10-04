@@ -28,6 +28,13 @@ public class ItemDetailsMapperTests
     }
 
     [Fact]
+    public void Validate_travel_rejection_names_the_current_category()
+    {
+        Assert.Contains("category is 'General'", ItemDetailsMapper.Validate(ItemCategory.General, new ItemDetailsRequest { Travel = SomeTravel() }));
+        Assert.Contains("category is unset", ItemDetailsMapper.Validate(null, new ItemDetailsRequest { Travel = SomeTravel() }));
+    }
+
+    [Fact]
     public void Validate_accepts_travel_on_a_trip()
     {
         Assert.Null(ItemDetailsMapper.Validate(ItemCategory.Trip, new ItemDetailsRequest { Travel = SomeTravel() }));
