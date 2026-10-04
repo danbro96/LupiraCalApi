@@ -16,7 +16,7 @@ Docs: `docs/` (architecture, event-sourcing, temporal-backbone, dav-backend-cont
 - Ical.Net `VTimeZone.FromDateTimeZone` emits wrong offsets for some anchors. `VTimeZoneBuilder` (NodaTime tzdb) is the replacement for DAV TZID output.
 - Server-side expansion is unaffected: Ical.Net recurrence resolves IANA ids via NodaTime.
 - Calendars always carry an IANA zone: supplied on create/bootstrap (non-IANA = 400), else `Items:DefaultTimezone` (Europe/Stockholm). Owner changes it via `PUT /calendars/{id}` / `update_calendar`.
-- REST/MCP timed writes without a start zone get the calendar's zone, else `Items:DefaultTimezone`; end zone follows. Fixed-UTC calendar zones are skipped: legacy bootstrap placeholders can't be told from a chosen UTC. All-day stays zone-less.
+- REST/MCP timed writes without a start zone get the calendar's zone, else `Items:DefaultTimezone`; end zone follows. All-day stays zone-less.
 
 ## API
 - `Idempotency-Key` binds as `Guid?`. `ThrowOnBadRequest` routes binding failures to `ProblemExceptionHandler`; a non-GUID key returns detail "Idempotency-Key must be a GUID.".

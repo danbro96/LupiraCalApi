@@ -66,15 +66,13 @@ public sealed class CalendarItemService(IDocumentSession session, AccessResolver
             ? details with { Travel = leg with { ToPlaceId = Canonical(survivors, leg.ToPlaceId), FromPlaceId = Canonical(survivors, leg.FromPlaceId) } }
             : details;
 
-    /// <summary>The zone a timed item written without one gets: the first of its calendars carrying a real zone, else
+    /// <summary>The zone a timed item written without one gets: the first of its calendars carrying a valid zone, else
     /// <see cref="ItemTimeZoneOptions.DefaultTimezone"/>.</summary>
     private async Task<string> DefaultZoneAsync(IEnumerable<Guid> calendarIds, CancellationToken ct)
     {
         foreach (var calendarId in calendarIds)
         {
-            // Legacy bootstrap stamped "UTC" as a placeholder, indistinguishable from a chosen UTC, so fixed-UTC never counts.
-            if (await session.LoadAsync<Calendar>(calendarId, ct) is { DefaultTimezone: { } id }
-                && TimeZoneIds.Find(id) is { } zone && !(zone.MinOffset == Offset.Zero && zone.MaxOffset == Offset.Zero))
+            if (await session.LoadAsync<Calendar>(calendarId, ct) is { DefaultTimezone: { } id } && TimeZoneIds.Find(id) is not null)
                 return id;
         }
 

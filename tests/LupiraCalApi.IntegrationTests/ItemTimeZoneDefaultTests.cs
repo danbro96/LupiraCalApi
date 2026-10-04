@@ -39,11 +39,18 @@ public sealed class ItemTimeZoneDefaultTests(CalApiTestFactory factory) : Integr
         return (await q.LoadAsync<CalendarItem>(id))!;
     }
 
+    private static async Task<Guid> CreateCalendarWithoutZoneAsync(HttpClient api)
+    {
+        var resp = await api.PostAsJsonAsync("/calendars", new CreateCalendarRequest { Slug = "work", Type = "calendar" });
+        resp.EnsureSuccessStatusCode();
+        return (await resp.Content.ReadFromJsonAsync<ContainerDto>())!.Id;
+    }
+
     [Fact]
-    public async Task Timed_create_without_zone_in_a_utc_calendar_gets_the_configured_default()
+    public async Task Timed_create_without_zone_in_a_calendar_created_without_one_gets_the_configured_default()
     {
         var api = Factory.ApiClient(Email);
-        var calId = await CreateCalendarAsync(api);
+        var calId = await CreateCalendarWithoutZoneAsync(api);
 
         var dto = await CreateAsync(api, Timed(calId));
 
@@ -65,10 +72,23 @@ public sealed class ItemTimeZoneDefaultTests(CalApiTestFactory factory) : Integr
     }
 
     [Fact]
+    public async Task Timed_create_without_zone_honours_a_utc_calendar()
+    {
+        var api = Factory.ApiClient(Email);
+        var cal = await api.PostAsJsonAsync("/calendars", new CreateCalendarRequest { Slug = "utc", Type = "calendar", DefaultTimezone = "UTC" });
+        cal.EnsureSuccessStatusCode();
+        var calId = (await cal.Content.ReadFromJsonAsync<ContainerDto>())!.Id;
+
+        var dto = await CreateAsync(api, Timed(calId));
+
+        Assert.Equal("UTC", dto.StartTimezone);
+    }
+
+    [Fact]
     public async Task Timed_create_keeps_a_supplied_zone_and_the_end_follows_it()
     {
         var api = Factory.ApiClient(Email);
-        var calId = await CreateCalendarAsync(api);
+        var calId = await CreateCalendarWithoutZoneAsync(api);
 
         var dto = await CreateAsync(api, Timed(calId, "Europe/London"));
 
@@ -80,7 +100,7 @@ public sealed class ItemTimeZoneDefaultTests(CalApiTestFactory factory) : Integr
     public async Task All_day_create_stays_zone_less()
     {
         var api = Factory.ApiClient(Email);
-        var calId = await CreateCalendarAsync(api);
+        var calId = await CreateCalendarWithoutZoneAsync(api);
 
         var dto = await CreateAsync(api, new CreateCalendarItemRequest
         {
@@ -94,7 +114,7 @@ public sealed class ItemTimeZoneDefaultTests(CalApiTestFactory factory) : Integr
     public async Task Weekly_item_without_zone_keeps_its_wall_clock_across_dst()
     {
         var api = Factory.ApiClient(Email);
-        var calId = await CreateCalendarAsync(api);
+        var calId = await CreateCalendarWithoutZoneAsync(api);
         await CreateAsync(api, Timed(calId, rule: "FREQ=WEEKLY;COUNT=3"));
 
         var occ = await api.GetFromJsonAsync<List<CalendarItemOccurrenceDto>>(
@@ -110,7 +130,7 @@ public sealed class ItemTimeZoneDefaultTests(CalApiTestFactory factory) : Integr
     public async Task Update_from_all_day_to_timed_without_zone_gets_the_default()
     {
         var api = Factory.ApiClient(Email);
-        var calId = await CreateCalendarAsync(api);
+        var calId = await CreateCalendarWithoutZoneAsync(api);
         var item = await CreateAsync(api, new CreateCalendarItemRequest
         {
             CalendarId = calId, Title = "Holiday", IsAllDay = true, StartDate = new DateOnly(2026, 10, 19), EndDate = new DateOnly(2026, 10, 19),
@@ -130,7 +150,7 @@ public sealed class ItemTimeZoneDefaultTests(CalApiTestFactory factory) : Integr
     public async Task Update_giving_a_zone_less_timed_item_a_rule_gets_the_default()
     {
         var api = Factory.ApiClient(Email);
-        var calId = await CreateCalendarAsync(api);
+        var calId = await CreateCalendarWithoutZoneAsync(api);
         var item = await CreateAsync(api, Timed(calId, "UTC"));
         (await api.PutAsJsonAsync($"/items/{item.Id}", new UpdateCalendarItemRequest
         {
@@ -150,7 +170,7 @@ public sealed class ItemTimeZoneDefaultTests(CalApiTestFactory factory) : Integr
         var api = Factory.WithWebHostBuilder(b => b.ConfigureAppConfiguration(c =>
             c.AddInMemoryCollection(new Dictionary<string, string?> { ["Items:DefaultTimezone"] = "Europe/Helsinki" }))).CreateClient();
         api.DefaultRequestHeaders.Add("X-Dev-User", Email);
-        var calId = await CreateCalendarAsync(api);
+        var calId = await CreateCalendarWithoutZoneAsync(api);
 
         var dto = await CreateAsync(api, Timed(calId));
 
