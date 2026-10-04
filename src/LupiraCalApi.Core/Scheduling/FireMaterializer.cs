@@ -47,7 +47,7 @@ public sealed class FireMaterializer(RecurrenceExpander expander) : IFireMateria
     private static TimeSpan Duration(CalendarItem i)
     {
         if (i.StartsAt is { } s && i.EndsAt is { } e) return e - s;
-        if (i.IsAllDay && i.StartDate is { } sd && i.EndDate is { } ed) return ed.ToDateTime(TimeOnly.MinValue) - sd.ToDateTime(TimeOnly.MinValue);
+        if (i.IsAllDay && i.StartDate is { } sd && i.EndDate is { } ed) return TimeSpan.FromDays(ed.DayNumber - sd.DayNumber + 1);
         return TimeSpan.Zero;
     }
 

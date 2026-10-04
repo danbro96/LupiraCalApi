@@ -244,8 +244,9 @@ membership is "unfiled".
 
 Each attendee is an embedded `ItemAttendee` keyed by `ParticipationId` and referencing a LupiraContactApi
 contact by bare Guid. The timestamps (`InvitedAt`/`RespondedAt`/`AttendedAt`/`LeftAt`) are the recorded
-times of the participation events folded into the snapshot; `Status` is the latest RSVP. "No-show" is
-derived, not stored. When the contact hop is configured (`Contacts:BaseUrl`), an invite validates the id
+times of the participation events folded into the snapshot; `Status` is the latest RSVP. Declined and attended
+exclude each other, latest event wins: a decline clears `AttendedAt`, a later attendance turns a decline into
+`Accepted`. "No-show" is derived, not stored. When the contact hop is configured (`Contacts:BaseUrl`), an invite validates the id
 via `IContactResolver` (fail-open: an unreachable resolver never blocks the write).
 
 ### Places

@@ -77,6 +77,20 @@ public class CalendarItemTests
     }
 
     [Fact]
+    public void Import_without_a_parent_keeps_the_existing_parent()
+    {
+        var id = Guid.NewGuid();
+        var parent = Guid.NewGuid();
+        var i = new CalendarItem();
+        i.Apply(Ev(new ItemScheduled(id, "u@x", Fields() with { ParentItemId = parent }, null)));
+
+        i.Apply(Ev(new ItemImported(id, "u@x", Fields() with { Title = "Edited on the phone" })));
+
+        Assert.Equal("Edited on the phone", i.Title);
+        Assert.Equal(parent, i.ParentItemId);
+    }
+
+    [Fact]
     public void Revised_updates_fields_and_content_hash()
     {
         var id = Guid.NewGuid();
@@ -232,6 +246,38 @@ public class CalendarItemTests
         Assert.Equal(respondedAt, a.RespondedAt);
         Assert.Equal(attendedAt, a.AttendedAt);
         Assert.Null(a.LeftAt);
+    }
+
+    [Fact]
+    public void Declining_after_attending_clears_the_attendance()
+    {
+        var id = Guid.NewGuid();
+        var pid = Guid.NewGuid();
+        var i = Scheduled(id);
+        i.Apply(Ev(new AttendeeInvited(id, pid, Guid.NewGuid(), ParticipationRole.RequiredParticipant, T0)));
+        i.Apply(Ev(new AttendanceConfirmed(id, pid, T0.AddDays(1))));
+        i.Apply(Ev(new InvitationResponded(id, pid, ParticipationStatus.Declined, T0.AddDays(2))));
+
+        var a = Assert.Single(i.Attendees);
+        Assert.Equal(ParticipationStatus.Declined, a.Status);
+        Assert.Null(a.AttendedAt);
+    }
+
+    [Fact]
+    public void Attending_after_declining_accepts()
+    {
+        var id = Guid.NewGuid();
+        var pid = Guid.NewGuid();
+        var attendedAt = T0.AddDays(2);
+        var i = Scheduled(id);
+        i.Apply(Ev(new AttendeeInvited(id, pid, Guid.NewGuid(), ParticipationRole.RequiredParticipant, T0)));
+        i.Apply(Ev(new InvitationResponded(id, pid, ParticipationStatus.Declined, T0.AddDays(1))));
+        i.Apply(Ev(new AttendanceConfirmed(id, pid, attendedAt)));
+
+        var a = Assert.Single(i.Attendees);
+        Assert.Equal(ParticipationStatus.Accepted, a.Status);
+        Assert.Equal(attendedAt, a.RespondedAt);
+        Assert.Equal(attendedAt, a.AttendedAt);
     }
 
     [Fact]

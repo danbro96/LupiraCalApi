@@ -109,6 +109,22 @@ public class FireMaterializerTests
     }
 
     [Fact]
+    public void OnEnd_of_an_all_day_item_fires_after_its_last_day()
+    {
+        var item = new CalendarItem
+        {
+            Id = Guid.NewGuid(),
+            IsAllDay = true,
+            StartDate = new DateOnly(2026, 7, 1),
+            EndDate = new DateOnly(2026, 7, 2),
+            Calendars = [new CalendarMembership { CalendarId = Guid.NewGuid(), Status = CalendarEntryStatus.Accepted }],
+            Prompt = Prompt(new PromptFire(PromptFireKind.OnEnd, null, null)),
+        };
+        var row = Assert.Single(Mat.Materialize(item, Ctx(), Now, Horizon));
+        Assert.Equal(new DateTimeOffset(2026, 7, 3, 0, 0, 0, TimeSpan.Zero), row.OccurrenceAt);
+    }
+
+    [Fact]
     public void Expire_after_keys_off_the_calendar_kind()
     {
         var item = Timed(OnStart);

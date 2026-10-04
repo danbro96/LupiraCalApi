@@ -252,6 +252,37 @@ public sealed class CalendarItemsRestTests(CalApiTestFactory factory) : Integrat
     }
 
     [Fact]
+    public async Task Update_moves_and_clears_the_parent()
+    {
+        var api = Factory.ApiClient(Email);
+        var calId = await CreateCalendarAsync(api);
+        var first = await CreateAsync(api, calId, "First trip");
+        var second = await CreateAsync(api, calId, "Second trip");
+        var leg = await CreateAsync(api, calId, "Flight", parentItemId: first.Id);
+
+        (await api.PutAsJsonAsync($"/items/{leg.Id}", new UpdateCalendarItemRequest { ParentItemId = second.Id })).EnsureSuccessStatusCode();
+        Assert.Equal(second.Id, (await api.GetFromJsonAsync<CalendarItemDto>($"/items/{leg.Id}"))!.ParentItemId);
+
+        (await api.PutAsJsonAsync($"/items/{leg.Id}", new UpdateCalendarItemRequest { Title = "Renamed" })).EnsureSuccessStatusCode();
+        Assert.Equal(second.Id, (await api.GetFromJsonAsync<CalendarItemDto>($"/items/{leg.Id}"))!.ParentItemId);
+
+        (await api.PutAsJsonAsync($"/items/{leg.Id}", new UpdateCalendarItemRequest { ParentItemId = null, ParentItemIdProvided = true })).EnsureSuccessStatusCode();
+        Assert.Null((await api.GetFromJsonAsync<CalendarItemDto>($"/items/{leg.Id}"))!.ParentItemId);
+    }
+
+    [Fact]
+    public async Task Update_rejects_an_item_as_its_own_parent()
+    {
+        var api = Factory.ApiClient(Email);
+        var calId = await CreateCalendarAsync(api);
+        var item = await CreateAsync(api, calId);
+
+        var resp = await api.PutAsJsonAsync($"/items/{item.Id}", new UpdateCalendarItemRequest { ParentItemId = item.Id });
+
+        Assert.Equal(HttpStatusCode.BadRequest, resp.StatusCode);
+    }
+
+    [Fact]
     public async Task Search_parent_title_gated_by_access()
     {
         var alice = Factory.ApiClient(Email);

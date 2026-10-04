@@ -31,6 +31,70 @@ public class ICalSerializerTests
         var p = ICalSerializer.ParseICalendar(ics);
         Assert.True(p.IsAllDay);
         Assert.Equal(new DateOnly(2026, 12, 24), p.StartDate);
+        Assert.Equal(new DateOnly(2026, 12, 25), p.EndDate);
+    }
+
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public void One_day_all_day_item_ends_exclusively_the_next_day(bool withEndDate)
+    {
+        var day = new DateOnly(2026, 12, 24);
+        var ics = ICalSerializer.ToICalendar("uid@x", "Eve", null, null, null, true, null, null, day, withEndDate ? day : null, null);
+
+        Assert.Contains("DTSTART;VALUE=DATE:20261224", ics);
+        Assert.Contains("DTEND;VALUE=DATE:20261225", ics);
+    }
+
+    [Fact]
+    public void Multi_day_all_day_item_round_trips_its_last_day()
+    {
+        var ics = ICalSerializer.ToICalendar("uid@x", "Trip", null, null, null, true, null, null, new DateOnly(2026, 7, 10), new DateOnly(2026, 7, 13), null);
+        var p = ICalSerializer.ParseICalendar(ics);
+
+        Assert.Contains("DTEND;VALUE=DATE:20260714", ics);
+        Assert.Equal(new DateOnly(2026, 7, 10), p.StartDate);
+        Assert.Equal(new DateOnly(2026, 7, 13), p.EndDate);
+    }
+
+    [Theory]
+    [InlineData("DTEND;VALUE=DATE:20260714\r\n", 13)]
+    [InlineData("DTEND;VALUE=DATE:20260710\r\n", 10)]   // zero-length: clamped to the start
+    [InlineData("", null)]
+    public void All_day_end_parses_to_the_last_day(string dtend, int? lastDay)
+    {
+        var ics = "BEGIN:VCALENDAR\r\nVERSION:2.0\r\nPRODID:-//t//EN\r\nBEGIN:VEVENT\r\nUID:e1@x\r\nDTSTART;VALUE=DATE:20260710\r\n" +
+            dtend + "END:VEVENT\r\nEND:VCALENDAR\r\n";
+
+        Assert.Equal(lastDay is { } d ? new DateOnly(2026, 7, d) : null, ICalSerializer.ParseICalendar(ics).EndDate);
+    }
+
+    [Fact]
+    public void All_day_override_keeps_the_series_length()
+    {
+        var moved = new[] { new OccurrenceOverride(Utc(2026, 8, 3), Utc(2026, 8, 4), null, null, null, null, null) };
+        var ics = ICalSerializer.ToICalendar("week@x", "Camp", null, null, null, true, null, null,
+            new DateOnly(2026, 7, 27), new DateOnly(2026, 7, 29), "FREQ=WEEKLY;COUNT=3", null, null, moved);
+
+        var change = ics[ics.LastIndexOf("BEGIN:VEVENT", StringComparison.Ordinal)..];
+        Assert.Contains("RECURRENCE-ID;VALUE=DATE:20260803", change);
+        Assert.Contains("DTSTART;VALUE=DATE:20260804", change);
+        Assert.Contains("DTEND;VALUE=DATE:20260807", change);
+        Assert.Equal(moved, ICalSerializer.ParseICalendar(ics).OccurrenceOverrides);
+    }
+
+    [Fact]
+    public void All_day_regeneration_is_byte_stable_with_a_fixed_product_id()
+    {
+        string Regen() => ICalSerializer.ToICalendar("trip@x", "Trip", null, null, null, true, null, null,
+            new DateOnly(2026, 7, 10), new DateOnly(2026, 7, 13), "FREQ=YEARLY", [Utc(2027, 7, 10)]);
+
+        var first = Regen();
+        Assert.Equal(first, Regen());
+        Assert.Contains("PRODID:-//lupira.com//LupiraCal//EN", first);
+        var p = ICalSerializer.ParseICalendar(first);
+        Assert.Equal(first, ICalSerializer.ToICalendar("trip@x", p.Title, null, null, null, p.IsAllDay, null, null,
+            p.StartDate, p.EndDate, p.RecurrenceRule, p.ExcludedOccurrences));
     }
 
     [Fact]

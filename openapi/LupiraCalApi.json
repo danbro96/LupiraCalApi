@@ -888,7 +888,7 @@
         "tags": [
           "CalendarItems"
         ],
-        "summary": "Update a calendar item. Plain fields: omitted = kept; fields paired with a *Provided sentinel are written verbatim when it is true (enables clearing recurrence, switching all-day, editing timezones). Offline clients send Idempotency-Key (their command id) + body OccurredAt for replay-safe, last-writer-wins updates.",
+        "summary": "Update a calendar item. Plain fields: omitted = kept; fields paired with a *Provided sentinel are written verbatim when it is true (enables clearing recurrence, switching all-day, editing timezones, clearing the parent with ParentItemIdProvided=true and a null ParentItemId). Offline clients send Idempotency-Key (their command id) + body OccurredAt for replay-safe, last-writer-wins updates.",
         "operationId": "UpdateItem",
         "parameters": [
           {
@@ -6045,8 +6045,11 @@
               "null",
               "string"
             ],
-            "description": "Re-nest under a parent item (or set for the first time). Must exist and be accessible; omitted ⇒ kept.",
+            "description": "Re-nest under a parent item (or set for the first time). Must exist, be accessible and not be the item\n            itself; omitted ⇒ kept. Set bool UpdateCalendarItemRequest.ParentItemIdProvided with a null value to clear.",
             "format": "uuid"
+          },
+          "parentItemIdProvided": {
+            "type": "boolean"
           },
           "category": {
             "type": [

@@ -1,6 +1,8 @@
 using System.Net;
 using System.Net.Http.Json;
 using LupiraCalApi.Core.Application.Dav;
+using LupiraCalApi.Core.Domain.Shared;
+using LupiraCalApi.Core.Dtos.CalendarItems;
 using LupiraCalApi.Dav;
 using Xunit;
 
@@ -79,6 +81,46 @@ public sealed class DavBackendTests(CalApiTestFactory factory) : IntegrationTest
         Assert.Contains("july@x", uids);
         Assert.Contains("weekly@x", uids);
         Assert.DoesNotContain("sept@x", uids);
+    }
+
+    [Fact]
+    public async Task All_day_put_stores_the_inclusive_last_day_and_serves_the_exclusive_end()
+    {
+        var api = Factory.ApiClient(Email);
+        var cal = await CreateCalendarAsync(api);
+        var day = new DateOnly(2026, 7, 10);
+
+        (await PutIcsBackendAsync(api, Email, cal, "day@x", MinimalIcsAllDay("day@x", "Holiday", day))).EnsureSuccessStatusCode();
+
+        var item = await api.GetFromJsonAsync<CalendarItemDto>($"/items/{DeterministicGuid.From("day@x")}");
+        Assert.Equal(day, item!.StartDate);
+        Assert.Equal(day, item.EndDate);
+        Assert.Contains("DTEND;VALUE=DATE:20260711", await (await GetIcsBackendAsync(api, Email, cal, "day@x")).Content.ReadAsStringAsync());
+    }
+
+    [Fact]
+    public async Task Put_on_a_nested_item_keeps_its_parent()
+    {
+        var api = Factory.ApiClient(Email);
+        var cal = await CreateCalendarAsync(api);
+        var trip = await PostItemAsync(api, new CreateCalendarItemRequest { CalendarId = cal, Title = "Trip", IsAllDay = true, StartDate = new DateOnly(2026, 7, 1) });
+        var leg = await PostItemAsync(api, new CreateCalendarItemRequest
+        {
+            CalendarId = cal, Title = "Flight", StartsAt = Start, EndsAt = Start.AddHours(2), SourceKey = "leg@x", ParentItemId = trip.Id,
+        });
+
+        (await PutIcsBackendAsync(api, Email, cal, "leg@x", MinimalIcs("leg@x", "Flight SK123", Start))).EnsureSuccessStatusCode();
+
+        var after = await api.GetFromJsonAsync<CalendarItemDto>($"/items/{leg.Id}");
+        Assert.Equal("Flight SK123", after!.Title);
+        Assert.Equal(trip.Id, after.ParentItemId);
+    }
+
+    private static async Task<CalendarItemDto> PostItemAsync(HttpClient api, CreateCalendarItemRequest request)
+    {
+        var resp = await api.PostAsJsonAsync("/items", request);
+        resp.EnsureSuccessStatusCode();
+        return (await resp.Content.ReadFromJsonAsync<CalendarItemDto>())!;
     }
 
     [Fact]

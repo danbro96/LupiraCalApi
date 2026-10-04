@@ -133,7 +133,10 @@ public sealed class CalendarItem
         Touch(e);
         Id = e.Data.ItemId;
         ExternalId = e.Data.ExternalId;
+        var parent = ParentItemId;
         SetFields(e.Data.Parsed);
+        // The sync adapter has no way to carry a parent, so its null means "unchanged".
+        ParentItemId = e.Data.Parsed.ParentItemId ?? parent;
         DeletedAt = null;
         (CoreTs, CoreCmd) = SectionLww.Stamp(e, null, null);
         RecomputeHash();
@@ -264,6 +267,7 @@ public sealed class CalendarItem
         });
     }
 
+    // Declined and attended exclude each other; the later event wins.
     public void Apply(IEvent<InvitationResponded> e)
     {
         Touch(e);
@@ -271,13 +275,20 @@ public sealed class CalendarItem
         {
             a.Status = e.Data.Status;
             a.RespondedAt = e.Data.At;
+            if (a.Status == ParticipationStatus.Declined) a.AttendedAt = null;
         }
     }
 
     public void Apply(IEvent<AttendanceConfirmed> e)
     {
         Touch(e);
-        if (Find(e.Data.ParticipationId) is { } a) a.AttendedAt = e.Data.At;
+        if (Find(e.Data.ParticipationId) is not { } a) return;
+        a.AttendedAt = e.Data.At;
+        if (a.Status == ParticipationStatus.Declined)
+        {
+            a.Status = ParticipationStatus.Accepted;
+            a.RespondedAt = e.Data.At;
+        }
     }
 
     public void Apply(IEvent<ParticipantLeft> e)

@@ -62,8 +62,11 @@ public sealed class UpdateCalendarItemRequest
 
     public Domain.Shared.DatePrecision? EndPrecision { get; set; }
 
-    /// <summary>Re-nest under a parent item (or set for the first time). Must exist and be accessible; omitted ⇒ kept.</summary>
+    /// <summary>Re-nest under a parent item (or set for the first time). Must exist, be accessible and not be the item
+    /// itself; omitted ⇒ kept. Set <see cref="ParentItemIdProvided"/> with a null value to clear.</summary>
     public Guid? ParentItemId { get; set; }
+
+    public bool ParentItemIdProvided { get; set; }
 
     /// <summary>Reclassify the item (enum name). Changing the category drops the previous details.</summary>
     public string? Category { get; set; }

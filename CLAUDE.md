@@ -9,7 +9,7 @@ Docs: `docs/` (architecture, event-sourcing, temporal-backbone, dav-backend-cont
 
 ## All-day spans
 - All-day `EndDate` is the inclusive last day.
-- `ICalSerializer` is hands-off. Emit writes the inclusive `EndDate` to `DTEND` (DAV clients see multi-day items a day short); parse reads exclusive `DTEND` into `EndDate` (a day too long); `SeriesLength` treats it as exclusive. The three errors cancel in internal round-trips, so DAV bytes are untrustworthy for all-day spans. Do not repair one without the others.
+- `ICalSerializer` is the only place that knows `DTEND` is exclusive: emit writes `EndDate + 1`, parse reads `DTEND - 1` (clamped to `StartDate`), `SeriesLength` counts days inclusively.
 - ICS `DTEND` is exclusive (RFC 5545): imports seed `endDate = DTEND - 1`.
 
 ## Time zones

@@ -55,7 +55,7 @@ public static class CalendarItemsEndpoints
 
         group.MapPut("/{id:guid}", (Guid id, UpdateCalendarItemRequest body, [FromHeader(Name = "Idempotency-Key")] Guid? idempotencyKey, CalendarItemsHandler h, CancellationToken ct) => h.UpdateAsync(id, body, idempotencyKey, ct))
             .WithName("UpdateItem")
-            .WithSummary("Update a calendar item. Plain fields: omitted = kept; fields paired with a *Provided sentinel are written verbatim when it is true (enables clearing recurrence, switching all-day, editing timezones). Offline clients send Idempotency-Key (their command id) + body OccurredAt for replay-safe, last-writer-wins updates.")
+            .WithSummary("Update a calendar item. Plain fields: omitted = kept; fields paired with a *Provided sentinel are written verbatim when it is true (enables clearing recurrence, switching all-day, editing timezones, clearing the parent with ParentItemIdProvided=true and a null ParentItemId). Offline clients send Idempotency-Key (their command id) + body OccurredAt for replay-safe, last-writer-wins updates.")
             .Produces<CalendarItemDto>(StatusCodes.Status200OK)
             .ProducesProblem(StatusCodes.Status404NotFound);
 

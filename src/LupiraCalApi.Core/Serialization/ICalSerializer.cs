@@ -11,9 +11,13 @@ namespace LupiraCalApi.Core.Serialization;
 
 /// <summary>iCalendar (VEVENT) author + parse via Ical.Net. The structured fields are canonical: GET regenerates the ICS on
 /// demand from them, and the ETag is derived from that generated form — so generation must be deterministic (fixed DTSTAMP,
-/// no wall-clock fields). Works in primitives so it stays decoupled from the domain aggregates.</summary>
+/// no wall-clock fields). Works in primitives so it stays decoupled from the domain aggregates. The one place that maps the
+/// domain's inclusive all-day <c>EndDate</c> to and from the exclusive DTEND.</summary>
 public static class ICalSerializer
 {
+    // The library default embeds its own version, so every upgrade would change every ETag.
+    private const string ProductId = "-//lupira.com//LupiraCal//EN";
+
     // Fixed so regenerated ICS is byte-stable across reads (the ETag derives from it). DTSTAMP is meaningless for a
     // server-regenerated projection; the canonical state is the structured fields.
     private static readonly CalDateTime StableStamp = new(new DateTime(2000, 1, 1, 0, 0, 0, DateTimeKind.Utc), "UTC");
@@ -32,7 +36,7 @@ public static class ICalSerializer
         if (vtimezone is null) zone = null;
         CalDateTime At(DateTimeOffset x) => Moment(x, isAllDay, zone);
 
-        var calendar = new IcalCalendar();
+        var calendar = new IcalCalendar { ProductId = ProductId };
         var ev = new CalendarEvent { Uid = uid, DtStamp = StableStamp };
 
         if (!string.IsNullOrWhiteSpace(title)) ev.Summary = title;
@@ -43,7 +47,7 @@ public static class ICalSerializer
         if (isAllDay && startDate is { } sd)
         {
             ev.Start = new CalDateTime(sd.Year, sd.Month, sd.Day);
-            var end = endDate ?? sd;
+            var end = (endDate ?? sd).AddDays(1);
             ev.End = new CalDateTime(end.Year, end.Month, end.Day);
         }
         else if (startsAt is { } sa)
@@ -97,7 +101,7 @@ public static class ICalSerializer
 
     private static TimeSpan? SeriesLength(bool isAllDay, DateTimeOffset? startsAt, DateTimeOffset? endsAt, DateOnly? startDate, DateOnly? endDate) =>
         isAllDay
-            ? startDate is { } sd && endDate is { } ed ? ed.ToDateTime(TimeOnly.MinValue) - sd.ToDateTime(TimeOnly.MinValue) : null
+            ? startDate is { } sd && endDate is { } ed ? TimeSpan.FromDays(ed.DayNumber - sd.DayNumber + 1) : null
             : startsAt is { } s && endsAt is { } e ? e - s : null;
 
     private static string StatusText(ItemStatus s) => s switch
@@ -156,7 +160,7 @@ public static class ICalSerializer
 
         if (ev.End is { } e2)
         {
-            if (allDay) endDate = DateOnly.FromDateTime(e2.Value);
+            if (allDay) endDate = DateOnly.FromDateTime(e2.Value).AddDays(-1) is var last && last < startDate ? startDate : last;
             else endsAt = new DateTimeOffset(e2.AsUtc, TimeSpan.Zero);
         }
 
