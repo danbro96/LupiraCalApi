@@ -4,7 +4,6 @@ using LupiraCalApi.Core.Application.Dav;
 using LupiraCalApi.Core.Application.Results;
 using LupiraCalApi.Core.Auth;
 using LupiraCalApi.Core.Data;
-using LupiraCalApi.Core.Data.Migrations;
 using LupiraCalApi.Core.Domain.CalendarItems;
 using LupiraCalApi.Core.Domain.CalendarItems.Events;
 using LupiraCalApi.Core.Domain.Calendars;
@@ -682,7 +681,6 @@ public sealed class CalendarItemService(IDocumentSession session, AccessResolver
             p.StartTimezone, p.EndTimezone, p.StartDate, p.EndDate, p.RecurrenceRule,
             p.ExcludedOccurrences, p.ExtraOccurrences, p.OccurrenceOverrides, null, placeId, locationLabel, null, null);
 
-        session.SetHeader(ImportedAllDayEndMigration.InclusiveEndHeader, true);
         stream.AppendOne(new ItemImported(id, externalId, fields));   // also clears any soft-delete (resurrect)
         if (existing is null || !existing.IsAcceptedIn(calendarId))
             stream.AppendOne(new AddedToCalendar(id, calendarId, CalendarEntryStatus.Accepted, DateTimeOffset.UtcNow));
