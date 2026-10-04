@@ -1,11 +1,11 @@
 using System.ComponentModel;
 using System.Text.Json;
 using System.Text.Json.Nodes;
+using Lupira.Mcp;
 using LupiraCalApi.Auth;
 using LupiraCalApi.Core.Application.Calendars;
 using LupiraCalApi.Core.Application.Hotspots;
 using LupiraCalApi.Core.Application.Items;
-using LupiraCalApi.Core.Application.Results;
 using LupiraCalApi.Core.Dtos.CalendarItems;
 using LupiraCalApi.Core.Dtos.Calendars;
 using LupiraCalApi.Core.Dtos.Hotspots;
@@ -41,7 +41,7 @@ public sealed class CalendarTools
         [Description("Newest first (sort by occurrence start descending).")] bool desc = false)
     {
         var u = await user.GetAsync();
-        return Require(await items.SearchAsync(u.Id, query, from, to, calendarId, tag, parentId, contactId, category, status, skip, take, desc));
+        return (await items.SearchAsync(u.Id, query, from, to, calendarId, tag, parentId, contactId, category, status, skip, take, desc)).Require();
     }
 
     [McpServerTool(Name = "create_item")]
@@ -49,7 +49,7 @@ public sealed class CalendarTools
     public static async Task<CalendarItemDto> CreateItem(CalendarItemService items, CurrentUser user, CreateCalendarItemRequest request)
     {
         var u = await user.GetAsync();
-        return Require(await items.CreateAsync(u.Id, request));
+        return (await items.CreateAsync(u.Id, request)).Require();
     }
 
     [McpServerTool(Name = "create_items_batch")]
@@ -57,7 +57,7 @@ public sealed class CalendarTools
     public static async Task<IReadOnlyList<ItemBatchResult>> CreateItemsBatch(CalendarItemService items, CurrentUser user, CreateCalendarItemsBatchRequest request)
     {
         var u = await user.GetAsync();
-        return Require(await items.CreateBatchAsync(u.Id, request.Items));
+        return (await items.CreateBatchAsync(u.Id, request.Items)).Require();
     }
 
     [McpServerTool(Name = "get_item")]
@@ -66,7 +66,7 @@ public sealed class CalendarTools
         [Description("Calendar item id.")] Guid itemId)
     {
         var u = await user.GetAsync();
-        return Require(await items.GetAsync(u.Id, itemId));
+        return (await items.GetAsync(u.Id, itemId)).Require();
     }
 
     [McpServerTool(Name = "update_item")]
@@ -75,7 +75,7 @@ public sealed class CalendarTools
         [Description("Calendar item id.")] Guid itemId, UpdateCalendarItemRequest request)
     {
         var u = await user.GetAsync();
-        return Require(await items.UpdateAsync(u.Id, itemId, request));
+        return (await items.UpdateAsync(u.Id, itemId, request)).Require();
     }
 
     [McpServerTool(Name = "change_occurrence")]
@@ -86,7 +86,7 @@ public sealed class CalendarTools
         ChangeOccurrenceRequest request)
     {
         var u = await user.GetAsync();
-        return Require(await items.ChangeOccurrenceAsync(u.Id, itemId, originalStart, request));
+        return (await items.ChangeOccurrenceAsync(u.Id, itemId, originalStart, request)).Require();
     }
 
     [McpServerTool(Name = "restore_occurrence")]
@@ -96,7 +96,7 @@ public sealed class CalendarTools
         [Description("The occurrence's start in the unmodified series, ISO 8601.")] DateTimeOffset originalStart)
     {
         var u = await user.GetAsync();
-        Require(await items.RestoreOccurrenceAsync(u.Id, itemId, originalStart));
+        (await items.RestoreOccurrenceAsync(u.Id, itemId, originalStart)).Require();
         return $"Occurrence {originalStart:O} of {itemId} follows the series.";
     }
 
@@ -107,7 +107,7 @@ public sealed class CalendarTools
         [Description("Calendar item id.")] Guid itemId)
     {
         var u = await user.GetAsync();
-        Require(await items.DeleteAsync(u.Id, itemId));
+        (await items.DeleteAsync(u.Id, itemId)).Require();
         return $"Deleted calendar item {itemId}.";
     }
 
@@ -118,7 +118,7 @@ public sealed class CalendarTools
         [Description("LupiraGeoApi place id.")] Guid placeId)
     {
         var u = await user.GetAsync();
-        return Require(await items.ByPlaceAsync(u.Id, placeId));
+        return (await items.ByPlaceAsync(u.Id, placeId)).Require();
     }
 
     [McpServerTool(Name = "list_thin_items")]
@@ -131,7 +131,7 @@ public sealed class CalendarTools
         [Description("Max items returned (default 25).")] int? take = null)
     {
         var u = await user.GetAsync();
-        return Require(await items.ThinItemsAsync(u.Id, calendarId, category, maxScore, take));
+        return (await items.ThinItemsAsync(u.Id, calendarId, category, maxScore, take)).Require();
     }
 
     [McpServerTool(Name = "attach_metadata")]
@@ -142,7 +142,7 @@ public sealed class CalendarTools
         [Description("A JSON object of metadata keys to merge.")] string metadataJson)
     {
         var u = await user.GetAsync();
-        return Require(await items.AttachMetadataAsync(u.Id, itemId, ParseMetadataObject(metadataJson)));
+        return (await items.AttachMetadataAsync(u.Id, itemId, ParseMetadataObject(metadataJson))).Require();
     }
 
     [McpServerTool(Name = "file_item")]
@@ -154,7 +154,7 @@ public sealed class CalendarTools
         [Description("proposed|accepted (default proposed).")] string? status = null)
     {
         var u = await user.GetAsync();
-        return Require(await curation.AddToCalendarAsync(u.Id, itemId, calendarId, status));
+        return (await curation.AddToCalendarAsync(u.Id, itemId, calendarId, status)).Require();
     }
 
     [McpServerTool(Name = "file_items_batch")]
@@ -163,7 +163,7 @@ public sealed class CalendarTools
         CurationService curation, CurrentUser user, FileItemsBatchRequest request)
     {
         var u = await user.GetAsync();
-        return Require(await curation.AddToCalendarBatchAsync(u.Id, request.Entries));
+        return (await curation.AddToCalendarBatchAsync(u.Id, request.Entries)).Require();
     }
 
     [McpServerTool(Name = "invite_participant")]
@@ -175,7 +175,7 @@ public sealed class CalendarTools
         [Description("chair|req-participant|opt-participant|non-participant.")] string? role = null)
     {
         var u = await user.GetAsync();
-        return Require(await participation.InviteAsync(u.Id, itemId, contactId, role));
+        return (await participation.InviteAsync(u.Id, itemId, contactId, role)).Require();
     }
 
     [McpServerTool(Name = "respond_participant")]
@@ -187,7 +187,7 @@ public sealed class CalendarTools
         [Description("needs-action|accepted|declined|tentative|delegated.")] string? status = null)
     {
         var u = await user.GetAsync();
-        return Require(await participation.RespondAsync(u.Id, itemId, participationId, status));
+        return (await participation.RespondAsync(u.Id, itemId, participationId, status)).Require();
     }
 
     [McpServerTool(Name = "remove_participant")]
@@ -198,7 +198,7 @@ public sealed class CalendarTools
         [Description("The participation id (from get_item's attendees).")] Guid participationId)
     {
         var u = await user.GetAsync();
-        return Require(await participation.RemoveAsync(u.Id, itemId, participationId));
+        return (await participation.RemoveAsync(u.Id, itemId, participationId)).Require();
     }
 
     [McpServerTool(Name = "set_participants")]
@@ -210,7 +210,7 @@ public sealed class CalendarTools
         [Description("Also mark them attended (default true; false = plain invite in NeedsAction).")] bool attended = true)
     {
         var u = await user.GetAsync();
-        return Require(await participation.SetParticipantsAsync(u.Id, itemId, contactIds, attended));
+        return (await participation.SetParticipantsAsync(u.Id, itemId, contactIds, attended)).Require();
     }
 
     [McpServerTool(Name = "participation_summary")]
@@ -221,7 +221,7 @@ public sealed class CalendarTools
         [Description("Window end, ISO 8601 (optional; default all-time).")] DateTimeOffset? to = null)
     {
         var u = await user.GetAsync();
-        return Require(await participation.SummaryAsync(u.Id, from, to));
+        return (await participation.SummaryAsync(u.Id, from, to)).Require();
     }
 
     [McpServerTool(Name = "list_calendars")]
@@ -229,7 +229,7 @@ public sealed class CalendarTools
     public static async Task<IReadOnlyList<ContainerDto>> ListCalendars(CalendarService calendars, CurrentUser user)
     {
         var u = await user.GetAsync();
-        return Require(await calendars.ListContainersAsync(u.Id));
+        return (await calendars.ListContainersAsync(u.Id)).Require();
     }
 
     [McpServerTool(Name = "bootstrap_me")]
@@ -238,7 +238,7 @@ public sealed class CalendarTools
         [Description("IANA time zone id, e.g. Europe/Stockholm.")] string? defaultTimezone = null)
     {
         var u = await user.GetAsync();
-        return Require(await calendars.BootstrapPersonalAsync(u.Id, defaultTimezone));
+        return (await calendars.BootstrapPersonalAsync(u.Id, defaultTimezone)).Require();
     }
 
     [McpServerTool(Name = "create_calendar")]
@@ -246,7 +246,7 @@ public sealed class CalendarTools
     public static async Task<ContainerDto> CreateCalendar(CalendarService calendars, CurrentUser user, CreateCalendarRequest request)
     {
         var u = await user.GetAsync();
-        return Require(await calendars.CreateAsync(u.Id, request));
+        return (await calendars.CreateAsync(u.Id, request)).Require();
     }
 
     [McpServerTool(Name = "update_calendar")]
@@ -255,7 +255,7 @@ public sealed class CalendarTools
         [Description("Calendar id.")] Guid calendarId, UpdateCalendarRequest request)
     {
         var u = await user.GetAsync();
-        return Require(await calendars.UpdateAsync(u.Id, calendarId, request));
+        return (await calendars.UpdateAsync(u.Id, calendarId, request)).Require();
     }
 
     [McpServerTool(Name = "grant_calendar_owner")]
@@ -267,7 +267,7 @@ public sealed class CalendarTools
         [Description("owner|read-write|read.")] string access = "owner")
     {
         var u = await user.GetAsync();
-        return Require(await calendars.GrantCalendarOwnerAsync(u.Id, calendarId, new GrantOwnerRequest { Email = email, Access = access }));
+        return (await calendars.GrantCalendarOwnerAsync(u.Id, calendarId, new GrantOwnerRequest { Email = email, Access = access })).Require();
     }
 
     [McpServerTool(Name = "revoke_calendar_owner")]
@@ -278,7 +278,7 @@ public sealed class CalendarTools
         [Description("The member's login email.")] string email)
     {
         var u = await user.GetAsync();
-        Require(await calendars.RevokeCalendarOwnerAsync(u.Id, calendarId, email));
+        (await calendars.RevokeCalendarOwnerAsync(u.Id, calendarId, email)).Require();
         return $"Revoked {email}'s access to calendar {calendarId}.";
     }
 
@@ -291,7 +291,7 @@ public sealed class CalendarTools
         [Description("Relation type, e.g. 'derived-from'.")] string relationType = "derived-from")
     {
         var u = await user.GetAsync();
-        return Require(await relations.LinkItemAsync(u.Id, itemId, new CreateRelationRequest { ToKind = "task", ToRef = taskId, RelationType = relationType }));
+        return (await relations.LinkItemAsync(u.Id, itemId, new CreateRelationRequest { ToKind = "task", ToRef = taskId, RelationType = relationType })).Require();
     }
 
     [McpServerTool(Name = "unlink_item_from_task")]
@@ -303,7 +303,7 @@ public sealed class CalendarTools
         [Description("Relation type, e.g. 'derived-from'.")] string relationType = "derived-from")
     {
         var u = await user.GetAsync();
-        Require(await relations.UnlinkItemBatchAsync(u.Id, itemId, new DeleteRelationsBatchRequest { ToKind = "task", RelationType = relationType, ToRefs = [taskId] }));
+        (await relations.UnlinkItemBatchAsync(u.Id, itemId, new DeleteRelationsBatchRequest { ToKind = "task", RelationType = relationType, ToRefs = [taskId] })).Require();
         return $"Unlinked calendar item {itemId} from task {taskId}.";
     }
 
@@ -314,7 +314,7 @@ public sealed class CalendarTools
         [Description("The LupiraTasks item id.")] string taskId)
     {
         var u = await user.GetAsync();
-        return Require(await relations.FindItemsLinkedToAsync(u.Id, "task", taskId));
+        return (await relations.FindItemsLinkedToAsync(u.Id, "task", taskId)).Require();
     }
 
     [McpServerTool(Name = "list_hotspots")]
@@ -328,7 +328,7 @@ public sealed class CalendarTools
         [Description("Max hotspots returned (default 100, max 500).")] int? limit = null)
     {
         var u = await user.GetAsync();
-        return Require(await hotspots.ListAsync(u.Id, from, to, calendarId, minDays, limit));
+        return (await hotspots.ListAsync(u.Id, from, to, calendarId, minDays, limit)).Require();
     }
 
     private static JsonObject ParseMetadataObject(string metadataJson)
@@ -341,30 +341,5 @@ public sealed class CalendarTools
         {
         }
         throw new McpException("`metadataJson` must be a JSON object.");
-    }
-
-    /// <summary>Unwraps a service outcome to its value, surfacing non-Ok statuses as an MCP tool error.</summary>
-    private static T Require<T>(OpResult<T> r) => r.Status switch
-    {
-        OpStatus.Ok => r.Value!,
-        OpStatus.NotFound => throw new McpException("Not found."),
-        OpStatus.Forbidden => throw new McpException(r.Error ?? "Forbidden."),
-        OpStatus.Invalid => throw new McpException(r.Error ?? "Invalid request."),
-        OpStatus.Conflict => throw new McpException(r.Error ?? "Conflict."),
-        _ => throw new McpException("Unexpected result."),
-    };
-
-    /// <summary>Asserts a no-content outcome succeeded, surfacing non-Ok statuses as an MCP tool error.</summary>
-    private static void Require(OpResult r)
-    {
-        if (r.IsOk) return;
-        throw r.Status switch
-        {
-            OpStatus.NotFound => new McpException("Not found."),
-            OpStatus.Forbidden => new McpException(r.Error ?? "Forbidden."),
-            OpStatus.Invalid => new McpException(r.Error ?? "Invalid request."),
-            OpStatus.Conflict => new McpException(r.Error ?? "Conflict."),
-            _ => new McpException("Unexpected result."),
-        };
     }
 }

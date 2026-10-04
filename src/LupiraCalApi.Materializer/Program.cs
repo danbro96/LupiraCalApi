@@ -1,7 +1,4 @@
-using OpenTelemetry.Logs;
-using OpenTelemetry.Metrics;
-using OpenTelemetry.Resources;
-using OpenTelemetry.Trace;
+using Lupira.Hosting.Observability;
 
 namespace LupiraCalApi.Materializer;
 
@@ -17,36 +14,7 @@ public static class Program
         // may run: Solo claims exclusive ownership of the projection.
         builder.Services.AddCalCore().AddCalScheduling();
 
-        var otlpEndpoint = builder.Configuration["OTEL_EXPORTER_OTLP_ENDPOINT"];
-        if (!string.IsNullOrWhiteSpace(otlpEndpoint))
-        {
-            builder.Services.AddOpenTelemetry()
-                .ConfigureResource(r => r.AddService(
-                    serviceName: "lupira-cal-materializer",
-                    serviceVersion: typeof(Program).Assembly.GetName().Version?.ToString() ?? "0.0.0"))
-                .WithTracing(t => t
-                    .AddSource("LupiraCalApi.Materializer")
-                    .AddAspNetCoreInstrumentation(o =>
-                    {
-                        o.RecordException = true;
-                        // Health probes are polled constantly by docker + devops-monitor; their spans add nothing.
-                        o.Filter = ctx => ctx.Request.Path != "/livez" && ctx.Request.Path != "/readyz";
-                    })
-                    .AddHttpClientInstrumentation()
-                    .AddOtlpExporter())
-                .WithMetrics(m => m
-                    .AddAspNetCoreInstrumentation()
-                    .AddHttpClientInstrumentation()
-                    .AddRuntimeInstrumentation()
-                    .AddOtlpExporter());
-
-            builder.Logging.AddOpenTelemetry(o =>
-            {
-                o.IncludeFormattedMessage = true;
-                o.IncludeScopes = true;
-                o.AddOtlpExporter();
-            });
-        }
+        builder.AddLupiraTelemetry("lupira-cal-materializer", o => o.Sources.Add("LupiraCalApi.Materializer"));
 
         var app = builder.Build();
 

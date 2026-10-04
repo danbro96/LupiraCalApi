@@ -1,5 +1,6 @@
 using System.Net;
 using System.Net.Http.Json;
+using Lupira.Primitives;
 using LupiraCalApi.Core.Domain.CalendarItems;
 using LupiraCalApi.Core.Domain.Shared;
 using LupiraCalApi.Core.Dtos.CalendarItems;
@@ -12,7 +13,6 @@ namespace LupiraCalApi.IntegrationTests;
 public sealed class OccurrenceDeviationTests(CalApiTestFactory factory) : IntegrationTest(factory)
 {
     private const string Email = "alice@x.test";
-    private static readonly DateTimeOffset Start = new(2026, 7, 1, 9, 0, 0, TimeSpan.Zero);
 
     [Fact]
     public async Task Dav_put_exceptions_and_overrides_persist_structured_and_render_back()

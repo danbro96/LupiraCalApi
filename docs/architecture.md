@@ -9,10 +9,10 @@ deliberately environment-agnostic (no host names, ports, or identity-provider sp
 Two projects enforce the layering at compile time:
 
 - **`LupiraCalApi.Core`** — the bounded context with no ASP.NET dependency: `Domain/` (aggregates,
-  events, value objects, enums + Marten registration), `Application/` (services + the transport-neutral
-  `OpResult`), `Auth/` (`AccessResolver`), `Dtos/`, `Mappers/`, `Serialization/`.
+  events, value objects, enums + Marten registration), `Application/` (services returning the
+  transport-neutral `OpResult` from `Lupira.Results`), `Auth/` (`AccessResolver`), `Dtos/`, `Mappers/`, `Serialization/`.
 - **`LupiraCalApi`** — a thin web host over Core: `Endpoints/` (route maps) → `Handlers/` (resolve the
-  caller, call a service, map the result), `Http/` (`OpResult` → HTTP), `Dav/` (the LAN-only
+  caller, call a service, map the result via `OpResultMap`), `Dav/` (the LAN-only
   `/dav-backend` seam the LupiraDavApi gateway consumes), `Mcp/` (agent tools), `Auth/`, `Health/`,
   and `Program.cs` (composition root).
 
@@ -396,7 +396,7 @@ an `OpStatus`. Each surface adapts it to its own wire shape.
 | `Conflict` | `409` + RFC 7807 problem+json | `412` (If-Match/If-None-Match precondition) | `McpException` (error) |
 
 REST handlers declare precise `Results<...>` unions so the OpenAPI contract is exact; problem responses are
-emitted through `Http/Problems` as `application/problem+json` with `{ type, title, detail, status }`. A status
+emitted through `Problems` (`Lupira.Hosting.Problems`) as `application/problem+json` with `{ type, title, detail, status }`. A status
 a given result shape can't represent is a programming error and throws.
 
 ## Cross-API relations

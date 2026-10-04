@@ -1,30 +1,30 @@
-using System.Diagnostics;
 using System.Globalization;
 using System.Text.Json;
-using System.Text.Json.Serialization;
+using Lupira.Auth.DevUser;
+using Lupira.Depz;
+using Lupira.Hosting.Defaults;
+using Lupira.Hosting.Health;
+using Lupira.Hosting.LanEdge;
+using Lupira.Hosting.Observability;
+using Lupira.Hosting.Problems;
+using Lupira.Mcp;
 using LupiraCalApi.Auth;
 using LupiraCalApi.Clients;
 using LupiraCalApi.Core.Abstractions;
 using LupiraCalApi.Core.Application.Dav;
 using LupiraCalApi.Core.Domain.CalendarItems;
-using LupiraCalApi.Core.Domain.Shared;
 using LupiraCalApi.Core.Scheduling;
 using LupiraCalApi.Dav;
 using LupiraCalApi.Dependencies;
 using LupiraCalApi.Endpoints;
 using LupiraCalApi.Handlers;
-using LupiraCalApi.Http;
+using LupiraCalApi.Health;
 using LupiraCalApi.Mcp;
 using Marten;
-using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.HttpOverrides;
 using Microsoft.OpenApi;
-using OpenTelemetry.Logs;
-using OpenTelemetry.Metrics;
-using OpenTelemetry.Resources;
-using OpenTelemetry.Trace;
 using Scalar.AspNetCore;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -87,14 +87,15 @@ builder.Services.AddSingleton<TokenCache>();
 builder.Services.AddSingleton<OutboundAuthProvider>();
 
 // Non-gating dependency probe (/depz): edges derive from the options above, probed on a dedicated client.
-builder.Services.Configure<DepzOptions>(builder.Configuration.GetSection(DepzOptions.SectionName));
-var depzOptions = builder.Configuration.GetSection(DepzOptions.SectionName).Get<DepzOptions>() ?? new DepzOptions();
-builder.Services.AddSingleton(DependencyTargets.From(geoOptions, contactOptions));
-builder.Services.AddSingleton<DependencyReportCache>();
-builder.Services.AddSingleton<DependencyProbe>();
-builder.Services.AddHttpClient(DependencyProbe.ProbeClientName, c => c.Timeout = depzOptions.ProbeTimeout);
-if (depzOptions.Enabled)
-    builder.Services.AddHostedService<DependencyPollWorker>();
+builder.Services.AddLupiraDepz(o =>
+{
+    builder.Configuration.GetSection(DepzOptions.SectionName).Bind(o);
+    o.ServiceName = "lupira-cal-api";
+    o.MeterName = "LupiraCalApi.Depz";
+    o.MetricPrefix = "cal";
+});
+builder.Services.AddSingleton<IDependencyTargetSource>(sp => new StaticDependencyTargetSource(DependencyTargets.From(
+    geoOptions, contactOptions, sp.GetRequiredService<TokenEndpointClient>(), sp.GetRequiredService<TokenCache>())));
 
 // --- Auth: OIDC JWT for the REST/MCP surface (members, and the agent via its device-code grant); the
 //           /dav-backend seam additionally requires the DAV gateway's client identity (azp). One identity
@@ -143,10 +144,10 @@ var authBuilder = builder.Services.AddAuthentication(JwtBearerDefaults.Authentic
 
 // Development-only: allow X-Dev-User header auth so the API can be exercised without Authentik.
 if (builder.Environment.IsDevelopment())
-    authBuilder.AddScheme<AuthenticationSchemeOptions, DevAuthHandler>(DevAuthHandler.SchemeName, _ => { });
+    authBuilder.AddLupiraDevHeaderAuth();
 
 string[] apiSchemes = builder.Environment.IsDevelopment()
-    ? [JwtBearerDefaults.AuthenticationScheme, DevAuthHandler.SchemeName]
+    ? [JwtBearerDefaults.AuthenticationScheme, DevAuthenticationBuilderExtensions.DefaultScheme]
     : [JwtBearerDefaults.AuthenticationScheme];
 
 var davGatewayClientId = builder.Configuration.GetSection(DavGatewayOptions.SectionName).Get<DavGatewayOptions>()?.ClientId;
@@ -156,7 +157,7 @@ builder.Services.AddAuthorizationBuilder()
     // client (azp). Dev-header auth passes in Development so tests can drive the seam directly.
     .AddPolicy("DavBackendPolicy", p => p.AddAuthenticationSchemes(apiSchemes).RequireAuthenticatedUser()
         .RequireAssertion(ctx =>
-            ctx.User.Identity?.AuthenticationType == DevAuthHandler.SchemeName
+            ctx.User.Identity?.AuthenticationType == DevAuthenticationBuilderExtensions.DefaultScheme
             || DavGatewayOptions.IsGateway(ctx.User, davGatewayClientId)))
     // internal:read is granted only to service clients — user tokens authenticate but never pass this.
     .AddPolicy("InternalPolicy", p => p.AddAuthenticationSchemes(apiSchemes).RequireAuthenticatedUser()
@@ -164,56 +165,19 @@ builder.Services.AddAuthorizationBuilder()
             .SelectMany(c => c.Value.Split(' ', StringSplitOptions.RemoveEmptyEntries))
             .Contains("internal:read")));
 
-// --- Observability: OpenTelemetry -> OpenObserve. Env-gated; the OTLP exporter reads OTEL_EXPORTER_OTLP_*
-//     automatically (http/protobuf + Basic auth header set in compose). ---
-var otlpEndpoint = builder.Configuration["OTEL_EXPORTER_OTLP_ENDPOINT"];
-builder.Services.AddOpenTelemetry()
-    .ConfigureResource(r => r.AddService("lupira-cal-api"))
-    .WithTracing(t =>
-    {
-        // Health probes are polled constantly by docker + devops-monitor; their spans add nothing.
-        t.AddAspNetCoreInstrumentation(o => o.Filter = ctx =>
-            ctx.Request.Path != "/livez" && ctx.Request.Path != "/readyz" && ctx.Request.Path != "/pingz"
-            && ctx.Request.Path != "/depz");
-        t.AddHttpClientInstrumentation();
-        t.AddSource(Telemetry.ActivitySourceName);
-        if (!string.IsNullOrWhiteSpace(otlpEndpoint)) t.AddOtlpExporter();
-    })
-    .WithMetrics(m =>
-    {
-        m.AddMeter("LupiraCalApi.*");
-        m.AddAspNetCoreInstrumentation();
-        m.AddHttpClientInstrumentation();
-        m.AddRuntimeInstrumentation();
-        if (!string.IsNullOrWhiteSpace(otlpEndpoint)) m.AddOtlpExporter();
-    });
+builder.AddLupiraTelemetry("lupira-cal-api");
 
-// Logs -> OpenObserve via OTLP, same env gate as traces/metrics. Without this the app's ILogger output
-// only reaches stdout/`docker logs` and never the OpenObserve `default` logs stream — so the debug-logs
-// skill can't see lupira-cal-api (the exact gap that hid the DAV bind failures during stand-up).
-builder.Logging.AddOpenTelemetry(o =>
+builder.Services.AddLupiraHealth().AddReadyCheck<DatabaseReadyCheck>("postgres");
+
+builder.AddLupiraDefaults(o =>
 {
-    o.SetResourceBuilder(ResourceBuilder.CreateDefault().AddService("lupira-cal-api"));
-    o.IncludeScopes = true;
-    o.IncludeFormattedMessage = true;
-    if (!string.IsNullOrWhiteSpace(otlpEndpoint)) o.AddOtlpExporter();
+    o.CaseInsensitiveProperties = true;
+    o.ForwardedHeaders = ForwardedHeaders.XForwardedFor | ForwardedHeaders.XForwardedProto | ForwardedHeaders.XForwardedHost;
+    o.UtcDateTimeOffsets = true;
+    o.ThrowOnBadRequest = true;
 });
 
-builder.Services.AddAppHealthChecks();
-
-// Emit/accept enums as their names across the REST surface (not integers).
-builder.Services.ConfigureHttpJsonOptions(o =>
-{
-    o.SerializerOptions.NumberHandling = JsonNumberHandling.Strict;
-    o.SerializerOptions.Converters.Add(new JsonStringEnumConverter());
-    o.SerializerOptions.Converters.Add(new LupiraCalApi.Core.Serialization.UtcDateTimeOffsetConverter());
-});
-
-builder.Services.AddProblemDetails(o => o.CustomizeProblemDetails = ctx =>
-    ctx.ProblemDetails.Extensions["traceId"] = Activity.Current?.Id ?? ctx.HttpContext.TraceIdentifier);
-builder.Services.AddExceptionHandler<ProblemExceptionHandler>();
-// Binding failures throw into ProblemExceptionHandler outside Development too, so a 400 says which input was wrong.
-builder.Services.Configure<RouteHandlerOptions>(o => o.ThrowOnBadRequest = true);
+builder.Services.AddLupiraProblems(o => o.BadRequestDetail = IdempotencyKeyProblem.Detail);
 
 builder.Services.AddOpenApi("v1", options =>
 {
@@ -338,9 +302,7 @@ static OpenApiSchema ProblemDetailsSchema() => new()
 };
 
 // MCP server for the agent, mounted at /mcp (LAN/WireGuard-only — not published through the tunnel).
-builder.Services.AddMcpServer().WithHttpTransport()
-    .WithRequestFilters(f => f.AddCallToolFilter(StrictToolArguments.Filter))
-    .WithTools<CalendarTools>();
+builder.Services.AddLupiraMcp().WithTools<CalendarTools>();
 
 var app = builder.Build();
 
@@ -378,22 +340,12 @@ if (args.Contains("--rematerialize-fires"))
     return;
 }
 
-// Behind the Cloudflare Tunnel the public host differs from the container, so honor forwarded headers.
-var forwarded = new ForwardedHeadersOptions
-{
-    ForwardedHeaders = ForwardedHeaders.XForwardedFor | ForwardedHeaders.XForwardedProto | ForwardedHeaders.XForwardedHost,
-};
-forwarded.KnownIPNetworks.Clear();
-forwarded.KnownProxies.Clear();
-app.UseForwardedHeaders(forwarded);
-
 // LAN-only surfaces (/mcp, /dav-backend): 404 anything arriving through the tunnel.
-app.UseLanOnlySurfaces();
+app.UseLanOnlySurfaces("/mcp", "/dav-backend", "/internal", "/.well-known/oauth-protected-resource");
 
+// Behind the Cloudflare Tunnel the public host differs from the container, so honor forwarded headers.
+app.UseLupiraDefaults();
 app.UseExceptionHandler();
-// Fills the empty body of a bare 4xx (auth challenges, TypedResults.NotFound) with
-// ProblemDetails, so the spec's promise holds. Scoped away from /mcp — JSON-RPC has its own error shape.
-app.UseWhen(c => !c.Request.Path.StartsWithSegments("/mcp"), b => b.UseStatusCodePages());
 
 app.UseAuthentication();
 app.UseAuthorization();
@@ -408,11 +360,11 @@ app.MapGet("/", () => TypedResults.Redirect("/scalar"))
    .ExcludeFromDescription()
    .AllowAnonymous();
 
-app.MapAppHealthChecks(app.Environment);
+app.MapLupiraHealth();
 app.MapDepz();
 
 // REST surface (at root), one MapXxx per resource.
-app.MapPing();
+app.MapLupiraPing("ApiPolicy");
 app.MapMe();
 app.MapCalendars();
 app.MapOwners();
@@ -429,7 +381,7 @@ app.MapInternal();
 
 // Agent MCP transport (LAN/WireGuard-only; excluded from the Cloudflare Tunnel at the edge).
 app.MapMcpResourceMetadata(app.Configuration["Auth:Oidc:Authority"]);
-app.MapMcp("/mcp").RequireAuthorization("ApiPolicy");
+app.MapLupiraMcp();
 
 app.Run();
 

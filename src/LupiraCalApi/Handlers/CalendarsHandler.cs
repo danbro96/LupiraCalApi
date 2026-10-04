@@ -1,7 +1,7 @@
+using Lupira.Hosting.Problems;
 using LupiraCalApi.Auth;
 using LupiraCalApi.Core.Application.Calendars;
 using LupiraCalApi.Core.Dtos.Calendars;
-using LupiraCalApi.Http;
 using Microsoft.AspNetCore.Http.HttpResults;
 
 namespace LupiraCalApi.Handlers;

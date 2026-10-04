@@ -10,7 +10,7 @@ public sealed class CreateCalendarItemRequest
     public Guid? CalendarId { get; set; }
 
     /// <summary>Client-supplied provenance/idempotency key (e.g. an import <c>sourceKey</c>). When set, the item's stream id
-    /// is derived from it (<see cref="LupiraCalApi.Core.Domain.Shared.DeterministicGuid"/>), so re-creating with the same key is a no-op
+    /// is derived from it (<see cref="Lupira.Primitives.DeterministicGuid"/>), so re-creating with the same key is a no-op
     /// that returns the existing item — safe batch/import replay. Also becomes the item's external UID. Omit for a random uid.</summary>
     public string? SourceKey { get; set; }
 

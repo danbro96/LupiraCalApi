@@ -1,5 +1,6 @@
 using System.Net.Http.Headers;
 using System.Security.Claims;
+using Lupira.Auth.DevUser;
 using LupiraCalApi.Auth;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.Extensions.Options;
@@ -27,7 +28,7 @@ public sealed class OutboundAuthProvider(
         var user = ctx?.User;
         if (user?.Identity?.IsAuthenticated != true) return new InboundCaller(InboundIdentity.Service);
         if (DavGatewayOptions.IsGateway(user, davGatewayClientId)) return new InboundCaller(InboundIdentity.Service);
-        if (user.Identity.AuthenticationType == DevAuthHandler.SchemeName)
+        if (user.Identity.AuthenticationType == DevAuthenticationBuilderExtensions.DefaultScheme)
             return new InboundCaller(InboundIdentity.DevMember, DevEmail: user.FindFirstValue("email"));
 
         var header = ctx!.Request.Headers.Authorization.ToString();

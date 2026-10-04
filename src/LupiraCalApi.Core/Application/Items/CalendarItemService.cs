@@ -1,7 +1,8 @@
 using System.Text.Json.Nodes;
+using Lupira.Primitives;
+using Lupira.Results;
 using LupiraCalApi.Core.Abstractions;
 using LupiraCalApi.Core.Application.Dav;
-using LupiraCalApi.Core.Application.Results;
 using LupiraCalApi.Core.Auth;
 using LupiraCalApi.Core.Data;
 using LupiraCalApi.Core.Domain.CalendarItems;
@@ -13,7 +14,6 @@ using LupiraCalApi.Core.Mappers;
 using LupiraCalApi.Core.Serialization;
 using Marten;
 using Microsoft.Extensions.Options;
-using NodaTime;
 
 namespace LupiraCalApi.Core.Application.Items;
 

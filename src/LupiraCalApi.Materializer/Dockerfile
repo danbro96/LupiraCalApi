@@ -2,9 +2,10 @@
 # Build context = repo root (release.yml matrix passes this file explicitly).
 FROM mcr.microsoft.com/dotnet/sdk:10.0 AS build
 WORKDIR /src
+COPY nuget.config Directory.Build.props ./
 COPY src/LupiraCalApi.Materializer/LupiraCalApi.Materializer.csproj src/LupiraCalApi.Materializer/
 COPY src/LupiraCalApi.Core/LupiraCalApi.Core.csproj src/LupiraCalApi.Core/
-RUN dotnet restore src/LupiraCalApi.Materializer/LupiraCalApi.Materializer.csproj
+RUN --mount=type=secret,id=packages_token,env=PACKAGES_TOKEN dotnet restore src/LupiraCalApi.Materializer/LupiraCalApi.Materializer.csproj
 COPY . .
 RUN dotnet publish src/LupiraCalApi.Materializer/LupiraCalApi.Materializer.csproj -c Release -o /app --no-restore
 

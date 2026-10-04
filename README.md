@@ -84,7 +84,7 @@ vars). Nothing host-specific is baked in.
 | `DavGateway__ClientId` | The DAV gateway's client id (`azp`) accepted on `/dav-backend` | `lupira-dav-svc` |
 | `Contacts__BaseUrl` | LupiraContactApi base URL (unset ⇒ contact refs unvalidated) | `http://lupira-contact-api:8080/` |
 | `Contacts__TokenUrl` / `__ClientId` / `__ClientSecret` / `__Scope` | Client-credentials for the contact hop (aud `lupira-contact`) | — |
-| `OTEL_EXPORTER_OTLP_ENDPOINT` | OTLP collector URL. **Unset ⇒ telemetry export is a silent no-op** | `http://otel-collector:4318` |
+| `OTEL_EXPORTER_OTLP_ENDPOINT` | OTLP collector URL. Required outside Development (startup fails without it) | `http://otel-collector:4318` |
 | `OTEL_EXPORTER_OTLP_PROTOCOL` | OTLP protocol | `http/protobuf` |
 | `OTEL_EXPORTER_OTLP_HEADERS` | OTLP auth header(s) | `Authorization=Basic …` |
 
@@ -158,13 +158,12 @@ Docker-backed integration suite gated on a `run_integration` input) consumed by:
 src/
   LupiraCalApi.Core/        bounded context (no ASP.NET dependency)
     Domain/                 event-sourced aggregates, events, value objects, enums, Marten registration
-    Application/            services + transport-neutral OpResult
+    Application/            services returning the transport-neutral OpResult (Lupira.Results)
     Auth/                   AccessResolver (container-scoped authorization)
     Scheduling/             cal.scheduled_fire table + materializer (Marten async daemon) + horizon sweep
     Dtos/ Mappers/ Serialization/
   LupiraCalApi/             thin web host
     Endpoints/ Handlers/    REST routes → handlers → Core services
-    Http/                   OpResult → HTTP (TypedResults, RFC 7807)
     Dav/                    the /dav-backend seam (contract DTOs, handler, endpoints)
     Mcp/                    MCP agent tools
     Auth/ Health/ Program.cs

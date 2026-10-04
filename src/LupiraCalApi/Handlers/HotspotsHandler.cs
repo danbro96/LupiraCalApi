@@ -1,7 +1,7 @@
+using Lupira.Hosting.Problems;
 using LupiraCalApi.Auth;
 using LupiraCalApi.Core.Application.Hotspots;
 using LupiraCalApi.Core.Dtos.Hotspots;
-using LupiraCalApi.Http;
 using Microsoft.AspNetCore.Http.HttpResults;
 
 namespace LupiraCalApi.Handlers;

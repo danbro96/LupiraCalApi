@@ -1,4 +1,4 @@
-using LupiraCalApi.Core.Domain.Shared;
+using Lupira.Primitives;
 using Xunit;
 
 namespace LupiraCalApi.UnitTests;

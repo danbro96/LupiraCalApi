@@ -1,5 +1,6 @@
 using System.Net;
 using System.Security.Claims;
+using Lupira.Auth.DevUser;
 using LupiraCalApi.Auth;
 using LupiraCalApi.Clients;
 using Microsoft.AspNetCore.Http;
@@ -64,10 +65,10 @@ public class OutboundAuthProviderTests
         Assert.Equal(InboundIdentity.Service, OutboundAuthProvider.Classify(
             Context("Bearer", [new Claim("azp", DavClient)], "Bearer dav-token"), DavClient).Kind);
         Assert.Equal(InboundIdentity.Service, OutboundAuthProvider.Classify(
-            Context(DevAuthHandler.SchemeName, [new Claim("email", "a@x.test"), new Claim("azp", DavClient)]), DavClient).Kind);
+            Context(DevAuthenticationBuilderExtensions.DefaultScheme, [new Claim("email", "a@x.test"), new Claim("azp", DavClient)]), DavClient).Kind);
         Assert.Equal(InboundIdentity.Service, OutboundAuthProvider.Classify(Context("Bearer", [new Claim("sub", "a")]), DavClient).Kind);
 
-        var dev = OutboundAuthProvider.Classify(Context(DevAuthHandler.SchemeName, [new Claim("email", "a@x.test")]), DavClient);
+        var dev = OutboundAuthProvider.Classify(Context(DevAuthenticationBuilderExtensions.DefaultScheme, [new Claim("email", "a@x.test")]), DavClient);
         Assert.Equal(InboundIdentity.DevMember, dev.Kind);
         Assert.Equal("a@x.test", dev.DevEmail);
 
@@ -109,7 +110,7 @@ public class OutboundAuthProviderTests
     [Fact]
     public async Task Dev_member_propagates_its_email()
     {
-        var (provider, tokens) = Create(Context(DevAuthHandler.SchemeName, [new Claim("email", "a@x.test")]));
+        var (provider, tokens) = Create(Context(DevAuthenticationBuilderExtensions.DefaultScheme, [new Claim("email", "a@x.test")]));
 
         var req = await AuthorizeAsync(provider, Hop);
 

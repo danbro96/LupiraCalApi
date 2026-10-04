@@ -11,6 +11,7 @@ on:
 env:
   SOLUTION: LupiraCalApi.slnx
   INTEGRATION_PROJECT: tests/LupiraCalApi.IntegrationTests
+  PACKAGES_TOKEN: ${{ secrets.PACKAGES_TOKEN }}
 
 jobs:
   unit:

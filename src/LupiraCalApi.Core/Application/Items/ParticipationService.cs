@@ -1,5 +1,5 @@
+using Lupira.Results;
 using LupiraCalApi.Core.Abstractions;
-using LupiraCalApi.Core.Application.Results;
 using LupiraCalApi.Core.Auth;
 using LupiraCalApi.Core.Data;
 using LupiraCalApi.Core.Domain.CalendarItems;
