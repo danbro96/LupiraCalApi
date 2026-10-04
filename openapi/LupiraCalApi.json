@@ -103,8 +103,24 @@
         "tags": [
           "Me"
         ],
-        "summary": "Idempotently ensure the caller has the standard calendar set; returns it.",
+        "summary": "Idempotently ensure the caller has the standard calendar set; returns it. Calendars it creates get the optional body's DefaultTimezone (IANA id), else the server default; existing calendars are unchanged.",
         "operationId": "BootstrapMe",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "oneOf": [
+                  {
+                    "type": "null"
+                  },
+                  {
+                    "$ref": "#/components/schemas/BootstrapRequest"
+                  }
+                ]
+              }
+            }
+          }
+        },
         "responses": {
           "200": {
             "description": "OK",
@@ -115,6 +131,16 @@
                   "items": {
                     "$ref": "#/components/schemas/ContainerDto"
                   }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
                 }
               }
             }
@@ -272,7 +298,7 @@
         "tags": [
           "Calendars"
         ],
-        "summary": "Create a calendar. (Address books are managed by LupiraContactApi.)",
+        "summary": "Create a calendar. DefaultTimezone (IANA id) defaults to the server default. (Address books are managed by LupiraContactApi.)",
         "operationId": "CreateCalendar",
         "requestBody": {
           "content": {
@@ -291,6 +317,113 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/ContainerDto"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal server error",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "Bearer": [ ]
+          }
+        ]
+      }
+    },
+    "/calendars/{calendarId}": {
+      "put": {
+        "tags": [
+          "Calendars"
+        ],
+        "summary": "Change a calendar's DefaultTimezone (IANA id); owner-only. Applies to items written later without a zone; existing items keep theirs.",
+        "operationId": "UpdateCalendar",
+        "parameters": [
+          {
+            "name": "calendarId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateCalendarRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ContainerDto"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not Found",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
                 }
               }
             }
@@ -3713,6 +3846,18 @@
         },
         "description": "A reservation/confirmation attached to any category (a booked meal, a ticketed outing, a hotel, a flight).\n            `ProviderContactId` reuses a `Contact` (airline, hotel, restaurant, venue); `PartySize` covers a\n            table/seat reservation; `Amount`/`Currency` the paid cost."
       },
+      "BootstrapRequest": {
+        "type": "object",
+        "properties": {
+          "defaultTimezone": {
+            "type": [
+              "null",
+              "string"
+            ]
+          }
+        },
+        "description": "`DefaultTimezone` (an IANA zone id) is given to the calendars bootstrap creates; omitted = the server\n        default. Calendars that already exist keep their zone."
+      },
       "CalendarClass": {
         "enum": [
           "Agenda",
@@ -4524,7 +4669,8 @@
             "type": [
               "null",
               "string"
-            ]
+            ],
+            "description": "IANA zone id for items written without one; omitted = the server default."
           },
           "class": {
             "oneOf": [
@@ -6100,6 +6246,18 @@
           }
         },
         "description": "Core-field update. Two merge conventions coexist: a plain nullable field means \"omitted ⇒ kept\" (the original\ncontract, unchanged for existing callers); fields that must also be *clearable* to null carry a paired\n`*Provided` sentinel — when the sentinel is true the field's value (including null) is written verbatim.\nOffline clients replay whole-section writes, so they set every sentinel and send the full core section."
+      },
+      "UpdateCalendarRequest": {
+        "required": [
+          "defaultTimezone"
+        ],
+        "type": "object",
+        "properties": {
+          "defaultTimezone": {
+            "type": "string"
+          }
+        },
+        "description": "Changes a calendar's settings. `DefaultTimezone` is an IANA zone id; it applies to items written later\n            without a zone of their own, never to existing items."
       }
     },
     "securitySchemes": {

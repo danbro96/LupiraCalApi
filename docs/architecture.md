@@ -300,7 +300,9 @@ surfaced on the agenda via a `Relation`.
 Each `Calendar` carries a `CalendarClass` and a `CalendarKind`. **Agenda** calendars are the user's own
 (Personal, Group, Birthdays, Availability, FoodPlan); **System** calendars are agent-managed scaffolding
 (Inbox, LlmPrompts, UserCheckIn, DevOps) that the assistant owns via ordinary `Owner` grants. `POST /me/bootstrap`
-seeds the standard set per principal, idempotently (matched on `CalendarKind`). **Only `Agenda` calendars are
+seeds the standard set per principal, idempotently (matched on `CalendarKind`). Every calendar carries an IANA
+`DefaultTimezone`: the one supplied to create/bootstrap, else `Items:DefaultTimezone`; an owner changes it with
+`PUT /calendars/{id}`. **Only `Agenda` calendars are
 projected on the DAV seam** — System calendars are REST/DB-only, which is how DAV stays non-bearing. The REST
 DTOs keep the `type` discriminator (now always `calendar`) for wire compatibility with generated clients.
 

@@ -12,4 +12,6 @@ public static class TimeZoneIds
         if (zone is null && TimeZoneInfo.TryConvertWindowsIdToIanaId(id, out var iana)) zone = DateTimeZoneProviders.Tzdb.GetZoneOrNull(iana);
         return zone;
     }
+
+    public static bool IsIana(string? id) => !string.IsNullOrWhiteSpace(id) && DateTimeZoneProviders.Tzdb.GetZoneOrNull(id) is not null;
 }

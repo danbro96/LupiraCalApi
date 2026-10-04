@@ -13,6 +13,7 @@ public sealed class CreateCalendarRequest
 
     public string? Color { get; set; }
 
+    /// <summary>IANA zone id for items written without one; omitted = the server default.</summary>
     public string? DefaultTimezone { get; set; }
 
     /// <summary>Calendars only; defaults to Agenda/Generic. Ignored for address books.</summary>

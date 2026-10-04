@@ -72,7 +72,7 @@ public sealed class CalendarItemService(IDocumentSession session, AccessResolver
     {
         foreach (var calendarId in calendarIds)
         {
-            // Bootstrap stamps calendars "UTC" as a placeholder; a fixed-UTC zone carries no wall-clock intent.
+            // Legacy bootstrap stamped "UTC" as a placeholder, indistinguishable from a chosen UTC, so fixed-UTC never counts.
             if (await session.LoadAsync<Calendar>(calendarId, ct) is { DefaultTimezone: { } id }
                 && TimeZoneIds.Find(id) is { } zone && !(zone.MinOffset == Offset.Zero && zone.MaxOffset == Offset.Zero))
                 return id;

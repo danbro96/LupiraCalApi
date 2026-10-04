@@ -109,7 +109,7 @@ are scoped to the caller's accessible containers.
 | Area | Routes |
 |---|---|
 | **Me** | `GET /me` · `POST /me/bootstrap` (idempotently seed the standard calendar set — agenda + agent-managed system calendars) |
-| **Calendars** | `GET /calendars` (each with a `class`/`kind`) · `POST /calendars` |
+| **Calendars** | `GET /calendars` (each with a `class`/`kind`) · `POST /calendars` · `PUT /calendars/{id}` (default zone; owner-only) |
 | **Sharing** | `POST`/`DELETE /calendars/{id}/owners` |
 | **Items** | `GET /items` (text/time/tag search, recurrence-expanded; carries a derived completeness score) · `POST /items` · `GET`/`PUT`/`DELETE /items/{id}` · `POST /items/{id}/metadata` (merge JSON) · `PUT`/`DELETE /items/{id}/occurrences/{originalStart}` (exclude or override one occurrence of a series; delete reverts) · `PUT`/`DELETE /items/{id}/prompt` · `PUT`/`DELETE /items/{id}/action` (event-bound payload, server-side only) |
 | **Participation** | `POST /items/{id}/participants` (invite) · `…/{participationId}/respond` · `…/attend` · `…/leave` · `DELETE …/{participationId}` |
@@ -124,7 +124,7 @@ are scoped to the caller's accessible containers.
 The agent surface mirrors REST and is scoped to the caller's access:
 
 `search_items` · `create_item` · `update_item` · `attach_metadata` · `invite_participant` ·
-`respond_participant` · `list_calendars` · `bootstrap_me` · `create_calendar` · `grant_calendar_owner` ·
+`respond_participant` · `list_calendars` · `bootstrap_me` · `create_calendar` · `update_calendar` · `grant_calendar_owner` ·
 `revoke_calendar_owner` · `link_item_to_task` · `unlink_item_from_task` · `list_items_linked_to_task` ·
 `list_hotspots`
 

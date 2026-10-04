@@ -45,7 +45,7 @@ public sealed class DavBackendHandler(
         var principal = await ActingPrincipalAsync(email, ct);
         // A DAV-only principal has no containers yet — seed the standard set on first contact.
         if ((await access.AccessibleCalendarIdsAsync(principal.Id, ct)).Count == 0)
-            await calendars.BootstrapPersonalAsync(principal.Id, ct);
+            await calendars.BootstrapPersonalAsync(principal.Id, ct: ct);
 
         var ids = await access.AccessibleCalendarIdsAsync(principal.Id, ct);
         // Only agenda calendars are DAV-projected; system calendars (Inbox/LlmPrompts/UserCheckIn/DevOps) are REST/DB-only.

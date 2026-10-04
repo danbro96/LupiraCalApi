@@ -66,7 +66,7 @@ public static class CoreServiceCollectionExtensions
         services.AddScoped<LupiraCalApi.Core.Data.Idempotency>();
         services.AddScoped<CalendarService>();
         services.AddOptions<ItemTimeZoneOptions>().BindConfiguration(ItemTimeZoneOptions.SectionName)
-            .Validate(o => TimeZoneIds.Find(o.DefaultTimezone) is not null, "Items:DefaultTimezone is not a known time zone.")
+            .Validate(o => TimeZoneIds.IsIana(o.DefaultTimezone), "Items:DefaultTimezone is not an IANA time zone id.")
             .ValidateOnStart();
         services.AddScoped<CalendarItemService>();
         services.AddScoped<CurationService>();

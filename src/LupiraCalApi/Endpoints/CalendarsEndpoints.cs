@@ -16,8 +16,15 @@ public static class CalendarsEndpoints
 
         group.MapPost("/", (CreateCalendarRequest body, CalendarsHandler h, CancellationToken ct) => h.CreateAsync(body, ct))
             .WithName("CreateCalendar")
-            .WithSummary("Create a calendar. (Address books are managed by LupiraContactApi.)")
-            .Produces<ContainerDto>(StatusCodes.Status200OK);
+            .WithSummary("Create a calendar. DefaultTimezone (IANA id) defaults to the server default. (Address books are managed by LupiraContactApi.)")
+            .Produces<ContainerDto>(StatusCodes.Status200OK)
+            .ProducesProblem(StatusCodes.Status400BadRequest);
+
+        group.MapPut("/{calendarId:guid}", (Guid calendarId, UpdateCalendarRequest body, CalendarsHandler h, CancellationToken ct) => h.UpdateAsync(calendarId, body, ct))
+            .WithName("UpdateCalendar")
+            .WithSummary("Change a calendar's DefaultTimezone (IANA id); owner-only. Applies to items written later without a zone; existing items keep theirs.")
+            .Produces<ContainerDto>(StatusCodes.Status200OK)
+            .ProducesProblem(StatusCodes.Status400BadRequest).ProducesProblem(StatusCodes.Status403Forbidden).ProducesProblem(StatusCodes.Status404NotFound);
 
         return app;
     }

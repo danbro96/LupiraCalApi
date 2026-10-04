@@ -15,9 +15,9 @@ public sealed class MeHandler(CurrentUser user, CalendarService calendars)
         return TypedResults.Ok(new MeDto { PrincipalId = u.Id, Email = u.Email, DisplayName = u.DisplayName });
     }
 
-    public async Task<Results<Ok<List<ContainerDto>>, UnauthorizedHttpResult>> BootstrapAsync(CancellationToken ct)
+    public async Task<Results<Ok<List<ContainerDto>>, ProblemHttpResult, UnauthorizedHttpResult>> BootstrapAsync(BootstrapRequest? body, CancellationToken ct)
     {
         var u = await user.GetAsync(ct);
-        return OpResultMap.OkOnly(await calendars.BootstrapPersonalAsync(u.Id, ct));
+        return OpResultMap.OkProblem(await calendars.BootstrapPersonalAsync(u.Id, body?.DefaultTimezone, ct));
     }
 }

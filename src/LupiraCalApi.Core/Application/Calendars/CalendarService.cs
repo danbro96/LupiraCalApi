@@ -1,17 +1,22 @@
+using LupiraCalApi.Core.Application.Items;
 using LupiraCalApi.Core.Application.Results;
 using LupiraCalApi.Core.Auth;
 using LupiraCalApi.Core.Domain.Calendars;
 using LupiraCalApi.Core.Domain.Shared;
 using LupiraCalApi.Core.Dtos.Calendars;
 using Marten;
+using Microsoft.Extensions.Options;
 
 namespace LupiraCalApi.Core.Application.Calendars;
 
 /// <summary>Lists and creates the calendars a principal can access, and shares them by granting/revoking co-owners.
 /// Creation grants the caller <c>owner</c>; sharing is owner-only and targets a member by email. Address books are
-/// owned by LupiraContactApi.</summary>
-public sealed class CalendarService(IDocumentSession session, PrincipalDirectory principals, AccessResolver access)
+/// owned by LupiraContactApi. Every calendar carries an IANA zone: one the caller supplies, else
+/// <see cref="ItemTimeZoneOptions.DefaultTimezone"/>.</summary>
+public sealed class CalendarService(IDocumentSession session, PrincipalDirectory principals, AccessResolver access, IOptions<ItemTimeZoneOptions> zones)
 {
+    private const string InvalidZone = "DefaultTimezone must be an IANA time zone id (e.g. Europe/Stockholm).";
+
     public async Task<OpResult<List<ContainerDto>>> ListContainersAsync(Guid principalId, CancellationToken ct = default)
     {
         var calOwners = await session.Query<CalendarOwner>().Where(o => o.PrincipalId == principalId).ToListAsync(ct);
@@ -20,7 +25,7 @@ public sealed class CalendarService(IDocumentSession session, PrincipalDirectory
         var calAccess = calOwners.ToDictionary(o => o.CalendarId, o => o.Access);
 
         return OpResult<List<ContainerDto>>.Ok(
-            [.. cals.Select(c => new ContainerDto { Id = c.Id, Type = "calendar", Slug = c.Slug, DisplayName = c.DisplayName, Color = c.Color, DefaultTimezone = c.DefaultTimezone, Class = c.Class, Kind = c.Kind, Access = calAccess[c.Id] })]);
+            [.. cals.Select(c => ToDto(c, calAccess[c.Id]))]);
     }
 
     public async Task<OpResult<ContainerDto>> CreateAsync(Guid principalId, CreateCalendarRequest r, CancellationToken ct = default)
@@ -28,13 +33,27 @@ public sealed class CalendarService(IDocumentSession session, PrincipalDirectory
         if (string.Equals(r.Type, "addressbook", StringComparison.OrdinalIgnoreCase))
             return OpResult<ContainerDto>.Invalid("Address books are managed by LupiraContactApi.");
 
-        var cls = r.Class ?? CalendarClass.Agenda;
-        var kind = r.Kind ?? CalendarKind.Generic;
-        var c = new Calendar { Id = Guid.NewGuid(), Slug = r.Slug, DisplayName = r.DisplayName, Color = r.Color, DefaultTimezone = r.DefaultTimezone, Class = cls, Kind = kind };
+        var zone = r.DefaultTimezone ?? zones.Value.DefaultTimezone;
+        if (!TimeZoneIds.IsIana(zone)) return OpResult<ContainerDto>.Invalid(InvalidZone);
+
+        var c = new Calendar { Id = Guid.NewGuid(), Slug = r.Slug, DisplayName = r.DisplayName, Color = r.Color, DefaultTimezone = zone, Class = r.Class ?? CalendarClass.Agenda, Kind = r.Kind ?? CalendarKind.Generic };
         session.Store(c);
         session.Store(new CalendarOwner { Id = CalendarOwner.MakeId(c.Id, principalId), CalendarId = c.Id, PrincipalId = principalId, Access = Access.Owner });
         await session.SaveChangesAsync(ct);
-        return OpResult<ContainerDto>.Ok(new ContainerDto { Id = c.Id, Type = "calendar", Slug = c.Slug, DisplayName = c.DisplayName, Color = c.Color, DefaultTimezone = c.DefaultTimezone, Class = cls, Kind = kind, Access = Access.Owner });
+        return OpResult<ContainerDto>.Ok(ToDto(c, Access.Owner));
+    }
+
+    /// <summary>Owner-only. A new zone applies to items written later without one; existing items keep theirs.</summary>
+    public async Task<OpResult<ContainerDto>> UpdateAsync(Guid callerId, Guid calendarId, UpdateCalendarRequest r, CancellationToken ct = default)
+    {
+        if (await session.LoadAsync<Calendar>(calendarId, ct) is not { } c) return OpResult<ContainerDto>.NotFound();
+        if (!await access.IsCalendarOwnerAsync(callerId, calendarId, ct)) return OpResult<ContainerDto>.Forbidden("Only an owner may change a calendar.");
+        if (!TimeZoneIds.IsIana(r.DefaultTimezone)) return OpResult<ContainerDto>.Invalid(InvalidZone);
+
+        c.DefaultTimezone = r.DefaultTimezone;
+        session.Store(c);
+        await session.SaveChangesAsync(ct);
+        return OpResult<ContainerDto>.Ok(ToDto(c, Access.Owner));
     }
 
     /// <summary>The agenda + system calendars seeded per principal. FoodPlan is deferred (enum value only, not seeded).</summary>
@@ -51,15 +70,18 @@ public sealed class CalendarService(IDocumentSession session, PrincipalDirectory
     ];
 
     /// <summary>Ensures the caller has the standard calendar set (agenda + system); idempotent — calendars are
-    /// matched on <see cref="CalendarKind"/>, so a second call creates nothing.</summary>
-    public async Task<OpResult<List<ContainerDto>>> BootstrapPersonalAsync(Guid principalId, CancellationToken ct = default)
+    /// matched on <see cref="CalendarKind"/>, so a second call creates nothing. <paramref name="defaultTimezone"/> applies
+    /// only to calendars it creates.</summary>
+    public async Task<OpResult<List<ContainerDto>>> BootstrapPersonalAsync(Guid principalId, string? defaultTimezone = null, CancellationToken ct = default)
     {
+        if (defaultTimezone is not null && !TimeZoneIds.IsIana(defaultTimezone)) return OpResult<List<ContainerDto>>.Invalid(InvalidZone);
+
         var existing = (await ListContainersAsync(principalId, ct)).Value!;
 
         var result = new List<ContainerDto>();
         foreach (var (slug, name, cls, kind) in StandardCalendars)
             result.Add(existing.FirstOrDefault(c => c.Kind == kind)
-                ?? (await CreateAsync(principalId, new CreateCalendarRequest { Slug = slug, DisplayName = name, Type = "calendar", Class = cls, Kind = kind, DefaultTimezone = "UTC" }, ct)).Value!);
+                ?? (await CreateAsync(principalId, new CreateCalendarRequest { Slug = slug, DisplayName = name, Type = "calendar", Class = cls, Kind = kind, DefaultTimezone = defaultTimezone }, ct)).Value!);
 
         return OpResult<List<ContainerDto>>.Ok(result);
     }
@@ -97,4 +119,9 @@ public sealed class CalendarService(IDocumentSession session, PrincipalDirectory
         await session.SaveChangesAsync(ct);
         return OpResult.Ok();
     }
+
+    private static ContainerDto ToDto(Calendar c, Access access) => new()
+    {
+        Id = c.Id, Type = "calendar", Slug = c.Slug, DisplayName = c.DisplayName, Color = c.Color, DefaultTimezone = c.DefaultTimezone, Class = c.Class, Kind = c.Kind, Access = access,
+    };
 }

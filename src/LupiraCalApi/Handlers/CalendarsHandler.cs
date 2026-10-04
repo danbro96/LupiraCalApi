@@ -14,10 +14,16 @@ public sealed class CalendarsHandler(CurrentUser user, CalendarService calendars
         return OpResultMap.OkOnly(await calendars.ListContainersAsync(u.Id, ct));
     }
 
-    public async Task<Results<Ok<ContainerDto>, UnauthorizedHttpResult>> CreateAsync(CreateCalendarRequest body, CancellationToken ct)
+    public async Task<Results<Ok<ContainerDto>, ProblemHttpResult, UnauthorizedHttpResult>> CreateAsync(CreateCalendarRequest body, CancellationToken ct)
     {
         var u = await user.GetAsync(ct);
-        return OpResultMap.OkOnly(await calendars.CreateAsync(u.Id, body, ct));
+        return OpResultMap.OkProblem(await calendars.CreateAsync(u.Id, body, ct));
+    }
+
+    public async Task<Results<Ok<ContainerDto>, NotFound, ProblemHttpResult, UnauthorizedHttpResult>> UpdateAsync(Guid calendarId, UpdateCalendarRequest body, CancellationToken ct)
+    {
+        var u = await user.GetAsync(ct);
+        return OpResultMap.OkNotFoundProblem(await calendars.UpdateAsync(u.Id, calendarId, body, ct));
     }
 
     public async Task<Results<Ok<OwnerGrantDto>, NotFound, ProblemHttpResult, UnauthorizedHttpResult>> GrantCalendarOwnerAsync(Guid calendarId, GrantOwnerRequest body, CancellationToken ct)

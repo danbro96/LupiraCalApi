@@ -233,19 +233,29 @@ public sealed class CalendarTools
     }
 
     [McpServerTool(Name = "bootstrap_me")]
-    [Description("Ensure the caller has the standard calendar set (idempotent); returns it.")]
-    public static async Task<IReadOnlyList<ContainerDto>> BootstrapMe(CalendarService calendars, CurrentUser user)
+    [Description("Ensure the caller has the standard calendar set (idempotent); returns it. Calendars it creates get defaultTimezone, else the server default; existing calendars are unchanged.")]
+    public static async Task<IReadOnlyList<ContainerDto>> BootstrapMe(CalendarService calendars, CurrentUser user,
+        [Description("IANA time zone id, e.g. Europe/Stockholm.")] string? defaultTimezone = null)
     {
         var u = await user.GetAsync();
-        return Require(await calendars.BootstrapPersonalAsync(u.Id));
+        return Require(await calendars.BootstrapPersonalAsync(u.Id, defaultTimezone));
     }
 
     [McpServerTool(Name = "create_calendar")]
-    [Description("Create a calendar. Slug required.")]
+    [Description("Create a calendar. Slug required. DefaultTimezone (IANA id) defaults to the server default.")]
     public static async Task<ContainerDto> CreateCalendar(CalendarService calendars, CurrentUser user, CreateCalendarRequest request)
     {
         var u = await user.GetAsync();
         return Require(await calendars.CreateAsync(u.Id, request));
+    }
+
+    [McpServerTool(Name = "update_calendar")]
+    [Description("Change a calendar's DefaultTimezone (IANA id, e.g. Europe/Stockholm); owner-only. Applies to items written later without a zone; existing items keep theirs.")]
+    public static async Task<ContainerDto> UpdateCalendar(CalendarService calendars, CurrentUser user,
+        [Description("Calendar id.")] Guid calendarId, UpdateCalendarRequest request)
+    {
+        var u = await user.GetAsync();
+        return Require(await calendars.UpdateAsync(u.Id, calendarId, request));
     }
 
     [McpServerTool(Name = "grant_calendar_owner")]
