@@ -54,4 +54,19 @@ public sealed class McpToolArgumentsTests(CalApiTestFactory factory) : Integrati
         var text = Assert.IsType<TextContentBlock>(Assert.Single(result.Content)).Text;
         Assert.Contains("unknown request.items[0].bogus", text);
     }
+
+    [Fact]
+    public async Task Non_object_metadata_is_rejected()
+    {
+        await using var mcp = await ConnectAsync();
+        foreach (var json in new[] { "[1,2]", "null", "\"x\"", "not json {" })
+        {
+            var result = await mcp.CallToolAsync("attach_metadata",
+                new Dictionary<string, object?> { ["itemId"] = Guid.NewGuid(), ["metadataJson"] = json });
+
+            Assert.True(result.IsError, json);
+            var text = Assert.IsType<TextContentBlock>(Assert.Single(result.Content)).Text;
+            Assert.Contains("must be a JSON object", text);
+        }
+    }
 }

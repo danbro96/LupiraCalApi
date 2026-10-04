@@ -1570,7 +1570,7 @@
           "content": {
             "application/json": {
               "schema": {
-                "$ref": "#/components/schemas/JsonNode"
+                "$ref": "#/components/schemas/JsonObject"
               }
             }
           },
@@ -1589,6 +1589,16 @@
           },
           "404": {
             "description": "Not Found",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request",
             "content": {
               "application/problem+json": {
                 "schema": {
@@ -2010,6 +2020,16 @@
           },
           "404": {
             "description": "Not Found",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request",
             "content": {
               "application/problem+json": {
                 "schema": {
@@ -3877,6 +3897,7 @@
           "id",
           "externalId",
           "isAllDay",
+          "metadata",
           "attendees",
           "calendars",
           "etag",
@@ -4052,14 +4073,7 @@
             }
           },
           "metadata": {
-            "oneOf": [
-              {
-                "type": "null"
-              },
-              {
-                "$ref": "#/components/schemas/JsonNode"
-              }
-            ]
+            "$ref": "#/components/schemas/JsonObject"
           },
           "prompt": {
             "oneOf": [
@@ -4718,7 +4732,7 @@
                 "type": "null"
               },
               {
-                "$ref": "#/components/schemas/JsonNode"
+                "$ref": "#/components/schemas/JsonObject"
               }
             ]
           }
@@ -5158,7 +5172,6 @@
           "Cancelled"
         ]
       },
-      "JsonNode": { },
       "JsonObject": {
         "type": "object"
       },
@@ -5594,7 +5607,7 @@
                 "type": "null"
               },
               {
-                "$ref": "#/components/schemas/JsonNode"
+                "$ref": "#/components/schemas/JsonObject"
               }
             ]
           }

@@ -1,4 +1,5 @@
 using System.ComponentModel;
+using System.Text.Json;
 using System.Text.Json.Nodes;
 using LupiraCalApi.Auth;
 using LupiraCalApi.Core.Application.Calendars;
@@ -141,8 +142,7 @@ public sealed class CalendarTools
         [Description("A JSON object of metadata keys to merge.")] string metadataJson)
     {
         var u = await user.GetAsync();
-        var node = JsonNode.Parse(metadataJson) ?? new JsonObject();
-        return Require(await items.AttachMetadataAsync(u.Id, itemId, node));
+        return Require(await items.AttachMetadataAsync(u.Id, itemId, ParseMetadataObject(metadataJson)));
     }
 
     [McpServerTool(Name = "file_item")]
@@ -329,6 +329,18 @@ public sealed class CalendarTools
     {
         var u = await user.GetAsync();
         return Require(await hotspots.ListAsync(u.Id, from, to, calendarId, minDays, limit));
+    }
+
+    private static JsonObject ParseMetadataObject(string metadataJson)
+    {
+        try
+        {
+            if (JsonNode.Parse(metadataJson) is JsonObject obj) return obj;
+        }
+        catch (JsonException)
+        {
+        }
+        throw new McpException("`metadataJson` must be a JSON object.");
     }
 
     /// <summary>Unwraps a service outcome to its value, surfacing non-Ok statuses as an MCP tool error.</summary>

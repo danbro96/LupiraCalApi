@@ -511,7 +511,7 @@ public sealed class CalendarItemService(IDocumentSession session, AccessResolver
         return OpResult.Ok();
     }
 
-    public async Task<OpResult<CalendarItemDto>> AttachMetadataAsync(Guid principalId, Guid id, JsonNode patch, DateTimeOffset? occurredAt = null, Guid? commandId = null, CancellationToken ct = default)
+    public async Task<OpResult<CalendarItemDto>> AttachMetadataAsync(Guid principalId, Guid id, JsonObject patch, DateTimeOffset? occurredAt = null, Guid? commandId = null, CancellationToken ct = default)
     {
         if (await idempotency.SeenAsync(commandId, ct) is not null) return await ReplayedAsync(id, ct);
         var stream = await session.Events.FetchForWriting<CalendarItem>(id, ct);
@@ -519,9 +519,8 @@ public sealed class CalendarItemService(IDocumentSession session, AccessResolver
         if (item is null || item.DeletedAt is not null) return OpResult<CalendarItemDto>.NotFound();
         if (!await CanWriteItemAsync(principalId, item, ct)) return OpResult<CalendarItemDto>.Forbidden("No write access to this item.");
 
-        var current = (JsonNode.Parse(string.IsNullOrWhiteSpace(item.Metadata) ? "{}" : item.Metadata) as JsonObject) ?? new JsonObject();
-        if (patch is JsonObject obj)
-            foreach (var kv in obj) current[kv.Key] = kv.Value?.DeepClone();
+        var current = JsonNode.Parse(string.IsNullOrWhiteSpace(item.Metadata) ? "{}" : item.Metadata)!.AsObject();
+        foreach (var kv in patch) current[kv.Key] = kv.Value?.DeepClone();
         stream.AppendOne(new ItemMetadataAttached(id, current.ToJsonString(), occurredAt, commandId));
         await idempotency.CommitAsync(commandId, id, (int) (stream.CurrentVersion ?? 0) + 1, ct);
         var updated = await session.LoadAsync<CalendarItem>(id, ct);

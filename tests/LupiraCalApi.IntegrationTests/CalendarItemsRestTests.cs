@@ -57,7 +57,18 @@ public sealed class CalendarItemsRestTests(CalApiTestFactory factory) : Integrat
         var resp = await api.PostAsJsonAsync($"/items/{item.Id}/metadata", patch);
         resp.EnsureSuccessStatusCode();
         var dto = (await resp.Content.ReadFromJsonAsync<CalendarItemDto>())!;
-        Assert.Equal("tokyo-2026", dto.Metadata?["trip"]?.GetValue<string>());
+        Assert.Equal("tokyo-2026", dto.Metadata["trip"]?.GetValue<string>());
+    }
+
+    [Fact]
+    public async Task Non_object_metadata_is_bad_request()
+    {
+        var api = Factory.ApiClient(Email);
+        var calId = await CreateCalendarAsync(api);
+        var item = await CreateAsync(api, calId);
+
+        var resp = await api.PostAsJsonAsync($"/items/{item.Id}/metadata", new JsonArray(1, 2));
+        Assert.Equal(HttpStatusCode.BadRequest, resp.StatusCode);
     }
 
     [Fact]

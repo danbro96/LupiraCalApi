@@ -15,6 +15,7 @@ public static class RelationsEndpoints
             .WithName("CreateItemRelation")
             .WithSummary("Link a calendar item to an external reference (e.g. a LupiraTasks item, or an Activity-API engagement/project).")
             .Produces<RelationDto>(StatusCodes.Status200OK)
+            .ProducesProblem(StatusCodes.Status400BadRequest)
             .ProducesProblem(StatusCodes.Status404NotFound);
 
         group.MapPost("/items/{id:guid}/relations/batch", (Guid id, CreateRelationsBatchRequest body, RelationsHandler h, CancellationToken ct) =>

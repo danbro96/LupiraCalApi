@@ -79,10 +79,11 @@ public static class CalendarItemsEndpoints
             .ProducesProblem(StatusCodes.Status400BadRequest)
             .ProducesProblem(StatusCodes.Status404NotFound);
 
-        group.MapPost("/{id:guid}/metadata", (Guid id, JsonNode patch, DateTimeOffset? occurredAt, [FromHeader(Name = "Idempotency-Key")] Guid? idempotencyKey, CalendarItemsHandler h, CancellationToken ct) => h.AttachMetadataAsync(id, patch, occurredAt, idempotencyKey, ct))
+        group.MapPost("/{id:guid}/metadata", (Guid id, JsonObject patch, DateTimeOffset? occurredAt, [FromHeader(Name = "Idempotency-Key")] Guid? idempotencyKey, CalendarItemsHandler h, CancellationToken ct) => h.AttachMetadataAsync(id, patch, occurredAt, idempotencyKey, ct))
             .WithName("MergeItemMetadata")
             .WithSummary("Merge arbitrary JSON metadata into a calendar item. Offline clients pass ?occurredAt= + Idempotency-Key for replay-safe, last-writer-wins merges.")
             .Produces<CalendarItemDto>(StatusCodes.Status200OK)
+            .ProducesProblem(StatusCodes.Status400BadRequest)
             .ProducesProblem(StatusCodes.Status404NotFound);
 
         group.MapPut("/{id:guid}/prompt", (Guid id, SetItemPromptRequest body, [FromHeader(Name = "Idempotency-Key")] Guid? idempotencyKey, CalendarItemsHandler h, CancellationToken ct) => h.SetPromptAsync(id, body, idempotencyKey, ct))

@@ -34,7 +34,7 @@ internal static class CalendarItemMapper
         LocationLabel = i.LocationLabel,
         ParentItemId = i.ParentItemId,
         Tags = i.Tags,
-        Metadata = JsonNode.Parse(string.IsNullOrWhiteSpace(i.Metadata) ? "{}" : i.Metadata),
+        Metadata = JsonNode.Parse(string.IsNullOrWhiteSpace(i.Metadata) ? "{}" : i.Metadata)!.AsObject(),
         Prompt = i.Prompt,
         Action = i.Action,
         Completeness = completeness,

@@ -60,7 +60,7 @@ public sealed class CalendarItemsHandler(CurrentUser user, CalendarItemService i
         return OpResultMap.NoContentNotFoundProblem(await items.DeleteAsync(u.Id, id, idempotencyKey, ct));
     }
 
-    public async Task<Results<Ok<CalendarItemDto>, NotFound, ProblemHttpResult, UnauthorizedHttpResult>> AttachMetadataAsync(Guid id, JsonNode patch, DateTimeOffset? occurredAt, Guid? idempotencyKey, CancellationToken ct)
+    public async Task<Results<Ok<CalendarItemDto>, NotFound, ProblemHttpResult, UnauthorizedHttpResult>> AttachMetadataAsync(Guid id, JsonObject patch, DateTimeOffset? occurredAt, Guid? idempotencyKey, CancellationToken ct)
     {
         var u = await user.GetAsync(ct);
         return OpResultMap.OkNotFoundProblem(await items.AttachMetadataAsync(u.Id, id, patch, occurredAt, idempotencyKey, ct));

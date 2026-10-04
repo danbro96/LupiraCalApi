@@ -102,6 +102,17 @@ public sealed class RelationsTests(CalApiTestFactory factory) : IntegrationTest(
     }
 
     [Fact]
+    public async Task Link_with_non_object_metadata_is_bad_request()
+    {
+        var api = Factory.ApiClient(Email);
+        var calId = await CreateCalendarAsync(api);
+        var itemId = await CreateItemAsync(api, calId);
+
+        var resp = await api.PostAsJsonAsync($"/items/{itemId}/relations", new { toKind = "task", toRef = "x", relationType = "derived-from", metadata = "x" });
+        Assert.Equal(HttpStatusCode.BadRequest, resp.StatusCode);
+    }
+
+    [Fact]
     public async Task Batch_links_are_idempotent_per_reference()
     {
         var api = Factory.ApiClient(Email);
