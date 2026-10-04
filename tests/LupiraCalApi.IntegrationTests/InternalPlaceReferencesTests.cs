@@ -1,8 +1,9 @@
 using System.Net;
 using System.Net.Http.Json;
+using Lupira.Contracts.PlaceRefs;
+using Lupira.Testing.Postgres;
 using LupiraCalApi.Core.Domain.Shared;
 using LupiraCalApi.Core.Dtos.CalendarItems;
-using LupiraCalApi.Core.Dtos.Internal;
 using Xunit;
 
 namespace LupiraCalApi.IntegrationTests;
@@ -13,12 +14,12 @@ public sealed class InternalPlaceReferencesTests(CalApiTestFactory factory) : In
 {
     private const string Email = "alice@x.test";
 
-    private static async Task<ItemPlaceReferencesResponse> CheckAsync(HttpClient svc, params Guid[] placeIds)
+    private static async Task<PlaceReferencesResponse> CheckAsync(HttpClient svc, params Guid[] placeIds)
     {
         var resp = await svc.PostAsJsonAsync("/internal/items/place-references:check",
             new CheckPlaceReferencesRequest { PlaceIds = [.. placeIds] });
         resp.EnsureSuccessStatusCode();
-        return (await resp.Content.ReadFromJsonAsync<ItemPlaceReferencesResponse>())!;
+        return (await resp.Content.ReadFromJsonAsync<PlaceReferencesResponse>())!;
     }
 
     private static CreateCalendarItemRequest Item(Guid calId, string title, Guid? placeId = null) => new()
@@ -57,7 +58,7 @@ public sealed class InternalPlaceReferencesTests(CalApiTestFactory factory) : In
         var deleted = (await deletedResp.Content.ReadFromJsonAsync<CalendarItemDto>())!;
         (await api.DeleteAsync($"/items/{deleted.Id}")).EnsureSuccessStatusCode();
 
-        var result = await CheckAsync(Factory.ServiceClient(), locPlace, toPlace, fromPlace, Guid.NewGuid());
+        var result = await CheckAsync(Factory.ScopedClient("svc@x.test", "internal:read"), locPlace, toPlace, fromPlace, Guid.NewGuid());
 
         var byId = result.Places.ToDictionary(p => p.PlaceId);
         Assert.Equal((1, 1), (byId[locPlace].LiveCount, byId[locPlace].DeletedCount));
@@ -69,7 +70,7 @@ public sealed class InternalPlaceReferencesTests(CalApiTestFactory factory) : In
     [Fact]
     public async Task Caps_the_id_batch_and_rejects_empty()
     {
-        var svc = Factory.ServiceClient();
+        var svc = Factory.ScopedClient("svc@x.test", "internal:read");
         var empty = await svc.PostAsJsonAsync("/internal/items/place-references:check",
             new CheckPlaceReferencesRequest { PlaceIds = [] });
         Assert.Equal(HttpStatusCode.BadRequest, empty.StatusCode);
@@ -94,7 +95,7 @@ public sealed class InternalPlaceReferencesTests(CalApiTestFactory factory) : In
     [Fact]
     public async Task Tunnelled_requests_are_hidden()
     {
-        var svc = Factory.ServiceClient();
+        var svc = Factory.ScopedClient("svc@x.test", "internal:read");
         using var req = new HttpRequestMessage(HttpMethod.Post, "/internal/items/place-references:check")
         {
             Content = JsonContent.Create(new CheckPlaceReferencesRequest { PlaceIds = [Guid.NewGuid()] }),

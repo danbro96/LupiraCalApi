@@ -1,5 +1,5 @@
+using Lupira.Contracts.PlaceRefs;
 using LupiraCalApi.Core.Domain.CalendarItems;
-using LupiraCalApi.Core.Dtos.Internal;
 using Marten;
 using Microsoft.AspNetCore.Http.HttpResults;
 
@@ -13,7 +13,7 @@ public sealed class InternalItemsHandler(IQuerySession session)
 {
     private const int MaxPlaceIds = 1000;
 
-    public async Task<Results<Ok<ItemPlaceReferencesResponse>, BadRequest<string>>> CheckPlaceReferencesAsync(
+    public async Task<Results<Ok<PlaceReferencesResponse>, BadRequest<string>>> CheckPlaceReferencesAsync(
         CheckPlaceReferencesRequest body, CancellationToken ct)
     {
         if (body.PlaceIds.Count == 0 || body.PlaceIds.Count > MaxPlaceIds)
@@ -32,9 +32,9 @@ public sealed class InternalItemsHandler(IQuerySession session)
             }
         }
 
-        return TypedResults.Ok(new ItemPlaceReferencesResponse
+        return TypedResults.Ok(new PlaceReferencesResponse
         {
-            Places = [.. counts.Select(kv => new ItemPlaceRefDto { PlaceId = kv.Key, LiveCount = kv.Value.Live, DeletedCount = kv.Value.Deleted })],
+            Places = [.. counts.Select(kv => new PlaceReferenceCountDto { PlaceId = kv.Key, LiveCount = kv.Value.Live, DeletedCount = kv.Value.Deleted })],
         });
     }
 }

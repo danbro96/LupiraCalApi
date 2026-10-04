@@ -1,10 +1,11 @@
 using System.Net;
 using System.Net.Http.Json;
+using Lupira.Contracts.Dav;
 using Lupira.Primitives;
+using Lupira.Testing.Postgres;
 using LupiraCalApi.Core.Application.Dav;
 using LupiraCalApi.Core.Domain.Shared;
 using LupiraCalApi.Core.Dtos.CalendarItems;
-using LupiraCalApi.Dav;
 using Xunit;
 
 namespace LupiraCalApi.IntegrationTests;

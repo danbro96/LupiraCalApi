@@ -1,13 +1,15 @@
-using System.Globalization;
-using System.Text.Json;
-using Lupira.Auth.DevUser;
+using Lupira.Auth.Jwt;
+using Lupira.Clients.ServiceTokens;
 using Lupira.Depz;
 using Lupira.Hosting.Defaults;
 using Lupira.Hosting.Health;
 using Lupira.Hosting.LanEdge;
 using Lupira.Hosting.Observability;
+using Lupira.Hosting.OpenApi;
 using Lupira.Hosting.Problems;
+using Lupira.Identity.Marten.AspNetCore;
 using Lupira.Mcp;
+using Lupira.Postgres.Health;
 using LupiraCalApi.Auth;
 using LupiraCalApi.Clients;
 using LupiraCalApi.Core.Abstractions;
@@ -18,14 +20,9 @@ using LupiraCalApi.Dav;
 using LupiraCalApi.Dependencies;
 using LupiraCalApi.Endpoints;
 using LupiraCalApi.Handlers;
-using LupiraCalApi.Health;
 using LupiraCalApi.Mcp;
 using Marten;
-using Microsoft.AspNetCore.Authentication.JwtBearer;
-using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.HttpOverrides;
-using Microsoft.OpenApi;
-using Scalar.AspNetCore;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -34,8 +31,7 @@ var builder = WebApplication.CreateBuilder(args);
 builder.Services.AddCalCore();
 
 // --- Host-only services: identity (claims -> Core UserDirectory) + the thin REST handlers. ---
-builder.Services.AddHttpContextAccessor();
-builder.Services.AddScoped<CurrentUser>();
+builder.Services.AddLupiraCurrentUser(o => o.StampProvenance = true);
 builder.Services.AddScoped<MeHandler>();
 builder.Services.AddScoped<CalendarsHandler>();
 builder.Services.AddScoped<CalendarItemsHandler>();
@@ -80,10 +76,7 @@ if (photoOptions.IsConfigured)
 // Outbound auth per OutboundAuthProvider. Token state lives in singletons, so the typed clients stay transient.
 builder.Services.Configure<TokenExchangeOptions>(builder.Configuration.GetSection(TokenExchangeOptions.SectionName));
 builder.Services.Configure<DavGatewayOptions>(builder.Configuration.GetSection(DavGatewayOptions.SectionName));
-builder.Services.AddHttpClient(TokenEndpointClient.HttpClientName, c => c.Timeout = TimeSpan.FromSeconds(10));
-builder.Services.AddSingleton(TimeProvider.System);
-builder.Services.AddSingleton<TokenEndpointClient>();
-builder.Services.AddSingleton<TokenCache>();
+builder.Services.AddLupiraTokenEndpoint();
 builder.Services.AddSingleton<OutboundAuthProvider>();
 
 // Non-gating dependency probe (/depz): edges derive from the options above, probed on a dedicated client.
@@ -95,11 +88,14 @@ builder.Services.AddLupiraDepz(o =>
     o.MetricPrefix = "cal";
 });
 builder.Services.AddSingleton<IDependencyTargetSource>(sp => new StaticDependencyTargetSource(DependencyTargets.From(
-    geoOptions, contactOptions, sp.GetRequiredService<TokenEndpointClient>(), sp.GetRequiredService<TokenCache>())));
+    geoOptions, contactOptions, sp.GetRequiredService<ServiceTokenProvider>())));
 
 // --- Auth: OIDC JWT for the REST/MCP surface (members, and the agent via its device-code grant); the
 //           /dav-backend seam additionally requires the DAV gateway's client identity (azp). One identity
 //           authority (Authentik). ---
+builder.AddLupiraJwt();
+var apiSchemes = LupiraJwtSchemes.Api(builder.Environment);
+
 // `dotnet build` regenerates openapi/ via getdocument, which boots this Program with no real config —
 // skip the guard there (and in Development, where the dev-header scheme needs no authority).
 var isOpenApiBuild = Environment.GetCommandLineArgs()
@@ -107,63 +103,17 @@ var isOpenApiBuild = Environment.GetCommandLineArgs()
 
 var enforceConfig = !isOpenApiBuild && !builder.Environment.IsDevelopment();
 
-var oidc = builder.Configuration.GetSection(OidcAuthOptions.SectionName).Get<OidcAuthOptions>() ?? new OidcAuthOptions();
-if (enforceConfig && (string.IsNullOrWhiteSpace(oidc.Authority) || string.IsNullOrWhiteSpace(oidc.Audience)))
-    throw new InvalidOperationException("Auth:Oidc Authority + Audience are required outside Development.");
-
 var exchangeOptions = builder.Configuration.GetSection(TokenExchangeOptions.SectionName).Get<TokenExchangeOptions>() ?? new TokenExchangeOptions();
 IOutboundHopOptions[] configuredHops = [.. new IOutboundHopOptions[] { geoOptions, contactOptions, photoOptions }.Where(h => h.IsConfigured)];
 if (enforceConfig && configuredHops.Length > 0
     && (!exchangeOptions.IsConfigured || configuredHops.Any(h => string.IsNullOrWhiteSpace(h.Audience))))
     throw new InvalidOperationException("Geo/Contacts/Photos hops need an Audience and Auth:Exchange TokenUrl + ClientId + ClientSecret outside Development.");
 
-var authBuilder = builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
-    .AddJwtBearer(options =>
-    {
-        options.Authority = oidc.Authority;
-        options.Audience = oidc.Audience;
-        options.RequireHttpsMetadata = !builder.Environment.IsDevelopment();
-        options.Events = new JwtBearerEvents
-        {
-            // MCP auth spec: a 401 on /mcp advertises the RFC 9728 metadata so clients can discover the
-            // issuer. HandleResponse suppresses the default bare "Bearer" header so exactly one goes out.
-            OnChallenge = ctx =>
-            {
-                if (ctx.Request.Path.StartsWithSegments("/mcp"))
-                {
-                    ctx.HandleResponse();
-                    ctx.Response.StatusCode = StatusCodes.Status401Unauthorized;
-                    ctx.Response.Headers.WWWAuthenticate =
-                        $"Bearer resource_metadata=\"{McpResourceMetadata.ResourceMetadataUrl(ctx.Request)}\"";
-                }
-
-                return Task.CompletedTask;
-            },
-        };
-    });
-
-// Development-only: allow X-Dev-User header auth so the API can be exercised without Authentik.
-if (builder.Environment.IsDevelopment())
-    authBuilder.AddLupiraDevHeaderAuth();
-
-string[] apiSchemes = builder.Environment.IsDevelopment()
-    ? [JwtBearerDefaults.AuthenticationScheme, DevAuthenticationBuilderExtensions.DefaultScheme]
-    : [JwtBearerDefaults.AuthenticationScheme];
-
 var davGatewayClientId = builder.Configuration.GetSection(DavGatewayOptions.SectionName).Get<DavGatewayOptions>()?.ClientId;
 builder.Services.AddAuthorizationBuilder()
-    .AddPolicy("ApiPolicy", p => p.AddAuthenticationSchemes(apiSchemes).RequireAuthenticatedUser())
-    // The DAV gateway's service identity: a valid token for this API (aud) minted by the gateway's
-    // client (azp). Dev-header auth passes in Development so tests can drive the seam directly.
-    .AddPolicy("DavBackendPolicy", p => p.AddAuthenticationSchemes(apiSchemes).RequireAuthenticatedUser()
-        .RequireAssertion(ctx =>
-            ctx.User.Identity?.AuthenticationType == DevAuthenticationBuilderExtensions.DefaultScheme
-            || DavGatewayOptions.IsGateway(ctx.User, davGatewayClientId)))
-    // internal:read is granted only to service clients — user tokens authenticate but never pass this.
-    .AddPolicy("InternalPolicy", p => p.AddAuthenticationSchemes(apiSchemes).RequireAuthenticatedUser()
-        .RequireAssertion(ctx => ctx.User.FindAll("scope")
-            .SelectMany(c => c.Value.Split(' ', StringSplitOptions.RemoveEmptyEntries))
-            .Contains("internal:read")));
+    .AddLupiraApiPolicy(apiSchemes)
+    .AddLupiraGatewayAzpPolicy(apiSchemes, davGatewayClientId)
+    .AddLupiraInternalScopePolicy(apiSchemes);
 
 builder.AddLupiraTelemetry("lupira-cal-api");
 
@@ -179,127 +129,15 @@ builder.AddLupiraDefaults(o =>
 
 builder.Services.AddLupiraProblems(o => o.BadRequestDetail = IdempotencyKeyProblem.Detail);
 
-builder.Services.AddOpenApi("v1", options =>
+builder.Services.AddOpenApi("v1", options => options.AddLupiraConventions(o =>
 {
-    options.AddDocumentTransformer((document, context, _) =>
-    {
-        document.Info = new()
-        {
-            Title = "Lupira Cal API",
-            Version = "v1",
-            Description =
-                "Calendar backend for Lupira (contacts live in LupiraContactApi). " +
-                "Authenticate with a Bearer token issued by the OIDC provider (Authentik).",
-        };
-        document.Components ??= new();
-        document.Components.SecuritySchemes ??= new Dictionary<string, IOpenApiSecurityScheme>();
-        document.Components.SecuritySchemes["Bearer"] = new OpenApiSecurityScheme
-        {
-            Type = SecuritySchemeType.Http,
-            Scheme = "bearer",
-            BearerFormat = "JWT",
-            Description = "OIDC bearer token. Send as `Authorization: Bearer <token>`.",
-        };
-        document.Components.Schemas ??= new Dictionary<string, IOpenApiSchema>();
-        document.Components.Schemas["ProblemDetails"] = ProblemDetailsSchema();
-        return Task.CompletedTask;
-    });
-    // The UtcDateTimeOffsetConverter hides the underlying CLR type from schema inference, which would
-    // otherwise emit `format: date-time` with no `type` at all.
-    options.AddSchemaTransformer((schema, context, _) =>
-    {
-        var t = context.JsonTypeInfo.Type;
-        if (t == typeof(DateTimeOffset) || t == typeof(DateTimeOffset?))
-        {
-            schema.Type = t == typeof(DateTimeOffset?)
-                ? JsonSchemaType.String | JsonSchemaType.Null
-                : JsonSchemaType.String;
-            schema.Format = "date-time";
-        }
-
-        // A nullable use of an enum (ItemStatus?) makes the framework append null to the shared
-        // component schema, although the property's own oneOf already carries the nullability.
-        // Generators read that null onto the enum type itself, so non-nullable uses inherit it too.
-        if (schema.Enum is { Count: > 0 } members)
-        {
-            for (var i = members.Count - 1; i >= 0; i--)
-            {
-                if (members[i] is null || members[i]!.GetValueKind() == JsonValueKind.Null)
-                {
-                    members.RemoveAt(i);
-                }
-            }
-        }
-
-        return Task.CompletedTask;
-    });
-    options.AddOperationTransformer((operation, context, _) =>
-    {
-        var endpointMetadata = context.Description.ActionDescriptor.EndpointMetadata;
-        var requiresAuth = endpointMetadata.OfType<IAuthorizeData>().Any()
-                        && !endpointMetadata.OfType<IAllowAnonymous>().Any();
-        if (requiresAuth)
-        {
-            operation.Security ??= new List<OpenApiSecurityRequirement>();
-            operation.Security.Add(new OpenApiSecurityRequirement
-            {
-                [new OpenApiSecuritySchemeReference("Bearer", context.Document)] = new List<string>(),
-            });
-            AddProblem(operation, context.Document, StatusCodes.Status401Unauthorized, "Unauthorized");
-        }
-
-        // The cross-cutting code no endpoint declares — ProblemExceptionHandler produces it.
-
-        AddProblem(operation, context.Document, StatusCodes.Status500InternalServerError, "Internal server error");
-
-        // Bodyless 4xx/5xx come from the non-generic arms of the typed-result unions (NotFound,
-
-        // UnauthorizedHttpResult). UseStatusCodePages fills them at runtime, so declare the shape.
-
-        foreach (var code in operation.Responses?.Keys.ToList() ?? [])
-        {
-            if (code.Length != 3 || code[0] is not ('4' or '5')) continue;
-
-            var existing = operation.Responses![code];
-
-            if (existing.Content is { Count: > 0 }) continue;
-
-            operation.Responses[code] = new OpenApiResponse
-            { Description = existing.Description, Content = ProblemContent(context.Document) };
-        }
-
-        return Task.CompletedTask;
-    });
-});
-
-// Every error response carries the same shape, so a generated client types its error once instead of
-// falling back to `void`.
-static Dictionary<string, OpenApiMediaType> ProblemContent(OpenApiDocument document) =>
-    new() { ["application/problem+json"] = new() { Schema = new OpenApiSchemaReference("ProblemDetails", document) } };
-
-static void AddProblem(OpenApiOperation operation, OpenApiDocument document, int status, string description)
-{
-    var code = status.ToString(CultureInfo.InvariantCulture);
-    operation.Responses ??= [];
-    if (operation.Responses.ContainsKey(code)) return;
-    operation.Responses[code] = new OpenApiResponse { Description = description, Content = ProblemContent(document) };
-}
-
-// RFC 9457. Declared here because nothing returns the CLR type directly, so the generator never emits it.
-static OpenApiSchema ProblemDetailsSchema() => new()
-{
-    Type = JsonSchemaType.Object,
-    Description = "RFC 9457 problem details.",
-    Properties = new Dictionary<string, IOpenApiSchema>
-    {
-        ["type"] = new OpenApiSchema { Type = JsonSchemaType.String | JsonSchemaType.Null },
-        ["title"] = new OpenApiSchema { Type = JsonSchemaType.String | JsonSchemaType.Null },
-        ["status"] = new OpenApiSchema { Type = JsonSchemaType.Integer | JsonSchemaType.Null, Format = "int32" },
-        ["detail"] = new OpenApiSchema { Type = JsonSchemaType.String | JsonSchemaType.Null },
-        ["instance"] = new OpenApiSchema { Type = JsonSchemaType.String | JsonSchemaType.Null },
-        ["traceId"] = new OpenApiSchema { Type = JsonSchemaType.String | JsonSchemaType.Null },
-    },
-};
+    o.Title = "Lupira Cal API";
+    o.Description =
+        "Calendar backend for Lupira (contacts live in LupiraContactApi). " +
+        "Authenticate with a Bearer token issued by the OIDC provider (Authentik).";
+    o.DropNullEnumMembers = true;
+    o.DateTimeOffsetAsString = true;
+}));
 
 // MCP server for the agent, mounted at /mcp (LAN/WireGuard-only — not published through the tunnel).
 builder.Services.AddLupiraMcp().WithTools<CalendarTools>();
@@ -350,15 +188,7 @@ app.UseExceptionHandler();
 app.UseAuthentication();
 app.UseAuthorization();
 
-app.MapOpenApi("/openapi/{documentName}.json").AllowAnonymous();
-app.MapScalarApiReference("/scalar", o => o
-        .WithTitle("Lupira Cal API")
-        .WithTheme(ScalarTheme.BluePlanet))
-    .AllowAnonymous();
-
-app.MapGet("/", () => TypedResults.Redirect("/scalar"))
-   .ExcludeFromDescription()
-   .AllowAnonymous();
+app.MapLupiraOpenApi(o => o.Title = "Lupira Cal API");
 
 app.MapLupiraHealth();
 app.MapDepz();

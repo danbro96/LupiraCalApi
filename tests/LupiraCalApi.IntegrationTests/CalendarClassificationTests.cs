@@ -1,5 +1,6 @@
 using System.Net.Http.Json;
-using LupiraCalApi.Core.Domain.Shared;
+using Lupira.Contracts.Fires;
+using Lupira.Testing.Postgres;
 using LupiraCalApi.Core.Dtos.Calendars;
 using Xunit;
 
@@ -58,7 +59,7 @@ public sealed class CalendarClassificationTests(CalApiTestFactory factory) : Int
 
         var resp = await api.GetAsync($"{DavBackendBase(Email)}/collections");
         resp.EnsureSuccessStatusCode();
-        var dto = await resp.Content.ReadFromJsonAsync<LupiraCalApi.Dav.DavCollectionsDto>();
+        var dto = await resp.Content.ReadFromJsonAsync<Lupira.Contracts.Dav.DavCollectionsDto>();
 
         Assert.Contains(dto!.Collections, c => c.Id == personal.Id);      // agenda → projected
         Assert.DoesNotContain(dto.Collections, c => c.Id == inbox.Id);    // system → hidden
@@ -71,7 +72,7 @@ public sealed class CalendarClassificationTests(CalApiTestFactory factory) : Int
         var seeded = await (await api.PostAsync("/me/bootstrap", null)).Content.ReadFromJsonAsync<List<ContainerDto>>();
         var inbox = seeded!.Single(c => c.Kind == CalendarKind.Inbox);
 
-        var resp = await api.PostAsJsonAsync($"{DavBackendBase(Email)}/collections/{inbox.Id}/query", new LupiraCalApi.Dav.DavQueryRequest());
+        var resp = await api.PostAsJsonAsync($"{DavBackendBase(Email)}/collections/{inbox.Id}/query", new Lupira.Contracts.Dav.DavQueryRequest());
         Assert.Equal(System.Net.HttpStatusCode.NotFound, resp.StatusCode);
     }
 }

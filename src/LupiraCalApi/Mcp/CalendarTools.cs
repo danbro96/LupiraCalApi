@@ -1,8 +1,8 @@
 using System.ComponentModel;
 using System.Text.Json;
 using System.Text.Json.Nodes;
+using Lupira.Identity.Marten.AspNetCore;
 using Lupira.Mcp;
-using LupiraCalApi.Auth;
 using LupiraCalApi.Core.Application.Calendars;
 using LupiraCalApi.Core.Application.Hotspots;
 using LupiraCalApi.Core.Application.Items;

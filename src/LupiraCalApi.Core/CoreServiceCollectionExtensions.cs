@@ -1,8 +1,8 @@
 using JasperFx;
 using JasperFx.Events.Daemon;
 using JasperFx.Events.Projections;
+using Lupira.Identity.Marten;
 using LupiraCalApi.Core.Abstractions;
-using LupiraCalApi.Core.Application;
 using LupiraCalApi.Core.Application.Calendars;
 using LupiraCalApi.Core.Application.Dav;
 using LupiraCalApi.Core.Application.Hotspots;
@@ -56,14 +56,14 @@ public static class CoreServiceCollectionExtensions
         services.TryAddSingleton(TimeProvider.System);
         services.AddScoped<CompletenessResolver>();
         services.AddScoped<AccessResolver>();
-        services.AddScoped<PrincipalDirectory>();
+        services.AddLupiraPrincipalDirectory();
         // Default: no external gazetteer → free-text locations resolve to no id (label = raw text). The host overrides
         // this with an HTTP GeoApiClient when LupiraGeoApi is configured (Geo:BaseUrl).
         services.TryAddSingleton<IGeoResolver, NullGeoResolver>();
         // Same pattern for contacts: LupiraContactApi owns them; unconfigured -> fail-open null resolver.
         services.TryAddSingleton<IContactResolver, NullContactResolver>();
         services.TryAddSingleton<IPhotoDensitySource, NullPhotoDensitySource>();
-        services.AddScoped<LupiraCalApi.Core.Data.Idempotency>();
+        services.AddScoped<Lupira.Marten.Idempotency.Idempotency>();
         services.AddScoped<CalendarService>();
         services.AddOptions<ItemTimeZoneOptions>().BindConfiguration(ItemTimeZoneOptions.SectionName)
             .Validate(o => TimeZoneIds.IsIana(o.DefaultTimezone), "Items:DefaultTimezone is not an IANA time zone id.")

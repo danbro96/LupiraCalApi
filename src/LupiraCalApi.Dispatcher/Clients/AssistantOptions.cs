@@ -1,10 +1,12 @@
+using Lupira.Clients.ServiceTokens;
+
 namespace LupiraCalApi.Dispatcher.Clients;
 
 /// <summary>
 /// Binds <c>Assistant</c> — the worker → assistant hop (fire push to <c>POST /fires</c>). Service-authed:
 /// Authentik client-credentials in prod (<see cref="TokenUrl"/> + client id/secret), a dev service id header locally.
 /// </summary>
-public sealed class AssistantOptions
+public sealed class AssistantOptions : IOutboundHopOptions
 {
     public const string SectionName = "Assistant";
 

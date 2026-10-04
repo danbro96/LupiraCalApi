@@ -1,5 +1,5 @@
+using Lupira.Contracts.Fires;
 using LupiraCalApi.Core.Domain.CalendarItems;
-using LupiraCalApi.Core.Domain.Shared;
 
 namespace LupiraCalApi.Core.Domain.Calendars;
 

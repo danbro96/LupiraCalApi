@@ -1,5 +1,5 @@
 using System.Text.Json.Serialization;
-using LupiraCalApi.Core.Domain.Shared;
+using Lupira.Contracts.Fires;
 
 namespace LupiraCalApi.Core.Dtos.Calendars;
 

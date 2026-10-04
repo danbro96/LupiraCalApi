@@ -1,6 +1,7 @@
 using System.Net;
 using System.Security.Claims;
 using Lupira.Auth.DevUser;
+using Lupira.Clients.ServiceTokens;
 using LupiraCalApi.Auth;
 using LupiraCalApi.Clients;
 using Microsoft.AspNetCore.Http;
@@ -38,10 +39,13 @@ public class OutboundAuthProviderTests
         var exchange = exchangeConfigured
             ? new TokenExchangeOptions { TokenUrl = "https://auth.test/application/o/token/", ClientId = "lupira-cal", ClientSecret = "cal-secret" }
             : new TokenExchangeOptions();
+        var endpoint = new TokenEndpointClient(new StubHttpClientFactory(tokens));
+        var cache = new TokenCache(TimeProvider.System);
         var provider = new OutboundAuthProvider(
             new HttpContextAccessor { HttpContext = ctx },
-            new TokenEndpointClient(new StubHttpClientFactory(tokens)),
-            new TokenCache(TimeProvider.System),
+            endpoint,
+            cache,
+            new ServiceTokenProvider(endpoint, cache),
             Options.Create(exchange),
             Options.Create(new DavGatewayOptions { ClientId = DavClient }),
             NullLogger<OutboundAuthProvider>.Instance);

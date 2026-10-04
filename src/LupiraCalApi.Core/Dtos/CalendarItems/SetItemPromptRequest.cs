@@ -1,4 +1,4 @@
-using LupiraCalApi.Core.Domain.CalendarItems;
+using Lupira.Contracts.Fires;
 
 namespace LupiraCalApi.Core.Dtos.CalendarItems;
 

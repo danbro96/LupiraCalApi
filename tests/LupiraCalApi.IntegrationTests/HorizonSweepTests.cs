@@ -1,4 +1,6 @@
 using System.Net.Http.Json;
+using Lupira.Contracts.Fires;
+using Lupira.Testing.Postgres;
 using LupiraCalApi.Core.Domain.CalendarItems;
 using LupiraCalApi.Core.Dtos.CalendarItems;
 using LupiraCalApi.Core.Scheduling;

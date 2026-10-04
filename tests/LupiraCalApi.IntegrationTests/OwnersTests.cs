@@ -1,6 +1,7 @@
 using System.Net;
 using System.Net.Http.Json;
-using LupiraCalApi.Core.Application;
+using Lupira.Identity.Marten;
+using Lupira.Testing.Postgres;
 using LupiraCalApi.Core.Domain.Shared;
 using LupiraCalApi.Core.Dtos.CalendarItems;
 using LupiraCalApi.Core.Dtos.Calendars;
@@ -129,7 +130,7 @@ public sealed class OwnersTests(CalApiTestFactory factory) : IntegrationTest(fac
         var bob = Factory.ApiClient("bob@x.test");
         var resp = await bob.GetAsync($"{DavBackendBase("bob@x.test")}/collections");
         resp.EnsureSuccessStatusCode();
-        var dto = await resp.Content.ReadFromJsonAsync<LupiraCalApi.Dav.DavCollectionsDto>();
+        var dto = await resp.Content.ReadFromJsonAsync<Lupira.Contracts.Dav.DavCollectionsDto>();
         Assert.Contains(dto!.Collections, c => c.Id == calId);
     }
 }

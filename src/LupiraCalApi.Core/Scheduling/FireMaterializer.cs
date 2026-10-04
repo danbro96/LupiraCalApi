@@ -1,6 +1,6 @@
+using Lupira.Contracts.Fires;
 using Lupira.Primitives;
 using LupiraCalApi.Core.Domain.CalendarItems;
-using LupiraCalApi.Core.Domain.Shared;
 
 namespace LupiraCalApi.Core.Scheduling;
 

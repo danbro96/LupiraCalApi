@@ -1,5 +1,5 @@
 using Lupira.Hosting.Problems;
-using LupiraCalApi.Auth;
+using Lupira.Identity.Marten.AspNetCore;
 using LupiraCalApi.Core.Application.Items;
 using LupiraCalApi.Core.Dtos.CalendarItems;
 using LupiraCalApi.Core.Dtos.Relations;

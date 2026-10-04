@@ -1,5 +1,6 @@
 using System.Net;
 using System.Net.Http.Json;
+using Lupira.Testing.Postgres;
 using LupiraCalApi.Core.Dtos.CalendarItems;
 using Xunit;
 
@@ -30,7 +31,7 @@ public sealed class AccessTests(CalApiTestFactory factory) : IntegrationTest(fac
         var b = Factory.ApiClient("b@x.test");
         var resp = await b.GetAsync($"{DavBackendBase("b@x.test")}/collections");
         resp.EnsureSuccessStatusCode();
-        var dto = await resp.Content.ReadFromJsonAsync<LupiraCalApi.Dav.DavCollectionsDto>();
+        var dto = await resp.Content.ReadFromJsonAsync<Lupira.Contracts.Dav.DavCollectionsDto>();
         Assert.DoesNotContain(dto!.Collections, c => c.Id == calId);
     }
 
@@ -41,7 +42,7 @@ public sealed class AccessTests(CalApiTestFactory factory) : IntegrationTest(fac
         var calId = await CreateCalendarAsync(a);
 
         var b = Factory.ApiClient("b@x.test");
-        var resp = await b.PostAsJsonAsync($"{DavBackendBase("b@x.test")}/collections/{calId}/query", new LupiraCalApi.Dav.DavQueryRequest());
+        var resp = await b.PostAsJsonAsync($"{DavBackendBase("b@x.test")}/collections/{calId}/query", new Lupira.Contracts.Dav.DavQueryRequest());
         Assert.Equal(HttpStatusCode.NotFound, resp.StatusCode);
     }
 

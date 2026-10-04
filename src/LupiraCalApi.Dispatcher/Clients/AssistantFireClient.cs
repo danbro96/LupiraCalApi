@@ -1,13 +1,13 @@
 using System.Net;
 using System.Text.Json;
 using System.Text.Json.Serialization;
-using LupiraCalApi.Dispatcher.Dtos;
+using Lupira.Contracts.Fires;
 
 namespace LupiraCalApi.Dispatcher.Clients;
 
 /// <summary>Pushes a claimed fire to assistant-api <c>POST /fires</c> (accept-then-own: a 202 transfers ownership;
 /// re-pushes dedupe server-side on the dedupe key).</summary>
-public sealed class AssistantFireClient(HttpClient http, ServiceTokenProvider tokens)
+public sealed class AssistantFireClient(HttpClient http)
 {
     private static readonly JsonSerializerOptions Json = new(JsonSerializerDefaults.Web)
     {
@@ -22,9 +22,6 @@ public sealed class AssistantFireClient(HttpClient http, ServiceTokenProvider to
             {
                 Content = JsonContent.Create(fire, options: Json),
             };
-            foreach (var (key, value) in await tokens.ResolveAuthHeadersAsync(ct))
-                req.Headers.TryAddWithoutValidation(key, value);
-
             using var resp = await http.SendAsync(req, ct);
             if (resp.StatusCode == HttpStatusCode.Accepted)
             {

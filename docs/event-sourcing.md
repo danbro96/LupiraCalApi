@@ -39,7 +39,7 @@ The rules the `CalendarItem` event store is built to, so it stays evolvable. Pre
 ## Provenance (unbackfillable — captured at write time)
 
 Marten always records each event's server `timestamp` + `sequence`. On top of that, `UseLupiraCal` enables and
-`PrincipalDirectory.StampSession` sets, on the write session before any append:
+`EventActor.Stamp` (Lupira.Identity.Marten, called by `CurrentUser` with `StampProvenance`) sets, on the write session before any append:
 
 | Metadata | Value |
 |---|---|

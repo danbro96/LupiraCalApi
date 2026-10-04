@@ -1,5 +1,6 @@
 using System.Net;
 using System.Net.Http.Json;
+using Lupira.Testing.Postgres;
 using LupiraCalApi.Core.Dtos.CalendarItems;
 using Xunit;
 

@@ -16,6 +16,7 @@
   </ItemGroup>
 
   <ItemGroup>
+    <PackageReference Include="Lupira.Clients.ServiceTokens" Version="0.1.0" />
     <PackageReference Include="Lupira.Hosting.Observability" Version="0.1.1" />
   </ItemGroup>
 

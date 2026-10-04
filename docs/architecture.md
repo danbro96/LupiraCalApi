@@ -13,7 +13,7 @@ Two projects enforce the layering at compile time:
   transport-neutral `OpResult` from `Lupira.Results`), `Auth/` (`AccessResolver`), `Dtos/`, `Mappers/`, `Serialization/`.
 - **`LupiraCalApi`** — a thin web host over Core: `Endpoints/` (route maps) → `Handlers/` (resolve the
   caller, call a service, map the result via `OpResultMap`), `Dav/` (the LAN-only
-  `/dav-backend` seam the LupiraDavApi gateway consumes), `Mcp/` (agent tools), `Auth/`, `Health/`,
+  `/dav-backend` seam the LupiraDavApi gateway consumes), `Mcp/` (agent tools), `Auth/`,
   and `Program.cs` (composition root).
 
 ## Persistence: hybrid event sourcing on one Marten store
@@ -318,11 +318,11 @@ when it is due; it does not interpret or deliver it. Set/clear via `PUT`/`DELETE
 | Enum | Members |
 |---|---|
 | `PromptIntent` | `EnrichRecord` · `Research` · `CreateFollowUp` · `Monitor` · `Summarise` · `AskUser` |
-| `OutputKind` | `RecordEdit` · `Event` · `Task` · `Message` · `Summary` · `Question` · `Relation` · `None` |
+| `OutputKind` | `RecordEdit` · `Event` · `Task` · `Message` · `Summary` · `Question` · `Relation` · `Place` · `None` |
 | `ModelTier` | `Small` · `Medium` · `Large` (vendor-neutral; the LLM gateway maps each to a concrete model alias) |
 | `FallbackMode` | `Retry` · `Ask` · `Drop` (on a missed contract; default `Retry` = retry-once-then-ask) |
 | `ActionKind` | `SendCheckIn` · `Notify` · `CreateLinkedTask` · `ExpireTarget` · `RescheduleSelf` · `RunJob` · `Rescore` |
-| `RefKind` | `Event` · `Contact` · `Task` · `External` (the `Ref` a payload acts on) |
+| `RefKind` | `Event` · `Contact` · `Task` · `Place` · `External` (the `Ref` a payload acts on) |
 | `PromptFireKind` | `OnStart` · `OnEnd` · `Offset` (minutes) · `AllDayAt` (local time) |
 
 ## Completeness

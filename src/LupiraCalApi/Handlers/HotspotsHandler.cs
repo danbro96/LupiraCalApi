@@ -1,5 +1,5 @@
 using Lupira.Hosting.Problems;
-using LupiraCalApi.Auth;
+using Lupira.Identity.Marten.AspNetCore;
 using LupiraCalApi.Core.Application.Hotspots;
 using LupiraCalApi.Core.Dtos.Hotspots;
 using Microsoft.AspNetCore.Http.HttpResults;

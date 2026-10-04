@@ -1,9 +1,9 @@
 using System.Net;
 using System.Net.Http.Json;
 using System.Text.Json;
+using Lupira.Contracts.Fires;
 using Lupira.Primitives;
-using LupiraCalApi.Core.Domain.CalendarItems;
-using LupiraCalApi.Core.Domain.Shared;
+using Lupira.Testing.Postgres;
 using LupiraCalApi.Core.Dtos.CalendarItems;
 using LupiraCalApi.Core.Scheduling;
 using LupiraCalApi.Dispatcher.Clients;
@@ -44,17 +44,10 @@ public sealed class FireDispatcherTests(CalApiTestFactory factory) : Integration
         }
     }
 
-    private sealed class StubHttpClientFactory : IHttpClientFactory
-    {
-        public HttpClient CreateClient(string name) => new();
-    }
-
     private async Task<int> TickAsync(StubAssistant stub)
     {
         await using var session = Factory.Store.QuerySession();
-        var client = new AssistantFireClient(
-            new HttpClient(stub) { BaseAddress = new Uri("http://assistant.test/") },
-            new ServiceTokenProvider(new StubHttpClientFactory(), Options.Create(new AssistantOptions())));
+        var client = new AssistantFireClient(new HttpClient(stub) { BaseAddress = new Uri("http://assistant.test/") });
         var service = new FireDispatchService(_db, session, client, Options.Create(new DispatcherOptions()),
             NullLogger<FireDispatchService>.Instance);
         return await service.RunTickAsync(CancellationToken.None);

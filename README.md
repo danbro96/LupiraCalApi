@@ -164,9 +164,9 @@ src/
     Dtos/ Mappers/ Serialization/
   LupiraCalApi/             thin web host
     Endpoints/ Handlers/    REST routes → handlers → Core services
-    Dav/                    the /dav-backend seam (contract DTOs, handler, endpoints)
+    Dav/                    the /dav-backend seam (handler, endpoints)
     Mcp/                    MCP agent tools
-    Auth/ Health/ Program.cs
+    Auth/ Program.cs
 tests/
   LupiraCalApi.UnitTests/         domain + application unit tests (in the .slnx; DB-free)
   LupiraCalApi.IntegrationTests/  integration tests (WebApplicationFactory + Testcontainers; run by path)

@@ -1,4 +1,5 @@
 using JasperFx.Events;
+using Lupira.Contracts.Fires;
 using LupiraCalApi.Core.Domain.CalendarItems.Events;
 using LupiraCalApi.Core.Domain.Shared;
 using LupiraCalApi.Core.Serialization;

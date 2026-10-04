@@ -1,3 +1,4 @@
+using Lupira.Clients.ServiceTokens;
 using Lupira.Depz;
 using LupiraCalApi.Clients;
 
@@ -7,21 +8,21 @@ namespace LupiraCalApi.Dependencies;
 public static class DependencyTargets
 {
     public static IReadOnlyList<DependencyTarget> From(
-        GeoApiOptions geo, ContactApiOptions contacts, TokenEndpointClient tokens, TokenCache cache) =>
+        GeoApiOptions geo, ContactApiOptions contacts, ServiceTokenProvider tokens) =>
     [
         new DependencyTarget
         {
             Name = "lupira-geo-api",
             BaseUrl = geo.BaseUrl,
             ProbePath = "pingz",
-            Credential = new OutboundHopProbeCredential(geo, tokens, cache),
+            Credential = new OutboundHopProbeCredential(geo, tokens),
         },
         new DependencyTarget
         {
             Name = "lupira-contact-api",
             BaseUrl = contacts.BaseUrl,
             ProbePath = "pingz",
-            Credential = new OutboundHopProbeCredential(contacts, tokens, cache),
+            Credential = new OutboundHopProbeCredential(contacts, tokens),
         },
     ];
 }

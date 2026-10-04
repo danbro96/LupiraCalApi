@@ -84,9 +84,9 @@ A fired item carries exactly one **payload** — either an LLM-interpreted `Item
 ```
 record ItemPrompt(            // LLM, contracted → agent run
   PromptIntent Intent,        // EnrichRecord | Research | Monitor | Summarise — CreateFollowUp/AskUser retired (run outputs, not intents)
-  Ref?         Target,        // {Kind: event|contact|task|external, Id/Url} the run acts on
+  Ref?         Target,        // {Kind: event|contact|task|place|external, Id/Url} the run acts on
   string       Instruction,   // detail, scoped by Intent + Target
-  OutputKind   Output,        // RecordEdit | Event | Task | Message | Summary | Question | Relation | None
+  OutputKind   Output,        // RecordEdit | Event | Task | Message | Summary | Question | Relation | Place | None
   string[]?    Tools,         // tool allowlist for this run
   ModelTier?   Tier,          // gateway alias: qwen3-1.7b | qwen3-14b | gpt-oss-120b
   FallbackMode OnMiss,        // Retry | Ask | Drop  (default: Retry-once → Ask)

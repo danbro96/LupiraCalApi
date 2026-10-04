@@ -1,6 +1,7 @@
 using System.Net.Http.Headers;
 using System.Security.Claims;
 using Lupira.Auth.DevUser;
+using Lupira.Clients.ServiceTokens;
 using LupiraCalApi.Auth;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.Extensions.Options;
@@ -17,6 +18,7 @@ public sealed class OutboundAuthProvider(
     IHttpContextAccessor http,
     TokenEndpointClient tokens,
     TokenCache cache,
+    ServiceTokenProvider serviceTokens,
     IOptions<TokenExchangeOptions> exchange,
     IOptions<DavGatewayOptions> davGateway,
     ILogger<OutboundAuthProvider> logger)
@@ -81,22 +83,17 @@ public sealed class OutboundAuthProvider(
 
     private async Task<bool> AuthorizeAsServiceAsync(HttpRequestMessage req, IOutboundHopOptions hop, CancellationToken ct)
     {
-        if (!string.IsNullOrWhiteSpace(hop.TokenUrl) && !string.IsNullOrWhiteSpace(hop.ClientId) && !string.IsNullOrWhiteSpace(hop.ClientSecret))
+        try
         {
-            try
-            {
-                return SetBearer(req, await cache.GetOrMintAsync(TokenCache.ClientCredentialsKey(hop), token => tokens.ClientCredentialsAsync(hop, token), null, ct));
-            }
-            catch (TokenEndpointException ex)
-            {
-                logger.LogWarning("Client-credentials token for {ClientId} failed: {Kind} ({StatusCode}) {Description}",
-                    hop.ClientId, ex.Kind, ex.StatusCode, ex.Description);
-                return false;
-            }
+            await serviceTokens.ApplyAsync(req, hop, ct);
+            return true;
         }
-
-        if (!string.IsNullOrWhiteSpace(hop.DevUser)) req.Headers.TryAddWithoutValidation(DevUserHeader, hop.DevUser);
-        return true;
+        catch (TokenEndpointException ex)
+        {
+            logger.LogWarning("Client-credentials token for {ClientId} failed: {Kind} ({StatusCode}) {Description}",
+                hop.ClientId, ex.Kind, ex.StatusCode, ex.Description);
+            return false;
+        }
     }
 
     private static bool SetBearer(HttpRequestMessage req, string? token)

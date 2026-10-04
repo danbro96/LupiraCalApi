@@ -1,3 +1,4 @@
+using Lupira.Clients.ServiceTokens;
 using Lupira.Hosting.Observability;
 using LupiraCalApi.Dispatcher.Clients;
 using LupiraCalApi.Dispatcher.Dispatch;
@@ -25,15 +26,13 @@ public static class Program
             sp.GetRequiredService<IConfiguration>().GetConnectionString("Postgres")
                 ?? CoreServiceCollectionExtensions.DefaultConnectionString));
 
-        builder.Services.AddSingleton<ServiceTokenProvider>();
-        builder.Services.AddHttpClient(nameof(ServiceTokenProvider), http => http.Timeout = TimeSpan.FromSeconds(15));
         builder.Services.AddHttpClient<AssistantFireClient>((sp, http) =>
         {
             var baseUrl = sp.GetRequiredService<IConfiguration>().GetSection(AssistantOptions.SectionName)["BaseUrl"];
             if (!string.IsNullOrWhiteSpace(baseUrl))
                 http.BaseAddress = new Uri(baseUrl.EndsWith('/') ? baseUrl : baseUrl + "/");
             http.Timeout = TimeSpan.FromSeconds(30);
-        });
+        }).AddLupiraServiceToken<AssistantOptions>();
         builder.Services.AddScoped<FireDispatchService>();
 
         var assistantConfigured = !string.IsNullOrWhiteSpace(builder.Configuration.GetSection(AssistantOptions.SectionName)["BaseUrl"]);

@@ -1,4 +1,4 @@
-using LupiraCalApi.Core.Dtos.Internal;
+using Lupira.Contracts.PlaceRefs;
 using LupiraCalApi.Handlers;
 
 namespace LupiraCalApi.Endpoints;

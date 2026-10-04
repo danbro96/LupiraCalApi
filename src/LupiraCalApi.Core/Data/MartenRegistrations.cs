@@ -1,10 +1,11 @@
 using JasperFx;
 using JasperFx.Events.Projections;
+using Lupira.Identity.Marten;
+using Lupira.Marten.Idempotency;
 using LupiraCalApi.Core.Application.Dav;
 using LupiraCalApi.Core.Domain.CalendarItems;
 using LupiraCalApi.Core.Domain.CalendarItems.Events;
 using LupiraCalApi.Core.Domain.Calendars;
-using LupiraCalApi.Core.Domain.Identity;
 using LupiraCalApi.Core.Domain.Shared;
 using Marten;
 using Weasel.Core;
@@ -68,14 +69,14 @@ public static class MartenRegistrations
         opts.Schema.For<CalendarItem>().Index(x => x.UpdatedSequence);
 
         // Idempotency ledger (Idempotency-Key on mutations); identity = the client's command id, so a duplicate
-        // key is a PK violation that rolls back the whole transaction (see Data/Idempotency).
+        // key is a PK violation that rolls back the whole transaction (see Lupira.Marten.Idempotency).
         opts.Schema.For<ProcessedCommand>().Identity(x => x.CommandId);
 
         // Plain documents (collections, identity, cross-API edges) + the indexes the services query by. Places are
         // owned by LupiraGeoApi and contacts by LupiraContactApi — items/legs reference them by bare Guid (no local doc).
         // Unique sub: without it, concurrent first-sight logins fork one login into two principals.
         // Email stays non-unique — mutable, and a placeholder row shares it until the sub upgrade lands.
-        opts.Schema.For<Principal>().Index(x => x.AuthentikSub, i => i.IsUnique = true).Index(x => x.Email);
+        opts.AddLupiraPrincipals();
         opts.Schema.For<Calendar>();
         opts.Schema.For<DavResyncEpoch>();
         opts.Schema.For<CalendarOwner>().Index(x => x.PrincipalId).Index(x => x.CalendarId);

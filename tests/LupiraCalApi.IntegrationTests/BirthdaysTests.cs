@@ -1,6 +1,7 @@
 using System.Net.Http.Json;
+using Lupira.Contracts.Fires;
+using Lupira.Testing.Postgres;
 using LupiraCalApi.Core.Abstractions;
-using LupiraCalApi.Core.Domain.Shared;
 using LupiraCalApi.Core.Dtos.CalendarItems;
 using LupiraCalApi.Core.Dtos.Calendars;
 using Microsoft.AspNetCore.TestHost;
