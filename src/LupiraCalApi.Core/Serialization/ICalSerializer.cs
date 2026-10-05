@@ -23,6 +23,11 @@ public static class ICalSerializer
     // server-regenerated projection; the canonical state is the structured fields.
     private static readonly CalDateTime StableStamp = new(new DateTime(2000, 1, 1, 0, 0, 0, DateTimeKind.Utc), "UTC");
 
+    private static readonly Regex FoldedLine = new(@"\r?\n[ \t]");
+    private static readonly Regex VEventBlock = new(@"^BEGIN:VEVENT\r?$.*?^END:VEVENT\r?$", RegexOptions.Multiline | RegexOptions.Singleline);
+    private static readonly Regex RuleLine = new(@"^RRULE:(.+)$", RegexOptions.Multiline);
+    private static readonly Regex UidLine = new(@"^UID[;:]", RegexOptions.Multiline);
+
     public static string ToICalendar(
         string uid, string? title, string? description, string? location, ItemStatus? status,
         bool isAllDay, DateTimeOffset? startsAt, DateTimeOffset? endsAt,
@@ -97,8 +102,10 @@ public static class ICalSerializer
         : zone is null ? new CalDateTime(at.UtcDateTime, "UTC")
         : new CalDateTime(NodaTime.Instant.FromDateTimeOffset(at).InZone(zone).LocalDateTime.ToDateTimeUnspecified(), zone.Id, true);
 
-    private static DateTimeOffset ToInstant(CalDateTime d) =>
-        d.HasTime ? new DateTimeOffset(d.AsUtc, TimeSpan.Zero) : new DateTimeOffset(d.Value.Date, TimeSpan.Zero);
+    private static DateTimeOffset ToInstant(CalDateTime d, DateTimeZone? floatingZone) =>
+        !d.HasTime ? new DateTimeOffset(d.Value.Date, TimeSpan.Zero)
+        : floatingZone is not null && d.TzId is null ? LocalDateTime.FromDateTime(d.Value).InZoneLeniently(floatingZone).ToDateTimeOffset().ToUniversalTime()
+        : new DateTimeOffset(d.AsUtc, TimeSpan.Zero);
 
     private static TimeSpan? SeriesLength(bool isAllDay, DateTimeOffset? startsAt, DateTimeOffset? endsAt, DateOnly? startDate, DateOnly? endDate) =>
         isAllDay
@@ -130,7 +137,13 @@ public static class ICalSerializer
     /// together, so the DAV bytes served and the stored ETag can never drift.</summary>
     public static string HashOf(CalendarItem i, string? locationLabel) => ContentHash.Of(From(i, locationLabel));
 
-    public static ParsedEvent ParseICalendar(string raw)
+    /// <summary>Parses a single-event resource: its master and the master's per-occurrence overrides.</summary>
+    public static ParsedEvent ParseICalendar(string raw) =>
+        ParseAll(raw) is [var first, ..] ? first : throw new FormatException("No VEVENT in payload.");
+
+    /// <summary>Parses every event in a calendar file; RECURRENCE-ID VEVENTs attach to the master sharing their UID. Times
+    /// without a zone are read in <paramref name="floatingZone"/> when given, else as UTC.</summary>
+    public static IReadOnlyList<ParsedEvent> ParseAll(string raw, DateTimeZone? floatingZone = null)
     {
         IcalCalendar? calendar;
         try
@@ -144,11 +157,22 @@ public static class ICalSerializer
 
         if (calendar is null) throw new FormatException("Invalid iCalendar payload.");
 
-        // The master is the VEVENT without a RECURRENCE-ID; the others are its per-occurrence overrides.
-        var ev = calendar.Events.FirstOrDefault(x => x.RecurrenceIdentifier is null)
-            ?? calendar.Events.FirstOrDefault()
-            ?? throw new FormatException("No VEVENT in payload.");
+        // Per VEVENT in document order: the RRULE stays verbatim and a missing UID isn't replaced by Ical.Net's random one.
+        var blocks = VEventBlock.Matches(FoldedLine.Replace(raw, string.Empty));
+        var events = calendar.Events.Select((e, i) => (Event: e, Lines: i < blocks.Count ? blocks[i].Value : string.Empty)).ToList();
 
+        // The master is the VEVENT without a RECURRENCE-ID; the others are its per-occurrence overrides.
+        return [.. events.GroupBy(x => x.Event.Uid).Select(g =>
+        {
+            var master = g.FirstOrDefault(x => x.Event.RecurrenceIdentifier is null) is { Event: not null } found ? found : g.First();
+            var uid = UidLine.IsMatch(master.Lines) ? master.Event.Uid : null;
+            var rule = RuleLine.Match(master.Lines) is { Success: true } m ? m.Groups[1].Value.Trim() : null;
+            return Parse(master.Event, uid, rule, floatingZone, g.Select(x => x.Event).Where(x => x.RecurrenceIdentifier is not null));
+        })];
+    }
+
+    private static ParsedEvent Parse(CalendarEvent ev, string? uid, string? rrule, DateTimeZone? floatingZone, IEnumerable<CalendarEvent> overrideEvents)
+    {
         var allDay = ev.Start is not null && !ev.Start.HasTime;
         DateTimeOffset? startsAt = null, endsAt = null;
         DateOnly? startDate = null, endDate = null;
@@ -156,36 +180,39 @@ public static class ICalSerializer
         if (ev.Start is { } s)
         {
             if (allDay) startDate = DateOnly.FromDateTime(s.Value);
-            else startsAt = new DateTimeOffset(s.AsUtc, TimeSpan.Zero);
+            else startsAt = ToInstant(s, floatingZone);
         }
 
         if (ev.End is { } e2)
         {
             if (allDay) endDate = DateOnly.FromDateTime(e2.Value).AddDays(-1) is var last && last < startDate ? startDate : last;
-            else endsAt = new DateTimeOffset(e2.AsUtc, TimeSpan.Zero);
+            else endsAt = ToInstant(e2, floatingZone);
         }
 
-        var m = Regex.Match(raw, @"^RRULE:(.+)$", RegexOptions.Multiline);
-        var rrule = m.Success ? m.Groups[1].Value.Trim() : null;
-
-        var excluded = ev.ExceptionDates.GetAllDates().Select(ToInstant).Distinct().Order().ToArray();
-        var extra = ev.RecurrenceDates.GetAllDates().Select(ToInstant)
-            .Concat(ev.RecurrenceDates.GetAllPeriods().Select(p => ToInstant(p.StartTime))).Distinct().Order().ToArray();
+        var excluded = ev.ExceptionDates.GetAllDates().Select(d => ToInstant(d, floatingZone)).Distinct().Order().ToArray();
+        var extra = ev.RecurrenceDates.GetAllDates().Select(d => ToInstant(d, floatingZone))
+            .Concat(ev.RecurrenceDates.GetAllPeriods().Select(p => ToInstant(p.StartTime, floatingZone))).Distinct().Order().ToArray();
         var length = SeriesLength(allDay, startsAt, endsAt, startDate, endDate);
-        var overrides = calendar.Events.Where(x => x.RecurrenceIdentifier is not null)
-            .Select(x => ToOverride(x, ev, length)).OrderBy(o => o.OriginalStart).ToArray();
+        var overrides = overrideEvents.Select(x => ToOverride(x, ev, length, floatingZone)).OrderBy(o => o.OriginalStart).ToArray();
 
-        return new ParsedEvent(ev.Summary, ev.Description, ev.Location, allDay,
-            startsAt, endsAt, ev.Start?.TzId, ev.End?.TzId, startDate, endDate, rrule,
+        return new ParsedEvent(uid, ev.Summary, ev.Description, ev.Location, ParseStatus(ev.Status), ParseCategory(ev.Categories), allDay,
+            startsAt, endsAt, ZoneOf(ev.Start, floatingZone), ZoneOf(ev.End, floatingZone), startDate, endDate, rrule,
             excluded.Length > 0 ? excluded : null, extra.Length > 0 ? extra : null, overrides.Length > 0 ? overrides : null);
     }
 
+    private static string? ZoneOf(CalDateTime? d, DateTimeZone? floatingZone) =>
+        d is { HasTime: true, TzId: null } && floatingZone is not null ? floatingZone.Id : d?.TzId;
+
+    private static ItemCategory? ParseCategory(IEnumerable<string> categories) =>
+        categories.Select(c => Enum.GetNames<ItemCategory>().FirstOrDefault(n => string.Equals(n, c.Trim(), StringComparison.OrdinalIgnoreCase)))
+            .FirstOrDefault(n => n is not null) is { } name ? Enum.Parse<ItemCategory>(name) : null;
+
     // Only what differs from the series is kept; null members inherit.
-    private static OccurrenceOverride ToOverride(CalendarEvent o, CalendarEvent series, TimeSpan? length)
+    private static OccurrenceOverride ToOverride(CalendarEvent o, CalendarEvent series, TimeSpan? length, DateTimeZone? floatingZone)
     {
-        var original = ToInstant(o.RecurrenceIdentifier!.StartTime);
-        var start = o.Start is { } s ? ToInstant(s) : original;
-        DateTimeOffset? end = o.End is { } e ? ToInstant(e) : null;
+        var original = ToInstant(o.RecurrenceIdentifier!.StartTime, floatingZone);
+        var start = o.Start is { } s ? ToInstant(s, floatingZone) : original;
+        DateTimeOffset? end = o.End is { } e ? ToInstant(e, floatingZone) : null;
         return new OccurrenceOverride(
             original,
             start != original ? start : null,

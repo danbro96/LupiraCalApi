@@ -35,6 +35,7 @@ builder.Services.AddLupiraCurrentUser(o => o.StampProvenance = true);
 builder.Services.AddScoped<MeHandler>();
 builder.Services.AddScoped<CalendarsHandler>();
 builder.Services.AddScoped<CalendarItemsHandler>();
+builder.Services.AddScoped<DraftsHandler>();
 builder.Services.AddScoped<RelationsHandler>();
 builder.Services.AddScoped<HotspotsHandler>();
 builder.Services.AddScoped<CurationHandler>();

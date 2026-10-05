@@ -951,6 +951,110 @@
         ]
       }
     },
+    "/items/drafts": {
+      "post": {
+        "tags": [
+          "CalendarItems"
+        ],
+        "summary": "Reads a calendar file into item drafts without saving them.",
+        "description": "The body is the file's text (text/calendar or text/plain, at most 5 MB). Each draft maps 1:1 onto CreateItem; send its SourceKey (derived per caller from the event) so creating from the same file twice is a no-op. A recurring event's changed occurrences are not part of its draft. Location is a free-text label to resolve to a place first. zone (IANA id, e.g. the device zone) reads times the file gives without a zone as wall-clock times there and becomes their StartTimezone; without it they are read as UTC. An unknown zone is a 400.",
+        "operationId": "ReadItemDrafts",
+        "parameters": [
+          {
+            "name": "zone",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "text/calendar": {
+              "schema": {
+                "type": "string"
+              }
+            },
+            "text/plain": {
+              "schema": {
+                "type": "string"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/ItemDraftDto"
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "413": {
+            "description": "Payload Too Large",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "415": {
+            "description": "Unsupported Media Type",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal server error",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "Bearer": [ ]
+          }
+        ]
+      }
+    },
     "/items/{id}": {
       "get": {
         "tags": [
@@ -5219,6 +5323,103 @@
           }
         },
         "description": "Composable detail input for create/update. BookingDetail? ItemDetailsRequest.Booking (reservation/confirmation) attaches to any category;\nTravelLegRequest? ItemDetailsRequest.Travel applies to a `Trip` (its `ToPlace`/`FromPlace` are free-text labels resolved to a\na LupiraGeoApi place, like `Location`). A presence/availability segment is authored via the request's top-level\n`Availability` field, not here. On update, a supplied member replaces that member wholesale; omitted members are kept."
+      },
+      "ItemDraftDto": {
+        "required": [
+          "sourceKey",
+          "isAllDay"
+        ],
+        "type": "object",
+        "properties": {
+          "sourceKey": {
+            "type": "string",
+            "description": "Your key for this event of the file; create with it as `SourceKey` so re-reading the same file creates nothing new."
+          },
+          "title": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "description": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "status": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/ItemStatus"
+              }
+            ]
+          },
+          "category": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/ItemCategory"
+              }
+            ]
+          },
+          "isAllDay": {
+            "type": "boolean"
+          },
+          "startsAt": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "date-time"
+          },
+          "endsAt": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "date-time"
+          },
+          "startDate": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "date"
+          },
+          "endDate": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "date"
+          },
+          "startTimezone": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "description": "IANA zone of a timed item when the file names one."
+          },
+          "recurrenceRule": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "location": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "description": "Free-text place label; resolve it to a place before creating the item."
+          }
+        },
+        "description": "An unsaved item read from a calendar file. Field names match CreateCalendarItemRequest."
       },
       "ItemPrompt": {
         "required": [

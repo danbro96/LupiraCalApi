@@ -34,6 +34,16 @@ public static class CalendarItemsEndpoints
             .ProducesProblem(StatusCodes.Status400BadRequest)
             .ProducesProblem(StatusCodes.Status403Forbidden);
 
+        group.MapPost("/drafts", (HttpRequest request, string? zone, DraftsHandler h, CancellationToken ct) => h.ReadAsync(request, zone, ct))
+            .WithName("ReadItemDrafts")
+            .WithSummary("Reads a calendar file into item drafts without saving them.")
+            .WithDescription("The body is the file's text (text/calendar or text/plain, at most 5 MB). Each draft maps 1:1 onto CreateItem; send its SourceKey (derived per caller from the event) so creating from the same file twice is a no-op. A recurring event's changed occurrences are not part of its draft. Location is a free-text label to resolve to a place first. zone (IANA id, e.g. the device zone) reads times the file gives without a zone as wall-clock times there and becomes their StartTimezone; without it they are read as UTC. An unknown zone is a 400.")
+            .Accepts<string>("text/calendar", "text/plain")
+            .Produces<List<ItemDraftDto>>(StatusCodes.Status200OK)
+            .ProducesProblem(StatusCodes.Status400BadRequest)
+            .ProducesProblem(StatusCodes.Status413PayloadTooLarge)
+            .ProducesProblem(StatusCodes.Status415UnsupportedMediaType);
+
         group.MapGet("/{id:guid}", (Guid id, CalendarItemsHandler h, CancellationToken ct) => h.GetAsync(id, ct))
             .WithName("GetItem")
             .WithSummary("Get a single calendar item.")
