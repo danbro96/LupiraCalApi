@@ -37,7 +37,7 @@ public sealed class OutboundAuthProvider(
         if (!header.StartsWith(JwtBearerDefaults.AuthenticationScheme + " ", StringComparison.OrdinalIgnoreCase))
             return new InboundCaller(InboundIdentity.Service);
         DateTimeOffset? exp = long.TryParse(user.FindFirstValue("exp"), out var seconds) ? DateTimeOffset.FromUnixTimeSeconds(seconds) : null;
-        return new InboundCaller(InboundIdentity.Member, header[(JwtBearerDefaults.AuthenticationScheme.Length + 1)..].Trim(), exp);
+        return new InboundCaller(InboundIdentity.Member, header[(JwtBearerDefaults.AuthenticationScheme.Length + 1)..].Trim(), exp, SubjectClient: user.FindFirstValue("azp"));
     }
 
     /// <summary>Authenticates <paramref name="req"/> for the hop; false when no credential could be obtained (the
@@ -76,7 +76,8 @@ public sealed class OutboundAuthProvider(
         catch (TokenEndpointException ex)
         {
             logger.Log(ex.Kind == TokenErrorKind.InvalidClient ? LogLevel.Error : LogLevel.Warning,
-                "Token exchange to {Audience} failed: {Kind} ({StatusCode}) {Description}", hop.Audience, ex.Kind, ex.StatusCode, ex.Description);
+                "Token exchange to {Audience} for a {SubjectClient} token failed: {Kind} ({StatusCode}) {Description}",
+                hop.Audience, caller.SubjectClient, ex.Kind, ex.StatusCode, ex.Description);
             return null;
         }
     }
