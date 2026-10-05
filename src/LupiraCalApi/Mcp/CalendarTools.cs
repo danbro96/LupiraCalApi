@@ -53,7 +53,7 @@ public sealed class CalendarTools
     }
 
     [McpServerTool(Name = "create_items_batch")]
-    [Description("Create many calendar items in one call — for imports/backfills. Idempotent per item on its SourceKey (re-running returns the existing item, no duplicate). Children reference their parent by ParentSourceKey (the parent's SourceKey) in any order; the server orders parents first. Locations must be resolved PlaceIds (see create_item). Returns a per-item result {sourceKey, itemId, status: created|existed|invalid} in input order; one bad item does not fail the batch.")]
+    [Description("Create many calendar items in one call — for imports/backfills. Idempotent per item on its SourceKey (re-running returns the existing item, no duplicate). Children reference their parent by ParentSourceKey (the parent's SourceKey) in any order; the server orders parents first. Locations must be resolved PlaceIds (see create_item). Returns a per-item result {sourceKey, itemId, status: created|existed|forbidden|invalid} in input order; one bad item does not fail the batch. forbidden = no write access to the calendar, or the SourceKey belongs to an item you can't access.")]
     public static async Task<IReadOnlyList<ItemBatchResult>> CreateItemsBatch(CalendarItemService items, CurrentUser user, CreateCalendarItemsBatchRequest request)
     {
         var u = await user.GetAsync();

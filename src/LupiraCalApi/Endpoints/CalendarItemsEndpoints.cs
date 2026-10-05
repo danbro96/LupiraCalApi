@@ -29,7 +29,7 @@ public static class CalendarItemsEndpoints
 
         group.MapPost("/batch", (CreateCalendarItemsBatchRequest body, CalendarItemsHandler h, CancellationToken ct) => h.CreateBatchAsync(body, ct))
             .WithName("CreateItemsBatch")
-            .WithSummary("Create many items in one call (idempotent per item on SourceKey; children reference parents by ParentSourceKey in any order). Returns a per-item result (created|existed|invalid) in input order.")
+            .WithSummary("Create many items in one call (idempotent per item on SourceKey; children reference parents by ParentSourceKey in any order). Returns a per-item result (created|existed|forbidden|invalid) in input order.")
             .Produces<List<ItemBatchResult>>(StatusCodes.Status200OK)
             .ProducesProblem(StatusCodes.Status400BadRequest)
             .ProducesProblem(StatusCodes.Status403Forbidden);

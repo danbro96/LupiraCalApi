@@ -877,7 +877,7 @@
         "tags": [
           "CalendarItems"
         ],
-        "summary": "Create many items in one call (idempotent per item on SourceKey; children reference parents by ParentSourceKey in any order). Returns a per-item result (created|existed|invalid) in input order.",
+        "summary": "Create many items in one call (idempotent per item on SourceKey; children reference parents by ParentSourceKey in any order). Returns a per-item result (created|existed|forbidden|invalid) in input order.",
         "operationId": "CreateItemsBatch",
         "requestBody": {
           "content": {
@@ -4696,7 +4696,7 @@
               "null",
               "string"
             ],
-            "description": "Client-supplied provenance/idempotency key (e.g. an import `sourceKey`). When set, the item's stream id\n            is derived from it (DeterministicGuid), so re-creating with the same key is a no-op\n            that returns the existing item — safe batch/import replay. Also becomes the item's external UID. Omit for a random uid."
+            "description": "Client-supplied provenance/idempotency key (e.g. an import `sourceKey`). When set, the item's stream id\n            is derived from it (DeterministicGuid), so re-creating with the same key is a no-op\n            that returns the existing item — safe batch/import replay. A key pinning another principal's item the caller can't read (or a deleted one\n            in no calendar the caller can write) is a 403. Also becomes the item's external UID. Omit for a random uid."
           },
           "parentItemId": {
             "type": [
@@ -5245,7 +5245,7 @@
             ]
           }
         },
-        "description": "Per-item outcome of a batch create, aligned index-for-index with the request. `Status` is\n            `created` | `existed` (idempotent hit on SourceKey) | `invalid` (see `Error`)."
+        "description": "Per-item outcome of a batch create, aligned index-for-index with the request. `Status` is\n            `created` | `existed` (idempotent hit on SourceKey) | `forbidden` (no access to the calendar, or the SourceKey\n            belongs to an item the caller can't access; no `ItemId`) | `invalid` (see `Error`)."
       },
       "ItemCategory": {
         "enum": [

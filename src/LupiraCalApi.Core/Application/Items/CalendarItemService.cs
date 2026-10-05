@@ -44,6 +44,7 @@ public sealed class CalendarItemService(IDocumentSession session, AccessResolver
     private const string TravelUnresolved = "A travel location could not be resolved to a place (geo unavailable) — retry.";
     private const string LocationNeedsPlaceId = "Resolve the location to a LupiraGeoApi place first and pass PlaceId — free-text Location is accepted only over CalDAV.";
     private const string PlaceUnverified = "A place id could not be verified (geo unavailable) — retry.";
+    private const string SourceKeyForeign = "This source key belongs to an item you can't access.";
 
     /// <summary>Checks supplied place ids against geo and maps each to its surviving id (a merged-away id redirects).
     /// Ids in <paramref name="stored"/> are already on the item and pass unchecked. Geo unconfigured (dev/test) ⇒ ids pass as-is.</summary>
@@ -93,6 +94,8 @@ public sealed class CalendarItemService(IDocumentSession session, AccessResolver
         var uid = hasKey ? r.SourceKey!.Trim() : $"{Guid.NewGuid():N}@cal.lupira.com";
         var id = DeterministicGuid.From(uid);
         var stream = hasKey ? await session.Events.FetchForWriting<CalendarItem>(id, ct) : null;
+        if (stream?.Aggregate is { } prior && !await MayReuseSourceKeyAsync(principalId, prior, ct))
+            return OpResult<CalendarItemDto>.Forbidden(SourceKeyForeign);
         if (stream?.Aggregate is { DeletedAt: null } live)
             return OpResult<CalendarItemDto>.Ok(await ToDtoAsync(live, ct));   // idempotent hit — no new events
 
@@ -175,16 +178,20 @@ public sealed class CalendarItemService(IDocumentSession session, AccessResolver
         foreach (var r in ordered)
         {
             if (!string.IsNullOrWhiteSpace(r.SourceKey)
-                && await session.LoadAsync<CalendarItem>(DeterministicGuid.From(r.SourceKey!.Trim()), ct) is { DeletedAt: null } existing)
+                && await session.LoadAsync<CalendarItem>(DeterministicGuid.From(r.SourceKey!.Trim()), ct) is { DeletedAt: null } existing
+                && await MayReuseSourceKeyAsync(principalId, existing, ct))
             {
                 byRequest[r] = new ItemBatchResult(r.SourceKey, existing.Id, "existed", null);
                 continue;
             }
 
             var res = await CreateAsync(principalId, r, ct);
-            byRequest[r] = res.Status == OpStatus.Ok
-                ? new ItemBatchResult(r.SourceKey, res.Value!.Id, "created", null)
-                : new ItemBatchResult(r.SourceKey, null, "invalid", res.Error);
+            byRequest[r] = res.Status switch
+            {
+                OpStatus.Ok => new ItemBatchResult(r.SourceKey, res.Value!.Id, "created", null),
+                OpStatus.Forbidden => new ItemBatchResult(r.SourceKey, null, "forbidden", res.Error),
+                _ => new ItemBatchResult(r.SourceKey, null, "invalid", res.Error),
+            };
         }
 
         return OpResult<List<ItemBatchResult>>.Ok([.. requests.Select(r => byRequest[r])]);
@@ -401,8 +408,7 @@ public sealed class CalendarItemService(IDocumentSession session, AccessResolver
     {
         var item = await session.LoadAsync<CalendarItem>(id, ct);
         if (item is null || item.DeletedAt is not null) return OpResult<CalendarItemDto>.NotFound();
-        var calIds = await access.AccessibleCalendarIdsAsync(principalId, ct);
-        if (!item.Calendars.Any(m => m.Status == CalendarEntryStatus.Accepted && calIds.Contains(m.CalendarId)))
+        if (!await access.CanReadItemAsync(principalId, item, ct))
             return OpResult<CalendarItemDto>.Forbidden("No access to this item.");
         return OpResult<CalendarItemDto>.Ok(await ToDtoAsync(item, ct));
     }
@@ -704,6 +710,21 @@ public sealed class CalendarItemService(IDocumentSession session, AccessResolver
         await session.SaveChangesAsync(ct);
         return OpResult.Ok();
     }
+
+    // Source keys are guessable (invitation UIDs, import keys), so the item they pin is reused only by its creator or
+    // someone who could already read it (live) or write one of its calendars (soft-deleted).
+    private async Task<bool> MayReuseSourceKeyAsync(Guid principalId, CalendarItem existing, CancellationToken ct) =>
+        (existing.DeletedAt is null
+            ? await access.CanReadItemAsync(principalId, existing, ct)
+            : await CanWriteItemAsync(principalId, existing, ct))
+        || await CreatorOfAsync(existing.Id, ct) == principalId;
+
+    // The acting principal id is stamped as the event's user name (EventActor); items predating provenance have none.
+    private async Task<Guid?> CreatorOfAsync(Guid itemId, CancellationToken ct) =>
+        await session.Events.QueryAllRawEvents().Where(e => e.StreamId == itemId && e.Version == 1).FirstOrDefaultAsync(ct) is { UserName: { } actor }
+        && Guid.TryParse(actor, out var principalId)
+            ? principalId
+            : null;
 
     private async Task<bool> CanWriteItemAsync(Guid principalId, CalendarItem item, CancellationToken ct)
     {

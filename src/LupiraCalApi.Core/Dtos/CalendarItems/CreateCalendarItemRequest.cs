@@ -11,7 +11,8 @@ public sealed class CreateCalendarItemRequest
 
     /// <summary>Client-supplied provenance/idempotency key (e.g. an import <c>sourceKey</c>). When set, the item's stream id
     /// is derived from it (<see cref="Lupira.Primitives.DeterministicGuid"/>), so re-creating with the same key is a no-op
-    /// that returns the existing item — safe batch/import replay. Also becomes the item's external UID. Omit for a random uid.</summary>
+    /// that returns the existing item — safe batch/import replay. A key pinning another principal's item the caller can't read (or a deleted one
+    /// in no calendar the caller can write) is a 403. Also becomes the item's external UID. Omit for a random uid.</summary>
     public string? SourceKey { get; set; }
 
     /// <summary>Nest this item under a parent (e.g. a trip's leg/sub-event). The parent must exist and be accessible to the caller.</summary>
