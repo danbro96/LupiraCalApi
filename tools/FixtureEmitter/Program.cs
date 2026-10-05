@@ -122,8 +122,7 @@ Vec("equal-pair-replay-loses", t, G("c"), t, G("c"));
 Vec("digit-vs-letter-ordinal", t, G("a00"), t, G("999"));           // '9' < 'a' ordinally, consistent with hex value
 Vec("empty-guard-any-write-wins", t, Guid.Empty, DateTimeOffset.MinValue, Guid.Empty);
 Vec("sub-ms-precision", t.AddTicks(1), G("1"), t, G("f"));
-Vec("seq-fallback-order", t, SectionLww.FromSequence(10), t, SectionLww.FromSequence(9));
-Vec("seq-fallback-hex-boundary", t, SectionLww.FromSequence(16), t, SectionLww.FromSequence(15));
+Vec("hex-length-boundary", t, G("10"), t, G("f"));
 
 await File.WriteAllTextAsync(Path.Combine(outDir, "lww-vectors.json"), JsonSerializer.Serialize(vectors, json));
 Console.WriteLine($"lww-vectors.json: {vectors.Count} vectors → {outDir}");

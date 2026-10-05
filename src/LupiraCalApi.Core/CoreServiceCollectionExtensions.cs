@@ -75,6 +75,7 @@ public static class CoreServiceCollectionExtensions
         services.AddScoped<HotspotService>();
         services.AddSingleton<TimeRangeFilter>();
         services.AddScoped<DavChangeFeed>();
+        services.AddOptions<SyncFeedOptions>().BindConfiguration(SyncFeedOptions.SectionName);
         services.AddScoped<SyncFeed>();
         return marten;
     }

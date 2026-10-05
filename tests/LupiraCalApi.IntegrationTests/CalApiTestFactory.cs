@@ -15,6 +15,8 @@ public sealed class CalApiTestFactory : LupiraApiFactory<Program>
 
     protected override string AuthentikSlug => "lupira-cal";
 
+    protected override void AddSettings(IDictionary<string, string?> settings) => settings["Sync:SettleLag"] = "00:00:00";
+
     protected override Task ApplySchemaAsync() => Store.Storage.ApplyAllConfiguredChangesToDatabaseAsync();
 
     protected override async Task ResetDataAsync()

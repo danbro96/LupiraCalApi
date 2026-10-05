@@ -22,13 +22,9 @@ public static class SectionLww
         string.CompareOrdinal(a.ToString(), b.ToString());
 
     /// <summary>Effective (occurredAt, commandId) for an event: the client's stamp when present, else the
-    /// server-recorded event timestamp plus a command id encoding the global sequence as zero-padded hex — its
-    /// canonical string order equals numeric sequence order, so unstamped events (web, DAV, pre-existing history)
-    /// always apply in append order and rebuilds stay deterministic.</summary>
+    /// server-recorded event timestamp plus the event id, which is persisted so rebuilds stay deterministic.</summary>
     public static (DateTimeOffset Ts, Guid Cmd) Stamp<T>(IEvent<T> e, DateTimeOffset? occurredAt, Guid? commandId)
         where T : class
         =>
-        (occurredAt ?? e.Timestamp, commandId ?? FromSequence(e.Sequence));
-
-    public static Guid FromSequence(long sequence) => new(sequence.ToString("x32"));
+        (occurredAt ?? e.Timestamp, commandId ?? e.Id);
 }

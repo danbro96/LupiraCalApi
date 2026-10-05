@@ -25,7 +25,8 @@
     <PackageReference Include="Lupira.Postgres.Health" Version="0.1.0" />
     <PackageReference Include="Lupira.Primitives" Version="1.0.0" />
     <PackageReference Include="Lupira.Results" Version="1.0.0" />
-    <PackageReference Include="Lupira.Sync" Version="0.1.0" />
+    <PackageReference Include="Lupira.Sync" Version="0.2.0" />
+    <PackageReference Include="Lupira.Sync.Marten" Version="0.1.0" />
     <PackageReference Include="Marten" Version="9.40.0" />
     <PackageReference Include="Ical.Net" Version="5.2.3" />
     <PackageReference Include="NodaTime" Version="3.3.4" />

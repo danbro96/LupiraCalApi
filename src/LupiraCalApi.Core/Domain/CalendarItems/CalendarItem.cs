@@ -79,15 +79,11 @@ public sealed class CalendarItem
 
     public DateTimeOffset? DeletedAt { get; set; }
 
-    // ---- projection stamps (server timeline; feed the sync cursor + DTO timestamps) ----
+    // ---- projection stamps (server timeline; feed the DTO timestamps) ----
 
     public DateTimeOffset CreatedAt { get; set; }
 
     public DateTimeOffset UpdatedAt { get; set; }
-
-    /// <summary>Global event sequence of the last event applied — the per-item watermark the sync changes feed
-    /// queries by (indexed). Bumped on every event, even one whose section guard rejects it.</summary>
-    public long UpdatedSequence { get; set; }
 
     /// <summary>Stream version, populated by Marten's aggregate versioning.</summary>
     public int Version { get; set; }
@@ -328,7 +324,6 @@ public sealed class CalendarItem
     {
         if (CreatedAt == default) CreatedAt = e.Timestamp;
         if (e.Timestamp > UpdatedAt) UpdatedAt = e.Timestamp;
-        UpdatedSequence = e.Sequence;
     }
 
     private ItemAttendee? Find(Guid participationId) => Attendees.FirstOrDefault(a => a.ParticipationId == participationId);

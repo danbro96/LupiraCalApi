@@ -3651,12 +3651,85 @@
         ]
       }
     },
+    "/sync/items": {
+      "get": {
+        "tags": [
+          "Sync"
+        ],
+        "summary": "Paged item feed for offline mirrors. Omit since for a full sync (reset: replace the mirror; no tombstones); later pages and deltas return items the caller can read that changed past the cursor, plus ids of items deleted or no longer visible. Loop while hasMore, persisting cursor between calls.",
+        "operationId": "GetSyncItems",
+        "parameters": [
+          {
+            "name": "since",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "format": "int32"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SyncPageOfItemSyncChange"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal server error",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "Bearer": [ ]
+          }
+        ]
+      }
+    },
     "/sync/changes": {
       "get": {
         "tags": [
           "Sync"
         ],
-        "summary": "Delta feed for offline mirrors: everything the caller can read that changed past the cursor, plus tombstone ids for items deleted or no longer visible. Omit since for a full sync (tombstones suppressed — replace the mirror wholesale); loop while hasMore, persisting cursor between calls.",
+        "summary": "Alias of GET /sync/items for existing clients.",
         "operationId": "GetChanges",
         "parameters": [
           {
@@ -3681,7 +3754,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/SyncChangesResponse"
+                  "$ref": "#/components/schemas/SyncPageOfItemSyncChange"
                 }
               }
             }
@@ -3692,6 +3765,52 @@
               "application/problem+json": {
                 "schema": {
                   "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal server error",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "Bearer": [ ]
+          }
+        ]
+      }
+    },
+    "/sync/calendars": {
+      "get": {
+        "tags": [
+          "Sync"
+        ],
+        "summary": "Snapshot of the caller's calendars: always reset with every calendar in changed and no cursor; replace the local set on each call.",
+        "operationId": "GetSyncCalendars",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SyncPageOfContainerDto"
                 }
               }
             }
@@ -5172,6 +5291,22 @@
           "Cancelled"
         ]
       },
+      "ItemSyncChange": {
+        "required": [
+          "item",
+          "guards"
+        ],
+        "type": "object",
+        "properties": {
+          "item": {
+            "$ref": "#/components/schemas/CalendarItemDto"
+          },
+          "guards": {
+            "$ref": "#/components/schemas/SectionGuardsDto"
+          }
+        },
+        "description": "A changed item: the full DTO plus its section guards."
+      },
       "JsonObject": {
         "type": "object"
       },
@@ -5812,23 +5947,7 @@
         },
         "description": "Slim result of `set_participants` — the additions and how many were already present. Deliberately not the\n            full item DTO (which would echo the whole, growing attendee list on every call)."
       },
-      "SyncChangeDto": {
-        "required": [
-          "item",
-          "guards"
-        ],
-        "type": "object",
-        "properties": {
-          "item": {
-            "$ref": "#/components/schemas/CalendarItemDto"
-          },
-          "guards": {
-            "$ref": "#/components/schemas/SectionGuardsDto"
-          }
-        },
-        "description": "A changed item: the full DTO plus its section guards."
-      },
-      "SyncChangesResponse": {
+      "SyncPageOfContainerDto": {
         "required": [
           "cursor",
           "hasMore",
@@ -5845,13 +5964,12 @@
             "type": "boolean"
           },
           "reset": {
-            "type": "boolean",
-            "description": "Stream restarted from zero (no `since`, or readable calendars changed): a full sync from here."
+            "type": "boolean"
           },
           "changed": {
             "type": "array",
             "items": {
-              "$ref": "#/components/schemas/SyncChangeDto"
+              "$ref": "#/components/schemas/ContainerDto"
             }
           },
           "deleted": {
@@ -5859,11 +5977,45 @@
             "items": {
               "type": "string",
               "format": "uuid"
-            },
-            "description": "Ids filed to a readable calendar but no longer visible (deleted, or no accepted membership). Unknown\n            ids are safe to ignore."
+            }
           }
         },
-        "description": "One page of the changes feed. `Cursor` is opaque — hand it back as `?since=`; loop while\n            `HasMore`. A full sync (no `since`, or a `Reset`) streams every live visible item and suppresses\n            tombstones — the client replaces its mirror wholesale and rebases pending work."
+        "description": "One page of a `/sync/*` feed. `reset` starts a full sync: rows the full sync never mentions are gone."
+      },
+      "SyncPageOfItemSyncChange": {
+        "required": [
+          "cursor",
+          "hasMore",
+          "reset",
+          "changed",
+          "deleted"
+        ],
+        "type": "object",
+        "properties": {
+          "cursor": {
+            "type": "string"
+          },
+          "hasMore": {
+            "type": "boolean"
+          },
+          "reset": {
+            "type": "boolean"
+          },
+          "changed": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ItemSyncChange"
+            }
+          },
+          "deleted": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        },
+        "description": "One page of a `/sync/*` feed. `reset` starts a full sync: rows the full sync never mentions are gone."
       },
       "TransportMode": {
         "enum": [

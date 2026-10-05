@@ -39,16 +39,6 @@ public class SectionLwwTests
         Assert.False(SectionLww.Wins(T1, cmd, T1, cmd));
     }
 
-    [Fact]
-    public void Sequence_fallback_ids_order_like_their_sequences()
-    {
-        // Zero-padded hex: the canonical GUID string of a later sequence always compares greater —
-        // unstamped events keep append order even across the 9→10 and 15→16 digit boundaries.
-        long[] seqs = [1, 9, 10, 15, 16, 255, 4095, 1_000_000];
-        for (var i = 1; i < seqs.Length; i++)
-            Assert.True(SectionLww.CompareCommandId(SectionLww.FromSequence(seqs[i]), SectionLww.FromSequence(seqs[i - 1])) > 0);
-    }
-
     private static CalendarItemFields Fields(string title) => new(
         title, null, ItemStatus.Confirmed, false,
         new DateTimeOffset(2026, 8, 1, 9, 0, 0, TimeSpan.Zero), new DateTimeOffset(2026, 8, 1, 10, 0, 0, TimeSpan.Zero),
@@ -153,7 +143,7 @@ public class SectionLwwTests
     }
 
     [Fact]
-    public void Touch_tracks_created_updated_and_watermark()
+    public void Touch_tracks_created_and_updated()
     {
         var id = Guid.NewGuid();
         var i = new CalendarItem();
@@ -164,7 +154,6 @@ public class SectionLwwTests
 
         Assert.Equal(create.Timestamp, i.CreatedAt);
         Assert.Equal(revise.Timestamp, i.UpdatedAt);
-        Assert.Equal(revise.Sequence, i.UpdatedSequence);
     }
 
     [Fact]

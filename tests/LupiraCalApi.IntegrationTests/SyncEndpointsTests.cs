@@ -1,3 +1,4 @@
+using Lupira.Sync;
 using Lupira.Testing.Postgres;
 using LupiraCalApi.Core.Dtos.Calendars;
 using System.Net;
@@ -11,21 +12,25 @@ using Xunit;
 namespace LupiraCalApi.IntegrationTests;
 
 /// <summary>The offline-client sync surface end to end: the delta loop (create → edit → unfile → delete),
-/// full-sync paging, section-guard exposure, Idempotency-Key replays, occurredAt LWW over REST, and the
-/// totalized PUT (recurrence clear + all-day switch).</summary>
+/// full-sync paging, the /sync/changes alias, the calendars snapshot, section-guard exposure, Idempotency-Key
+/// replays, occurredAt LWW over REST, and the totalized PUT (recurrence clear + all-day switch).</summary>
 public class SyncEndpointsTests(CalApiTestFactory factory) : IntegrationTest(factory)
 {
     static readonly JsonSerializerOptions Json = new(JsonSerializerDefaults.Web) { Converters = { new JsonStringEnumConverter() } };
 
-    async Task<SyncChangesResponse> ChangesAsync(HttpClient api, string? since = null, int? limit = null)
+    static string ItemsUrl(string path, string? since, int? limit)
     {
         var qs = new List<string>();
         if (since is not null) qs.Add($"since={since}");
         if (limit is not null) qs.Add($"limit={limit}");
-        var url = "/sync/changes" + (qs.Count > 0 ? "?" + string.Join("&", qs) : "");
-        var resp = await api.GetAsync(url);
+        return path + (qs.Count > 0 ? "?" + string.Join("&", qs) : "");
+    }
+
+    async Task<SyncPage<ItemSyncChange>> ChangesAsync(HttpClient api, string? since = null, int? limit = null)
+    {
+        var resp = await api.GetAsync(ItemsUrl("/sync/items", since, limit));
         resp.EnsureSuccessStatusCode();
-        return (await resp.Content.ReadFromJsonAsync<SyncChangesResponse>(Json))!;
+        return (await resp.Content.ReadFromJsonAsync<SyncPage<ItemSyncChange>>(Json))!;
     }
 
     static async Task<CalendarItemDto> CreateItemAsync(HttpClient api, Guid calId, string title, string? sourceKey = null)
@@ -88,31 +93,103 @@ public class SyncEndpointsTests(CalApiTestFactory factory) : IntegrationTest(fac
     }
 
     [Fact]
-    public async Task Full_sync_pages_with_hasMore_and_covers_all_live_items()
+    public async Task Full_sync_pages_by_id_then_hands_over_to_a_delta()
     {
         var api = Factory.ApiClient("a@x");
         var cal = await CreateCalendarAsync(api);
         var live = new HashSet<Guid>();
-        for (var n = 0; n < 3; n++) live.Add((await CreateItemAsync(api, cal, $"Item {n}")).Id);
+        for (var n = 0; n < 5; n++) live.Add((await CreateItemAsync(api, cal, $"Item {n}")).Id);
         var doomed = await CreateItemAsync(api, cal, "Doomed");
         (await api.DeleteAsync($"/items/{doomed.Id}")).EnsureSuccessStatusCode();
 
-        var seen = new HashSet<Guid>();
+        var seen = new List<Guid>();
+        var pages = new List<SyncPage<ItemSyncChange>>();
         string? cursor = null;
-        var pages = 0;
-        SyncChangesResponse page;
+        SyncPage<ItemSyncChange> page;
         do
         {
             page = await ChangesAsync(api, cursor, limit: 2);
-            foreach (var c in page.Changed) seen.Add(c.Item.Id);
+            pages.Add(page);
+            seen.AddRange(page.Changed.Select(c => c.Item.Id));
             Assert.True(page.Changed.Count <= 2);
+            Assert.Empty(page.Deleted);
             cursor = page.Cursor;
-            pages++;
-            Assert.True(pages < 20, "paging loop did not terminate");
+            Assert.True(pages.Count < 20, "paging loop did not terminate");
         } while (page.HasMore);
 
-        Assert.Equal(live, seen);
-        Assert.DoesNotContain(doomed.Id, seen);
+        Assert.Equal(3, pages.Count);
+        Assert.True(pages[0].Reset);
+        Assert.All(pages.Skip(1), p => Assert.False(p.Reset));
+        Assert.Equal(live.Count, seen.Count);
+        Assert.Equal(live, seen.ToHashSet());
+        Assert.True(SyncCursor.TryParse(pages[0].Cursor, out var firstCursor) && firstCursor.After is not null);
+        Assert.True(SyncCursor.TryParse(page.Cursor, out var lastCursor) && lastCursor.After is null);
+        Assert.Equal(firstCursor.Sequence, lastCursor.Sequence);
+
+        var edited = live.First();
+        (await api.PutAsJsonAsync($"/items/{edited}", new UpdateCalendarItemRequest { Title = "Edited" }, Json)).EnsureSuccessStatusCode();
+        var delta = await ChangesAsync(api, page.Cursor);
+        Assert.False(delta.Reset);
+        Assert.Equal("Edited", Assert.Single(delta.Changed).Item.Title);
+        Assert.Empty(delta.Deleted);
+    }
+
+    [Fact]
+    public async Task Delta_pages_across_more_changes_than_the_limit()
+    {
+        var api = Factory.ApiClient("a@x");
+        var cal = await CreateCalendarAsync(api);
+        var start = await ChangesAsync(api);
+        var created = new HashSet<Guid>();
+        for (var n = 0; n < 5; n++) created.Add((await CreateItemAsync(api, cal, $"Item {n}")).Id);
+
+        var seen = new List<Guid>();
+        var cursor = start.Cursor;
+        SyncPage<ItemSyncChange> page;
+        var pages = 0;
+        do
+        {
+            page = await ChangesAsync(api, cursor, limit: 2);
+            Assert.False(page.Reset);
+            seen.AddRange(page.Changed.Select(c => c.Item.Id));
+            cursor = page.Cursor;
+            Assert.True(++pages < 20, "paging loop did not terminate");
+        } while (page.HasMore);
+
+        Assert.Equal(3, pages);
+        Assert.Equal(created.Count, seen.Count);
+        Assert.Equal(created, seen.ToHashSet());
+    }
+
+    [Fact]
+    public async Task Demoting_the_only_filing_to_proposed_tombstones_the_item()
+    {
+        var api = Factory.ApiClient("a@x");
+        var cal = await CreateCalendarAsync(api);
+        var item = await CreateItemAsync(api, cal, "Lunch");
+        var full = await ChangesAsync(api);
+        Assert.Contains(full.Changed, c => c.Item.Id == item.Id);
+
+        (await api.PostAsync($"/items/{item.Id}/calendars/{cal}?status=proposed", null)).EnsureSuccessStatusCode();
+        var delta = await ChangesAsync(api, full.Cursor);
+        Assert.Equal([item.Id], delta.Deleted);
+        Assert.Empty(delta.Changed);
+    }
+
+    [Fact]
+    public async Task Changes_alias_answers_exactly_like_items()
+    {
+        var api = Factory.ApiClient("a@x");
+        var cal = await CreateCalendarAsync(api);
+        await CreateItemAsync(api, cal, "One");
+        await CreateItemAsync(api, cal, "Two");
+
+        var items = await api.GetStringAsync(ItemsUrl("/sync/items", null, 1));
+        var alias = await api.GetStringAsync(ItemsUrl("/sync/changes", null, 1));
+        Assert.Equal(items, alias);
+
+        var cursor = JsonDocument.Parse(items).RootElement.GetProperty("cursor").GetString();
+        Assert.Equal(await api.GetStringAsync(ItemsUrl("/sync/items", cursor, null)), await api.GetStringAsync(ItemsUrl("/sync/changes", cursor, null)));
     }
 
     [Fact]
@@ -145,7 +222,6 @@ public class SyncEndpointsTests(CalApiTestFactory factory) : IntegrationTest(fac
         Assert.False(delta.Reset);
         Assert.Empty(delta.Changed);
         Assert.Empty(delta.Deleted);
-        Assert.Equal(full.Cursor, delta.Cursor);
     }
 
     [Fact]
@@ -191,7 +267,7 @@ public class SyncEndpointsTests(CalApiTestFactory factory) : IntegrationTest(fac
     [Fact]
     public async Task A_garbage_cursor_is_rejected()
     {
-        var resp = await Factory.ApiClient("a@x").GetAsync("/sync/changes?since=nope");
+        var resp = await Factory.ApiClient("a@x").GetAsync("/sync/items?since=nope");
         Assert.Equal(HttpStatusCode.BadRequest, resp.StatusCode);
     }
 
@@ -311,6 +387,21 @@ public class SyncEndpointsTests(CalApiTestFactory factory) : IntegrationTest(fac
         Assert.True(updated.IsAllDay);
         Assert.Equal(new DateOnly(2026, 8, 3), updated.StartDate);
         Assert.Null(updated.StartsAt);
+    }
+
+    [Fact]
+    public async Task Calendars_snapshot_is_always_a_reset_page()
+    {
+        var api = Factory.ApiClient("a@x");
+        var cal = await CreateCalendarAsync(api);
+        var resp = await api.GetAsync("/sync/calendars");
+        resp.EnsureSuccessStatusCode();
+        var body = (await resp.Content.ReadFromJsonAsync<SyncPage<ContainerDto>>(Json))!;
+        Assert.True(body.Reset);
+        Assert.False(body.HasMore);
+        Assert.Equal("", body.Cursor);
+        Assert.Empty(body.Deleted);
+        Assert.Equal(cal, Assert.Single(body.Changed).Id);
     }
 
     [Fact]
