@@ -173,6 +173,115 @@
         ]
       }
     },
+    "/place-usage": {
+      "get": {
+        "tags": [
+          "Places"
+        ],
+        "summary": "Places your events used — as their location or a travel endpoint — derived at read time from non-cancelled occurrences in calendars you can read (or calendarId), recurrences expanded up to `to`. Merged-away place ids fold into their survivor. Per place: event count, last day, per-category counts and the top 5 attendees. Ordered by last day, then event count. Defaults: from = 3 years before now, to = now, limit 200 (max 500).",
+        "operationId": "GetPlaceUsage",
+        "parameters": [
+          {
+            "name": "from",
+            "in": "query",
+            "schema": {
+              "type": [
+                "null",
+                "string"
+              ],
+              "format": "date-time"
+            }
+          },
+          {
+            "name": "to",
+            "in": "query",
+            "schema": {
+              "type": [
+                "null",
+                "string"
+              ],
+              "format": "date-time"
+            }
+          },
+          {
+            "name": "calendarId",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "format": "int32"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/PlaceUsageDto"
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal server error",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "Bearer": [ ]
+          }
+        ]
+      }
+    },
     "/participation/summary": {
       "get": {
         "tags": [
@@ -5260,7 +5369,8 @@
           "Activity",
           "Focus",
           "Chore"
-        ]
+        ],
+        "description": "What a calendar event is (its semantic identity). Reservation/travel/presence specifics are carried by\n            composable optionals on the item (see ItemDetails), not by this discriminator."
       },
       "ItemDetails": {
         "type": "object",
@@ -5767,6 +5877,89 @@
           }
         },
         "description": "The claims a caller's token resolved to, echoed for cross-service auth-seam probes.\n            Returning the audiences (not a bare 200) lets a failing consumer see which half of the seam\n            is misconfigured."
+      },
+      "PlaceCategoryUsageDto": {
+        "required": [
+          "category",
+          "eventCount",
+          "lastDay"
+        ],
+        "type": "object",
+        "properties": {
+          "category": {
+            "$ref": "#/components/schemas/ItemCategory"
+          },
+          "eventCount": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "lastDay": {
+            "type": "string",
+            "format": "date"
+          }
+        }
+      },
+      "PlaceCompanionDto": {
+        "required": [
+          "contactId",
+          "eventCount"
+        ],
+        "type": "object",
+        "properties": {
+          "contactId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "eventCount": {
+            "type": "integer",
+            "format": "int32"
+          }
+        }
+      },
+      "PlaceUsageDto": {
+        "required": [
+          "placeId",
+          "eventCount",
+          "lastDay",
+          "byCategory",
+          "companions"
+        ],
+        "type": "object",
+        "properties": {
+          "placeId": {
+            "type": "string",
+            "description": "The LupiraGeoApi place; a merged-away id reports its survivor.",
+            "format": "uuid"
+          },
+          "label": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "eventCount": {
+            "type": "integer",
+            "description": "Event occurrences here, recurrences expanded.",
+            "format": "int32"
+          },
+          "lastDay": {
+            "type": "string",
+            "format": "date"
+          },
+          "byCategory": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/PlaceCategoryUsageDto"
+            }
+          },
+          "companions": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/PlaceCompanionDto"
+            }
+          }
+        },
+        "description": "How the caller's events have used one place: as their location or a travel endpoint."
       },
       "PresenceDetail": {
         "required": [
@@ -6646,6 +6839,9 @@
     },
     {
       "name": "Me"
+    },
+    {
+      "name": "Places"
     },
     {
       "name": "Participation"

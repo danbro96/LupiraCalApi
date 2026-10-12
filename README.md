@@ -116,6 +116,7 @@ are scoped to the caller's accessible containers.
 | **Curation** | `GET /calendars/{id}/proposed` · `POST /items/{itemId}/calendars/{calId}/accept` · `POST /items/{itemId}/calendars/{calId}` · `DELETE /items/{itemId}/calendars/{calId}` |
 | **Relations** | `POST`/`GET /items/{id}/relations` (link to an external service) · `DELETE /items/{id}/relations/{relationId}` · `POST /items/{id}/relations/batch` · `POST /items/{id}/relations/batch/delete` (idempotent) · `GET /relations/edges` (all edges of one kind) · `GET /relations` (reverse lookup) |
 | **Hotspots** | `GET /hotspots` (places where your events and photos concentrate, ranked by active days; derived at read time) |
+| **Place usage** | `GET /place-usage` (places your events used — location or travel endpoint — with counts per category, last day and top attendees; derived at read time) |
 | **DAV backend** | `/dav-backend/u/{email}/…` (LAN-only, gateway-authed; collections · query · resources · changes — see [the contract](docs/dav-backend-contract.md)) |
 | **Health** | `GET /livez` (liveness) · `GET /readyz` (readiness — Postgres reachable) |
 

@@ -269,6 +269,15 @@ reverse index (items at a geo place).
 distinct UTC days, not points, so a photo burst counts once and a weekly class counts every week. A hotspot anchors
 to the geo place with the most event days inside it, else a place within 75 m, else a reverse-geocoded label.
 
+**Place usage** (`GET /place-usage`) is derived at read time and never stored. A projected query reads only live,
+non-cancelled items accepted into readable calendars (or `calendarId`) that reference a place — `PlaceId` or a travel
+`FromPlaceId`/`ToPlaceId`, so airports and stations surface through trips. Occurrences in `[from, to)` are expanded
+(default: the last 3 years up to now; a series counts only up to `to`), and each place an occurrence references counts
+once. Ids are mapped through the geo lookup, so merged-away ids fold into their survivor and take its current name; an
+id geo doesn't know (or geo down) keeps the item's label. Per place: occurrence count, last day (local date of the
+latest occurrence), per-category counts, and the five attendees (not declined, not left) on the most occurrences.
+Ordered by last day, then occurrence count.
+
 ## Enumerations
 
 | Enum | Members | Maps to |

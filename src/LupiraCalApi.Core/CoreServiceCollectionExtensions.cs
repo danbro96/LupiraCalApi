@@ -7,6 +7,7 @@ using LupiraCalApi.Core.Application.Calendars;
 using LupiraCalApi.Core.Application.Dav;
 using LupiraCalApi.Core.Application.Hotspots;
 using LupiraCalApi.Core.Application.Items;
+using LupiraCalApi.Core.Application.Places;
 using LupiraCalApi.Core.Application.Sync;
 using LupiraCalApi.Core.Auth;
 using LupiraCalApi.Core.Data;
@@ -73,6 +74,7 @@ public static class CoreServiceCollectionExtensions
         services.AddScoped<ParticipationService>();
         services.AddScoped<RelationService>();
         services.AddScoped<HotspotService>();
+        services.AddScoped<PlaceUsageService>();
         services.AddSingleton<TimeRangeFilter>();
         services.AddScoped<DavChangeFeed>();
         services.AddOptions<SyncFeedOptions>().BindConfiguration(SyncFeedOptions.SectionName);
