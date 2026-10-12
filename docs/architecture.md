@@ -246,7 +246,10 @@ Each attendee is an embedded `ItemAttendee` keyed by `ParticipationId` and refer
 contact by bare Guid. The timestamps (`InvitedAt`/`RespondedAt`/`AttendedAt`/`LeftAt`) are the recorded
 times of the participation events folded into the snapshot; `Status` is the latest RSVP. Declined and attended
 exclude each other, latest event wins: a decline clears `AttendedAt`, a later attendance turns a decline into
-`Accepted`. "No-show" is derived, not stored. When the contact hop is configured (`Contacts:BaseUrl`), an invite validates the id
+`Accepted`. "No-show" is derived, not stored. Adding a participant to an item that has already ended (its last
+occurrence's end at or before the invite; a series without an end never has) appends `AttendanceConfirmed`
+stamped at that end in the same write, unless the caller passes `attended=false`; an attendee already attended
+is never confirmed again. When the contact hop is configured (`Contacts:BaseUrl`), an invite validates the id
 via `IContactResolver` (fail-open: an unreachable resolver never blocks the write).
 
 ### Places

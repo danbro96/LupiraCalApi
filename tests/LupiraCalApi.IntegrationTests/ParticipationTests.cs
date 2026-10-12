@@ -194,6 +194,51 @@ public sealed class ParticipationTests(CalApiTestFactory factory) : IntegrationT
         Assert.Single(result.Added);
     }
 
+    private async Task<(HttpClient Api, Guid ItemId)> ItemAsync(DateTimeOffset start)
+    {
+        var api = Factory.ApiClient(Email);
+        var calId = await CreateCalendarAsync(api);
+        var create = await api.PostAsJsonAsync("/items", new CreateCalendarItemRequest { CalendarId = calId, Title = "Mtg", IsAllDay = false, StartsAt = start, EndsAt = start.AddHours(1), StartTimezone = "UTC" });
+        return (api, (await create.Content.ReadFromJsonAsync<CalendarItemDto>())!.Id);
+    }
+
+    private async Task<ItemAttendee> AttendeeAsync(Guid itemId)
+    {
+        await using var s = Store.LightweightSession();
+        return (await s.LoadAsync<CalendarItem>(itemId))!.Attendees.Single();
+    }
+
+    [Fact]
+    public async Task Inviting_to_an_ended_item_records_attendance_at_its_end()
+    {
+        var start = new DateTimeOffset(2020, 3, 1, 18, 0, 0, TimeSpan.Zero);
+        var (api, itemId) = await ItemAsync(start);
+
+        (await api.PostAsync($"/items/{itemId}/participants?contactId={Guid.NewGuid()}", null)).EnsureSuccessStatusCode();
+
+        Assert.Equal(start.AddHours(1), (await AttendeeAsync(itemId)).AttendedAt);
+    }
+
+    [Fact]
+    public async Task Inviting_to_an_upcoming_item_leaves_attendance_open()
+    {
+        var (api, itemId) = await ItemAsync(DateTimeOffset.UtcNow.AddYears(1));
+
+        (await api.PostAsync($"/items/{itemId}/participants?contactId={Guid.NewGuid()}", null)).EnsureSuccessStatusCode();
+
+        Assert.Null((await AttendeeAsync(itemId)).AttendedAt);
+    }
+
+    [Fact]
+    public async Task Adding_a_set_to_an_ended_item_with_attended_false_leaves_attendance_open()
+    {
+        var (api, itemId) = await ItemAsync(new DateTimeOffset(2020, 3, 1, 18, 0, 0, TimeSpan.Zero));
+
+        (await api.PutAsJsonAsync($"/items/{itemId}/participants", new SetParticipantsRequest { ContactIds = [Guid.NewGuid()], Attended = false })).EnsureSuccessStatusCode();
+
+        Assert.Null((await AttendeeAsync(itemId)).AttendedAt);
+    }
+
     [Fact]
     public async Task Invite_on_a_missing_item_is_not_found()
     {

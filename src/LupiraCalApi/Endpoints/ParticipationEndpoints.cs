@@ -12,12 +12,12 @@ public static class ParticipationEndpoints
 
         group.MapPost("/", (Guid id, Guid contactId, string? role, DateTimeOffset? occurredAt, [FromHeader(Name = "Idempotency-Key")] Guid? idempotencyKey, ParticipationHandler h, CancellationToken ct) => h.InviteAsync(id, contactId, role, occurredAt, idempotencyKey, ct))
             .WithName("InviteParticipant")
-            .WithSummary("Invite a contact (must be a Contact id). role = chair|req-participant|opt-participant|non-participant (or the enum name); default req-participant, anything else 400s. A contact already invited is a no-op. " + ReplaySafe)
+            .WithSummary("Invite a contact (must be a Contact id). role = chair|req-participant|opt-participant|non-participant (or the enum name); default req-participant, anything else 400s. A contact already invited is a no-op. Inviting to an item that had already ended (at occurredAt, else now) also confirms attendance, stamped at the item's end. " + ReplaySafe)
             .Produces<CalendarItemDto>(StatusCodes.Status200OK).ProducesProblem(StatusCodes.Status404NotFound).ProducesProblem(StatusCodes.Status400BadRequest);
 
         group.MapPut("/", (Guid id, SetParticipantsRequest body, ParticipationHandler h, CancellationToken ct) => h.SetParticipantsAsync(id, body, ct))
             .WithName("SetParticipants")
-            .WithSummary("Add a set of contacts as attendees in one call (add-only). Attended=true also marks them attended (historical backfill). Slim result (additions + already-present count), not the full item.")
+            .WithSummary("Add a set of contacts as attendees in one call (add-only). Attended omitted = marked attended only when the item has already ended (stamped at its end); true = always; false = never. Slim result (additions + already-present count), not the full item.")
             .Produces<SetParticipantsResult>(StatusCodes.Status200OK)
             .ProducesProblem(StatusCodes.Status404NotFound)
             .ProducesProblem(StatusCodes.Status400BadRequest);

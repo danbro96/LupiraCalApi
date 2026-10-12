@@ -28,6 +28,8 @@ internal static class RecurrenceRuleEvaluator
         }
     }
 
+    public static bool IsBounded(string rule) => new RecurrencePattern(rule) is { Count: not null } or { Until: not null };
+
     /// <summary>Puts the rule's UNTIL where it belongs. A UTC UNTIL is an instant (RFC 5545 requires one when DTSTART
     /// carries a zone), but the zone-less engine would read it on the wall clock — so it's lifted off the pattern and
     /// returned, to bound the mapped instants. A floating UNTIL stays on the pattern and bounds the wall clock. A date

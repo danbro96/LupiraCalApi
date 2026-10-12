@@ -167,7 +167,7 @@ public sealed class CalendarTools
     }
 
     [McpServerTool(Name = "invite_participant")]
-    [Description("Invite a contact to a calendar item as an attendee. role = chair|req-participant|opt-participant|non-participant (default req-participant).")]
+    [Description("Invite a contact to a calendar item as an attendee. role = chair|req-participant|opt-participant|non-participant (default req-participant). Inviting to an item that has already ended also confirms attendance, stamped at its end.")]
     public static async Task<CalendarItemDto> InviteParticipant(
         ParticipationService participation, CurrentUser user,
         [Description("Calendar item id.")] Guid itemId,
@@ -202,12 +202,12 @@ public sealed class CalendarTools
     }
 
     [McpServerTool(Name = "set_participants")]
-    [Description("Add a set of contacts as attendees of an item in one call (add-only — keeps existing attendees). attended=true (default) also marks them attended, for historical/backfilled events (avoids the pending-invite look); pass false for a live invite flow. Returns a slim result (the additions + already-present count), not the full item. Prefer this over repeated invite_participant.")]
+    [Description("Add a set of contacts as attendees of an item in one call (add-only — keeps existing attendees). attended omitted (default) marks them attended only when the item has already ended (stamped at its end); true always marks them attended; false never does (plain invite in NeedsAction). Returns a slim result (the additions + already-present count), not the full item. Prefer this over repeated invite_participant.")]
     public static async Task<SetParticipantsResult> SetParticipants(
         ParticipationService participation, CurrentUser user,
         [Description("Calendar item id.")] Guid itemId,
         [Description("LupiraContactApi contact ids to add as attendees.")] Guid[] contactIds,
-        [Description("Also mark them attended (default true; false = plain invite in NeedsAction).")] bool attended = true)
+        [Description("Mark them attended: omit = only if the item has ended; true = always; false = never.")] bool? attended = null)
     {
         var u = await user.GetAsync();
         return (await participation.SetParticipantsAsync(u.Id, itemId, contactIds, attended)).Require();

@@ -32,6 +32,26 @@ public sealed class RecurrenceExpander
         return [.. starts];
     }
 
+    /// <summary>When the item's last occurrence ends — an all-day one at 00:00Z after its inclusive last day. Null when it
+    /// has no start, no occurrence left, or recurs without bound.</summary>
+    public DateTimeOffset? LastEnd(CalendarItem item)
+    {
+        DateTimeOffset first, firstEnd;
+        if (item.IsAllDay && item.StartDate is { } sd) (first, firstEnd) = (Midnight(sd), Midnight(item.EndDate ?? sd).AddDays(1));
+        else if (!item.IsAllDay && item.StartsAt is { } s) (first, firstEnd) = (s, item.EndsAt ?? s);
+        else return null;
+
+        var series = RecurringSeries.Of(item);
+        if (!series.Recurs) return firstEnd;
+        if (!RecurrenceRuleEvaluator.IsBounded(series.RecurrenceRule)) return null;
+
+        var length = firstEnd - first;
+        return Expand(item, DateTimeOffset.MinValue, DateTimeOffset.MaxValue)
+            .Select(occ => item.OccurrenceOverrides?.FirstOrDefault(o => o.Status != ItemStatus.Cancelled && (o.StartsAt ?? o.OriginalStart) == occ)?.EndsAt ?? occ + length)
+            .Cast<DateTimeOffset?>()
+            .Max();
+    }
+
     /// <summary>Whether the unmodified series (or one of its extra occurrences) starts an occurrence at
     /// <paramref name="start"/> — the identity a per-occurrence change keys on.</summary>
     public bool HasSeriesOccurrence(CalendarItem item, DateTimeOffset start) =>
@@ -40,6 +60,8 @@ public sealed class RecurrenceExpander
     /// <summary>Whether <paramref name="series"/> itself — extra occurrences aside — starts an occurrence at
     /// <paramref name="start"/>.</summary>
     public bool Generates(RecurringSeries series, DateTimeOffset start) => SeriesStarts(series, start, start.AddTicks(1)).Any();
+
+    private static DateTimeOffset Midnight(DateOnly d) => new(d.Year, d.Month, d.Day, 0, 0, 0, TimeSpan.Zero);
 
     private static IEnumerable<DateTimeOffset> SeriesStarts(RecurringSeries series, DateTimeOffset windowStart, DateTimeOffset windowEnd)
     {

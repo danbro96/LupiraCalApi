@@ -173,6 +173,17 @@ public class RecurrenceExpanderTests
     }
 
     [Fact]
+    public void Last_end_follows_a_changed_last_occurrence_and_an_extra_one()
+    {
+        var item = Series(Utc(2026, 7, 1, 9), "FREQ=WEEKLY;COUNT=2");
+        item.OccurrenceOverrides = [new OccurrenceOverride(Utc(2026, 7, 8, 9), null, Utc(2026, 7, 8, 17), null, null, null, null)];
+        Assert.Equal(Utc(2026, 7, 8, 17), Expander.LastEnd(item));
+
+        item.ExtraOccurrences = [Utc(2026, 7, 20, 9)];
+        Assert.Equal(Utc(2026, 7, 20, 10), Expander.LastEnd(item));
+    }
+
+    [Fact]
     public void Deviations_exclude_add_move_and_cancel_occurrences()
     {
         var item = Series(Utc(2026, 7, 1, 9), "FREQ=WEEKLY");

@@ -3095,7 +3095,7 @@
         "tags": [
           "Participation"
         ],
-        "summary": "Invite a contact (must be a Contact id). role = chair|req-participant|opt-participant|non-participant (or the enum name); default req-participant, anything else 400s. A contact already invited is a no-op. Offline clients pass ?occurredAt= + Idempotency-Key for replay-safe delivery.",
+        "summary": "Invite a contact (must be a Contact id). role = chair|req-participant|opt-participant|non-participant (or the enum name); default req-participant, anything else 400s. A contact already invited is a no-op. Inviting to an item that had already ended (at occurredAt, else now) also confirms attendance, stamped at the item's end. Offline clients pass ?occurredAt= + Idempotency-Key for replay-safe delivery.",
         "operationId": "InviteParticipant",
         "parameters": [
           {
@@ -3205,7 +3205,7 @@
         "tags": [
           "Participation"
         ],
-        "summary": "Add a set of contacts as attendees in one call (add-only). Attended=true also marks them attended (historical backfill). Slim result (additions + already-present count), not the full item.",
+        "summary": "Add a set of contacts as attendees in one call (add-only). Attended omitted = marked attended only when the item has already ended (stamped at its end); true = always; false = never. Slim result (additions + already-present count), not the full item.",
         "operationId": "SetParticipants",
         "parameters": [
           {
@@ -6118,10 +6118,13 @@
             }
           },
           "attended": {
-            "type": "boolean"
+            "type": [
+              "null",
+              "boolean"
+            ]
           }
         },
-        "description": "Add a set of contacts as attendees of an item in one call (add-only — does not remove existing attendees).\n            `Attended` also marks them attended (for historical/backfilled events); pass false for a live invite flow."
+        "description": "Add a set of contacts as attendees of an item in one call (add-only — does not remove existing attendees).\n            `Attended`: omitted marks them attended only when the item has already ended (stamped at its end); true always\n            marks them attended; false never does."
       },
       "SetParticipantsResult": {
         "required": [

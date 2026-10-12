@@ -41,9 +41,10 @@ public sealed class ParticipationService(
             && resolved.All(c => c.ContactId != contactId))
             return OpResult<CalendarItemDto>.Invalid("Unknown contact.");
 
-        return await MutateAsync(principalId, itemId, commandId, item => Events(item.Attendees.Any(a => a.ContactId == contactId)
-            ? null
-            : new AttendeeInvited(itemId, Guid.NewGuid(), contactId, parsedRole, At(occurredAt))), ct);
+        var at = At(occurredAt);
+        return await MutateAsync(principalId, itemId, commandId, item => OpResult<IReadOnlyList<object>>.Ok(item.Attendees.Any(a => a.ContactId == contactId)
+            ? []
+            : Joined(itemId, Guid.NewGuid(), contactId, parsedRole, at, AttendanceStamp(item, null, at, expander))), ct);
     }
 
     public Task<OpResult<CalendarItemDto>> RespondAsync(
@@ -77,10 +78,10 @@ public sealed class ParticipationService(
 
     public const int MaxAttendees = 200;
 
-    /// <summary>Add a set of contacts as attendees in one call (add-only — existing attendees are kept). When
-    /// <paramref name="attended"/>, each is also marked attended (historical backfill) via <see cref="AttendanceConfirmed"/>.
-    /// Returns a slim result (the additions + already-present count), not the full item DTO.</summary>
-    public async Task<OpResult<SetParticipantsResult>> SetParticipantsAsync(Guid principalId, Guid itemId, IReadOnlyList<Guid> contactIds, bool attended, CancellationToken ct = default)
+    /// <summary>Add a set of contacts as attendees in one call (add-only — existing attendees are kept). Each is also
+    /// marked attended via <see cref="AttendanceConfirmed"/> per <see cref="AttendanceStamp"/>. Returns a slim result
+    /// (the additions + already-present count), not the full item DTO.</summary>
+    public async Task<OpResult<SetParticipantsResult>> SetParticipantsAsync(Guid principalId, Guid itemId, IReadOnlyList<Guid> contactIds, bool? attended, CancellationToken ct = default)
     {
         var distinct = contactIds.Where(id => id != Guid.Empty).Distinct().ToList();
         if (distinct.Count == 0) return OpResult<SetParticipantsResult>.Invalid("At least one contactId is required.");
@@ -99,36 +100,55 @@ public sealed class ParticipationService(
         if (item is null || item.DeletedAt is not null) return OpResult<SetParticipantsResult>.NotFound();
         if (!await access.CanWriteItemAsync(principalId, item, ct)) return OpResult<SetParticipantsResult>.Forbidden("No write access to this item.");
 
+        var now = clock.GetUtcNow();
+        var (events, added, alreadyPresent) = PlanAdditions(item, distinct, now, AttendanceStamp(item, attended, now, expander));
+        if (events.Count > 0)
+        {
+            stream.AppendMany(events);
+            await session.SaveChangesAsync(ct);
+        }
+
+        return OpResult<SetParticipantsResult>.Ok(new SetParticipantsResult(itemId, added, alreadyPresent));
+    }
+
+    /// <summary>When joining participants count as attended: never on an explicit false; at its end for an item that has
+    /// ended by <paramref name="at"/>; at <paramref name="at"/> on an explicit true; otherwise not.</summary>
+    internal static DateTimeOffset? AttendanceStamp(CalendarItem item, bool? attended, DateTimeOffset at, RecurrenceExpander expander)
+    {
+        if (attended == false) return null;
+        if (expander.LastEnd(item) is { } end && end <= at) return end;
+        return attended == true ? at : null;
+    }
+
+    internal static (List<object> Events, List<ParticipationRef> Added, int AlreadyPresent) PlanAdditions(
+        CalendarItem item, IReadOnlyList<Guid> contactIds, DateTimeOffset at, DateTimeOffset? attendedAt)
+    {
         // A contact should hold one participation, but legacy rows may repeat one; the first stands for all.
         var existing = item.Attendees.GroupBy(a => a.ContactId).ToDictionary(g => g.Key, g => g.First());
+        var events = new List<object>();
         var added = new List<ParticipationRef>();
-        var now = DateTimeOffset.UtcNow;
         var alreadyPresent = 0;
-        var appended = false;
-        foreach (var cid in distinct)
+        foreach (var cid in contactIds)
         {
             if (existing.TryGetValue(cid, out var a))
             {
                 alreadyPresent++;
-                if (attended && a.AttendedAt is null)
-                {
-                    stream.AppendOne(new AttendanceConfirmed(itemId, a.ParticipationId, now));
-                    appended = true;
-                }
-
+                if (attendedAt is { } stamp && a.AttendedAt is null) events.Add(new AttendanceConfirmed(item.Id, a.ParticipationId, stamp));
                 continue;
             }
 
             var pid = Guid.NewGuid();
-            stream.AppendOne(new AttendeeInvited(itemId, pid, cid, ParticipationRole.RequiredParticipant, now));
-            if (attended) stream.AppendOne(new AttendanceConfirmed(itemId, pid, now));
-            appended = true;
+            events.AddRange(Joined(item.Id, pid, cid, ParticipationRole.RequiredParticipant, at, attendedAt));
             added.Add(new ParticipationRef(cid, pid));
         }
 
-        if (appended) await session.SaveChangesAsync(ct);
-        return OpResult<SetParticipantsResult>.Ok(new SetParticipantsResult(itemId, added, alreadyPresent));
+        return (events, added, alreadyPresent);
     }
+
+    private static IReadOnlyList<object> Joined(Guid itemId, Guid participationId, Guid contactId, ParticipationRole role, DateTimeOffset at, DateTimeOffset? attendedAt) =>
+        attendedAt is { } stamp
+            ? [new AttendeeInvited(itemId, participationId, contactId, role, at), new AttendanceConfirmed(itemId, participationId, stamp)]
+            : [new AttendeeInvited(itemId, participationId, contactId, role, at)];
 
     /// <summary>Per-contact participation across the caller's readable calendars, ordered by recency-weighted
     /// <see cref="ParticipationSummaryEntry.Score"/>. Optional from/to restricts to items whose occurrence start falls in
@@ -219,5 +239,5 @@ public sealed class ParticipationService(
 
     private static OpResult<IReadOnlyList<object>> Events(object? single) => OpResult<IReadOnlyList<object>>.Ok(single is null ? [] : [single]);
 
-    private static DateTimeOffset At(DateTimeOffset? occurredAt) => occurredAt?.ToUniversalTime() ?? DateTimeOffset.UtcNow;
+    private DateTimeOffset At(DateTimeOffset? occurredAt) => occurredAt?.ToUniversalTime() ?? clock.GetUtcNow();
 }
