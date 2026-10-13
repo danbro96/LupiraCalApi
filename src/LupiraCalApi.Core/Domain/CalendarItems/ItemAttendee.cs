@@ -21,4 +21,11 @@ public sealed class ItemAttendee
     public DateTimeOffset? AttendedAt { get; set; }
 
     public DateTimeOffset? LeftAt { get; set; }
+
+    /// <summary>Null = the default reminder.</summary>
+    public ParticipantReminder? Reminder { get; set; }
+
+    public DateTimeOffset ReminderTs { get; set; }
+
+    public Guid ReminderCmd { get; set; }
 }

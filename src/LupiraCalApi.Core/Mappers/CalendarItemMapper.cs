@@ -56,5 +56,6 @@ internal static class CalendarItemMapper
         RespondedAt = a.RespondedAt,
         AttendedAt = a.AttendedAt,
         LeftAt = a.LeftAt,
+        Reminder = a.Reminder is { } r ? new ParticipantReminderDto { Mode = r.Mode, MinutesBefore = r.MinutesBefore } : null,
     };
 }

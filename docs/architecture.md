@@ -146,6 +146,12 @@ classDiagram
         DateTimeOffset? RespondedAt
         DateTimeOffset? AttendedAt
         DateTimeOffset? LeftAt
+        ParticipantReminder? Reminder
+    }
+    class ParticipantReminder {
+        <<value object>>
+        ReminderMode Mode
+        int? MinutesBefore
     }
     class CalendarMembership {
         <<embedded>>
@@ -214,6 +220,7 @@ classDiagram
     CalendarItem "1" *-- "*" CalendarMembership
     CalendarMembership "*" --> "1" Calendar
     CalendarItem "1" *-- "*" ItemAttendee
+    ItemAttendee "1" *-- "0..1" ParticipantReminder
     CalendarItem "1" *-- "*" OccurrenceOverride
     CalendarItem "1" *-- "0..1" ItemDetails
     CalendarItem "1" *-- "0..1" ItemPrompt : XOR payload
@@ -252,12 +259,21 @@ stamped at that end in the same write, unless the caller passes `attended=false`
 is never confirmed again. When the contact hop is configured (`Contacts:BaseUrl`), an invite validates the id
 via `IContactResolver` (fail-open: an unreachable resolver never blocks the write).
 
+Each participation carries its own `Reminder` (`PUT /items/{id}/participants/{participationId}/reminder`):
+`Off`, `Before` with `MinutesBefore` (0..40320), or none (= `Default`). It belongs to the participation, not the
+shared item, so one attendee's reminder never changes another's. Unlike the rest of participation it is
+last-writer-wins per participation on `(occurredAt, commandId)` (`ReminderTs`/`ReminderCmd`, exposed as
+`guards.reminders` on `/sync/items`), because each participant edits it from their own, often offline, devices.
+Reminders are delivered on the participant's device; the server never fires them.
+
 ### Places
 
 Places live in **LupiraGeoApi**, not here. A calendar item (`PlaceId` + denormalized `LocationLabel`) and a
 travel leg (`ToPlaceId`/`FromPlaceId` + `ToLabel`/`FromLabel`) reference a geo place by id (no FK, no local
 catalog). REST/MCP writes take resolved ids only: each newly supplied place id (item or travel leg) is looked up in
 geo — an unknown id is rejected, a merged-away id is stored as its survivor, and an unreachable geo fails the write.
+Free text alone is rejected unless the caller sets `LocationUnresolved` (create/update), which stores `Location` as
+the label with no place and no geo call — for a location the caller could not resolve.
 Free-text locations (DAV only) are resolved once at write time via `IGeoResolver` (the host's `GeoApiClient`
 → geo, or a no-op when geo is unconfigured, in which case the label is the raw text and ids pass unchecked). The denormalized
 label means ICS generation and the read DTOs never call geo. `GET /items/by-place/{placeId}` is the
@@ -291,6 +307,7 @@ Ordered by last day, then occurrence count.
 | `CalendarEntryStatus` | `Proposed` · `Accepted` · `Removed` | curation state of an item in a calendar |
 | `ParticipationRole` | `Chair` · `RequiredParticipant` · `OptionalParticipant` · `NonParticipant` | iCalendar `ROLE` |
 | `ParticipationStatus` | `NeedsAction` · `Accepted` · `Declined` · `Tentative` · `Delegated` | iCalendar `PARTSTAT` |
+| `ReminderMode` | `Default` · `Off` · `Before` | a participant's own reminder for an item |
 | `Access` | `Owner` · `ReadWrite` · `Read` | a principal's permission on a container |
 
 ## Item details

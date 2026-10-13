@@ -33,6 +33,12 @@ public sealed class ParticipationHandler(CurrentUser user, ParticipationService 
         return OpResultMap.OkNotFoundProblem(await participation.MarkLeftAsync(u.Id, id, participationId, occurredAt, idempotencyKey, ct));
     }
 
+    public async Task<Results<Ok<CalendarItemDto>, NotFound, ProblemHttpResult, UnauthorizedHttpResult>> SetReminderAsync(Guid id, Guid participationId, string? mode, int? minutesBefore, DateTimeOffset? occurredAt, Guid? idempotencyKey, CancellationToken ct)
+    {
+        var u = await user.GetAsync(ct);
+        return OpResultMap.OkNotFoundProblem(await participation.SetReminderAsync(u.Id, id, participationId, mode, minutesBefore, occurredAt, idempotencyKey, ct));
+    }
+
     public async Task<Results<Ok<CalendarItemDto>, NotFound, ProblemHttpResult, UnauthorizedHttpResult>> RemoveAsync(Guid id, Guid participationId, Guid? idempotencyKey, CancellationToken ct)
     {
         var u = await user.GetAsync(ct);

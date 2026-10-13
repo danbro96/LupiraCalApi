@@ -1,10 +1,12 @@
 using System.Net;
 using System.Net.Http.Json;
+using Lupira.Sync;
 using Lupira.Testing.Postgres;
 using LupiraCalApi.Core.Domain.CalendarItems;
 using LupiraCalApi.Core.Domain.CalendarItems.Events;
 using LupiraCalApi.Core.Domain.Shared;
 using LupiraCalApi.Core.Dtos.CalendarItems;
+using LupiraCalApi.Core.Dtos.Sync;
 using Xunit;
 
 namespace LupiraCalApi.IntegrationTests;
@@ -139,12 +141,85 @@ public sealed class ParticipationTests(CalApiTestFactory factory) : IntegrationT
     [InlineData("POST", "respond?status=accepted")]
     [InlineData("POST", "attend")]
     [InlineData("POST", "leave")]
+    [InlineData("PUT", "reminder?mode=Off")]
     [InlineData("DELETE", "")]
     public async Task A_participation_the_item_does_not_hold_is_not_found(string method, string action)
     {
         var (api, itemId, _, _) = await InvitedAsync();
         var path = $"/items/{itemId}/participants/{Guid.NewGuid()}" + (action.Length > 0 ? $"/{action}" : "");
         Assert.Equal(HttpStatusCode.NotFound, (await SendAsync(api, new HttpMethod(method), path)).StatusCode);
+    }
+
+    private async Task<ItemAttendeeDto> SetReminderAsync(HttpClient api, Guid itemId, Guid pid, string query, Guid? idempotencyKey = null)
+    {
+        var resp = await SendAsync(api, HttpMethod.Put, $"/items/{itemId}/participants/{pid}/reminder?{query}", idempotencyKey);
+        resp.EnsureSuccessStatusCode();
+        return (await resp.Content.ReadFromJsonAsync<CalendarItemDto>())!.Attendees.Single(a => a.ParticipationId == pid);
+    }
+
+    [Fact]
+    public async Task Setting_a_reminder_returns_it_on_the_attendee()
+    {
+        var (api, itemId, pid, _) = await InvitedAsync();
+
+        var set = await SetReminderAsync(api, itemId, pid, "mode=Before&minutesBefore=15");
+        Assert.Equal(ReminderMode.Before, set.Reminder!.Mode);
+        Assert.Equal(15, set.Reminder.MinutesBefore);
+        Assert.NotNull(set.InvitedAt);
+
+        Assert.Null((await SetReminderAsync(api, itemId, pid, "mode=default")).Reminder);
+    }
+
+    [Fact]
+    public async Task A_redelivered_reminder_with_its_key_appends_nothing()
+    {
+        var (api, itemId, pid, _) = await InvitedAsync();
+        var key = Guid.NewGuid();
+        var before = await StreamLengthAsync(itemId);
+
+        await SetReminderAsync(api, itemId, pid, "mode=Before&minutesBefore=10", key);
+        var replay = await SetReminderAsync(api, itemId, pid, "mode=Off", key);
+
+        Assert.Equal(before + 1, await StreamLengthAsync(itemId));
+        Assert.Equal(ReminderMode.Before, replay.Reminder!.Mode);
+    }
+
+    [Fact]
+    public async Task A_reminder_set_earlier_on_another_device_loses()
+    {
+        var (api, itemId, pid, _) = await InvitedAsync();
+        var later = new DateTimeOffset(2026, 6, 30, 8, 0, 0, TimeSpan.Zero);
+
+        await SetReminderAsync(api, itemId, pid, $"mode=Off&occurredAt={later:yyyy-MM-ddTHH:mm:ssZ}");
+        var stale = await SetReminderAsync(api, itemId, pid, $"mode=Before&minutesBefore=5&occurredAt={later.AddHours(-1):yyyy-MM-ddTHH:mm:ssZ}");
+
+        Assert.Equal(ReminderMode.Off, stale.Reminder!.Mode);
+    }
+
+    [Theory]
+    [InlineData("mode=Before")]
+    [InlineData("mode=Before&minutesBefore=-1")]
+    [InlineData("mode=Before&minutesBefore=40321")]
+    [InlineData("mode=Off&minutesBefore=10")]
+    [InlineData("mode=Later")]
+    [InlineData("minutesBefore=10")]
+    public async Task An_invalid_reminder_is_rejected(string query)
+    {
+        var (api, itemId, pid, _) = await InvitedAsync();
+        var resp = await SendAsync(api, HttpMethod.Put, $"/items/{itemId}/participants/{pid}/reminder?{query}");
+        Assert.Equal(HttpStatusCode.BadRequest, resp.StatusCode);
+    }
+
+    [Fact]
+    public async Task The_sync_feed_carries_the_reminder_and_its_guard()
+    {
+        var (api, itemId, pid, _) = await InvitedAsync();
+        await SetReminderAsync(api, itemId, pid, "mode=Before&minutesBefore=60");
+
+        var page = (await api.GetFromJsonAsync<SyncPage<ItemSyncChange>>("/sync/items"))!;
+        var change = Assert.Single(page.Changed, c => c.Item.Id == itemId);
+        Assert.Equal(60, change.Item.Attendees.Single().Reminder!.MinutesBefore);
+        Assert.NotEqual(default, change.Guards.Reminders[pid].Ts);
     }
 
     [Fact]

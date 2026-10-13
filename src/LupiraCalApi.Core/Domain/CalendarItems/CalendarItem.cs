@@ -249,8 +249,8 @@ public sealed class CalendarItem
         (PayloadTs, PayloadCmd) = (ts, cmd);
     }
 
-    // Participation stays append-ordered (no section guard): edits are per-participation-id and rare enough that
-    // cross-device conflicts resolve acceptably by append order. Replays are safe upstream (ParticipationService):
+    // Participation stays append-ordered (no section guard; the reminder excepted): edits are per-participation-id and rare
+    // enough that cross-device conflicts resolve acceptably by append order. Replays are safe upstream (ParticipationService):
     // Idempotency-Key dedups them, and a command re-asserting the current state appends nothing.
     public void Apply(IEvent<AttendeeInvited> e)
     {
@@ -292,6 +292,16 @@ public sealed class CalendarItem
     {
         Touch(e);
         if (Find(e.Data.ParticipationId) is { } a) a.LeftAt = e.Data.At;
+    }
+
+    // Per-participation guard: each participant sets their reminder from their own devices, often offline.
+    public void Apply(IEvent<ParticipantReminderSet> e)
+    {
+        Touch(e);
+        var (ts, cmd) = SectionLww.Stamp(e, e.Data.OccurredAt, e.Data.CommandId);
+        if (Find(e.Data.ParticipationId) is not { } a || !SectionLww.Wins(ts, cmd, a.ReminderTs, a.ReminderCmd)) return;
+        a.Reminder = e.Data.Reminder.Mode == ReminderMode.Default ? null : e.Data.Reminder;
+        (a.ReminderTs, a.ReminderCmd) = (ts, cmd);
     }
 
     public void Apply(IEvent<AttendeeRemoved> e)

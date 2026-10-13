@@ -23,4 +23,7 @@ public sealed class ItemAttendeeDto
     public required DateTimeOffset? AttendedAt { get; set; }
 
     public required DateTimeOffset? LeftAt { get; set; }
+
+    /// <summary>Null = the default reminder, delivered on the participant's device.</summary>
+    public required ParticipantReminderDto? Reminder { get; set; }
 }

@@ -42,9 +42,39 @@ public sealed class CalendarItemService(IDocumentSession session, AccessResolver
 
     private const string LocationUnresolved = "Location could not be resolved to a place (geo unavailable) — retry.";
     private const string TravelUnresolved = "A travel location could not be resolved to a place (geo unavailable) — retry.";
-    private const string LocationNeedsPlaceId = "Resolve the location to a LupiraGeoApi place first and pass PlaceId — free-text Location is accepted only over CalDAV.";
+    private const string LocationNeedsPlaceId = "Resolve the location to a LupiraGeoApi place first and pass PlaceId, or set LocationUnresolved to keep it as a label only.";
+    private const string UnresolvedWithPlaceId = "LocationUnresolved cannot be combined with PlaceId.";
     private const string PlaceUnverified = "A place id could not be verified (geo unavailable) — retry.";
     private const string SourceKeyForeign = "This source key belongs to an item you can't access.";
+
+    /// <summary>REST/MCP take a pre-resolved place (Location, if any, is only its label) or, with LocationUnresolved, a
+    /// label-only location. Free-text resolution lives on the CalDAV path (PutIcsAsync).</summary>
+    internal static OpResult<(Guid? PlaceId, string? Label)> LocationOnCreate(CreateCalendarItemRequest r)
+    {
+        if (r.LocationUnresolved)
+            return r.PlaceId is null ? OpResult<(Guid?, string?)>.Ok((null, Trimmed(r.Location))) : OpResult<(Guid?, string?)>.Invalid(UnresolvedWithPlaceId);
+        if (r.PlaceId is { } pid) return OpResult<(Guid?, string?)>.Ok((pid, Trimmed(r.Location)));
+        return Trimmed(r.Location) is null ? OpResult<(Guid?, string?)>.Ok((null, null)) : OpResult<(Guid?, string?)>.Invalid(LocationNeedsPlaceId);
+    }
+
+    /// <summary>Update counterpart of <see cref="LocationOnCreate"/>. A label the item already carries passes through
+    /// unanchored so offline clients replaying the full core section don't break.</summary>
+    internal static OpResult<(Guid? PlaceId, string? Label)> LocationOnUpdate(UpdateCalendarItemRequest r, CalendarItem item)
+    {
+        if (r.LocationUnresolved)
+            return r.PlaceId is null ? OpResult<(Guid?, string?)>.Ok((null, Trimmed(r.Location))) : OpResult<(Guid?, string?)>.Invalid(UnresolvedWithPlaceId);
+        var label = Trimmed(r.Location);
+        if (r.PlaceIdProvided || r.PlaceId is not null)
+        {
+            if (r.PlaceId is null && label is not null && label != item.LocationLabel) return OpResult<(Guid?, string?)>.Invalid(LocationNeedsPlaceId);
+            // A moved anchor invalidates the old label; matches create (no label ⇒ null).
+            return OpResult<(Guid?, string?)>.Ok((r.PlaceId, r.Location is not null ? label : r.PlaceId == item.PlaceId ? item.LocationLabel : null));
+        }
+
+        return r.Location is not null && label != item.LocationLabel
+            ? OpResult<(Guid?, string?)>.Invalid(LocationNeedsPlaceId)
+            : OpResult<(Guid?, string?)>.Ok((item.PlaceId, item.LocationLabel));
+    }
 
     /// <summary>Checks supplied place ids against geo and maps each to its surviving id (a merged-away id redirects).
     /// Ids in <paramref name="stored"/> are already on the item and pass unchecked. Geo unconfigured (dev/test) ⇒ ids pass as-is.</summary>
@@ -99,24 +129,9 @@ public sealed class CalendarItemService(IDocumentSession session, AccessResolver
         if (stream?.Aggregate is { DeletedAt: null } live)
             return OpResult<CalendarItemDto>.Ok(await ToDtoAsync(live, ct));   // idempotent hit — no new events
 
-        // REST/MCP require a pre-resolved place: pass PlaceId (Location, if any, is only the display label).
-        // Free-text resolution lives on the CalDAV path (PutIcsAsync), where external clients can't send a place id.
-        Guid? placeId;
-        string? locationLabel;
-        if (r.PlaceId is { } pid)
-        {
-            placeId = pid;
-            locationLabel = string.IsNullOrWhiteSpace(r.Location) ? null : r.Location.Trim();
-        }
-        else if (!string.IsNullOrWhiteSpace(r.Location))
-        {
-            return OpResult<CalendarItemDto>.Invalid(LocationNeedsPlaceId);
-        }
-        else
-        {
-            placeId = null;
-            locationLabel = null;
-        }
+        var location = LocationOnCreate(r);
+        if (!location.IsOk) return OpResult<CalendarItemDto>.Invalid(location.Error!);
+        var (placeId, locationLabel) = location.Value;
 
         if (!TryParseDefined<ItemStatus>(r.Status, out var status)) return OpResult<CalendarItemDto>.Invalid(UnknownEnum<ItemStatus>("status", r.Status!));
         if (!TryParseDefined<ItemCategory>(r.Category, out var category)) return OpResult<CalendarItemDto>.Invalid(UnknownEnum<ItemCategory>("category", r.Category!));
@@ -438,27 +453,9 @@ public sealed class CalendarItemService(IDocumentSession session, AccessResolver
         var rrule = r.RecurrenceRuleProvided ? r.RecurrenceRule : r.RecurrenceRule ?? item.RecurrenceRule;
         var tags = r.Tags ?? item.Tags;
         if (isAllDay && startDate is null) return OpResult<CalendarItemDto>.Invalid("An all-day item needs StartDate.");
-        Guid? placeId;
-        string? locationLabel;
-        if (r.PlaceIdProvided || r.PlaceId is not null)
-        {
-            placeId = r.PlaceId;
-            // A moved anchor invalidates the old label; matches create (no label ⇒ null).
-            locationLabel = r.Location is not null ? Trimmed(r.Location)
-                : placeId == item.PlaceId ? item.LocationLabel
-                : null;
-        }
-        else if (r.Location is not null && Trimmed(r.Location) != item.LocationLabel)
-        {
-            // Same fail-closed posture as create; an unchanged label passes through so offline clients
-            // replaying the full core section (predating PlaceId) don't break.
-            return OpResult<CalendarItemDto>.Invalid(LocationNeedsPlaceId);
-        }
-        else
-        {
-            placeId = item.PlaceId;
-            locationLabel = item.LocationLabel;
-        }
+        var location = LocationOnUpdate(r, item);
+        if (!location.IsOk) return OpResult<CalendarItemDto>.Invalid(location.Error!);
+        var (placeId, locationLabel) = location.Value;
 
         var category = categoryIn ?? item.Category;
         var categoryChanged = category != item.Category;

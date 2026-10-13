@@ -23,7 +23,7 @@ public static class CalendarItemsEndpoints
 
         group.MapPost("/", (CreateCalendarItemRequest body, CalendarItemsHandler h, CancellationToken ct) => h.CreateAsync(body, ct))
             .WithName("CreateItem")
-            .WithSummary("Create a calendar item (filed into CalendarId if given, else unfiled for later curation). A location must be a resolved PlaceId.")
+            .WithSummary("Create a calendar item (filed into CalendarId if given, else unfiled for later curation). A location is a resolved PlaceId (Location = its label), or free text kept as a label only with LocationUnresolved=true (no geo lookup); free text alone 400s.")
             .Produces<CalendarItemDto>(StatusCodes.Status200OK)
             .ProducesProblem(StatusCodes.Status403Forbidden);
 
@@ -65,7 +65,7 @@ public static class CalendarItemsEndpoints
 
         group.MapPut("/{id:guid}", (Guid id, UpdateCalendarItemRequest body, [FromHeader(Name = "Idempotency-Key")] Guid? idempotencyKey, CalendarItemsHandler h, CancellationToken ct) => h.UpdateAsync(id, body, idempotencyKey, ct))
             .WithName("UpdateItem")
-            .WithSummary("Update a calendar item. Plain fields: omitted = kept; fields paired with a *Provided sentinel are written verbatim when it is true (enables clearing recurrence, switching all-day, editing timezones, clearing the parent with ParentItemIdProvided=true and a null ParentItemId). Offline clients send Idempotency-Key (their command id) + body OccurredAt for replay-safe, last-writer-wins updates.")
+            .WithSummary("Update a calendar item. Plain fields: omitted = kept; fields paired with a *Provided sentinel are written verbatim when it is true (enables clearing recurrence, switching all-day, editing timezones, clearing the parent with ParentItemIdProvided=true and a null ParentItemId). A location change needs PlaceId, or LocationUnresolved=true to store Location as a label with no place. Offline clients send Idempotency-Key (their command id) + body OccurredAt for replay-safe, last-writer-wins updates.")
             .Produces<CalendarItemDto>(StatusCodes.Status200OK)
             .ProducesProblem(StatusCodes.Status404NotFound);
 

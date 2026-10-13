@@ -17,11 +17,16 @@ public sealed class UpdateCalendarItemRequest
     public string? Status { get; set; }
 
     /// <summary>Re-anchor the location to a resolved LupiraGeoApi place; <see cref="Location"/> then carries the display
-    /// label. Set <see cref="PlaceIdProvided"/> with a null value to clear. Free-text-only location changes are rejected
-    /// (resolve via geo first); an id geo doesn't know is rejected, a merged-away id is stored as its survivor.</summary>
+    /// label. Set <see cref="PlaceIdProvided"/> with a null value to clear the place; its label goes too unless
+    /// <see cref="Location"/> re-sends it. A changed label without a place is rejected unless
+    /// <see cref="LocationUnresolved"/> is set; an id geo doesn't know is rejected, a merged-away id is stored as its survivor.</summary>
     public Guid? PlaceId { get; set; }
 
     public bool PlaceIdProvided { get; set; }
+
+    /// <summary>Store <see cref="Location"/> verbatim as a label with no place (null clears it); geo is not called.
+    /// Cannot be combined with <see cref="PlaceId"/>.</summary>
+    public bool LocationUnresolved { get; set; }
 
     public DateTimeOffset? StartsAt { get; set; }
 

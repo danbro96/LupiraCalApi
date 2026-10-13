@@ -67,6 +67,14 @@ public sealed class ParticipationService(
             ? new ParticipantLeft(itemId, participationId, At(occurredAt))
             : null, ct);
 
+    // Appended even when unchanged: skipping would leave the guard stale against a late, older write from another device.
+    public Task<OpResult<CalendarItemDto>> SetReminderAsync(
+        Guid principalId, Guid itemId, Guid participationId, string? mode, int? minutesBefore, DateTimeOffset? occurredAt = null, Guid? commandId = null, CancellationToken ct = default) =>
+        ParticipantReminder.TryParse(mode, minutesBefore, out var reminder, out var error)
+            ? MutateAttendeeAsync(principalId, itemId, participationId, commandId, _ =>
+                new ParticipantReminderSet(itemId, participationId, reminder, occurredAt?.ToUniversalTime(), commandId), ct)
+            : Task.FromResult(OpResult<CalendarItemDto>.Invalid(error));
+
     public Task<OpResult<CalendarItemDto>> RemoveAsync(Guid principalId, Guid itemId, Guid participationId, Guid? commandId = null, CancellationToken ct = default) =>
         MutateAttendeeAsync(principalId, itemId, participationId, commandId, a => new AttendeeRemoved(itemId, a.ParticipationId), ct);
 

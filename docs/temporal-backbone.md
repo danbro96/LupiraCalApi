@@ -111,7 +111,7 @@ event ItemActionSet(Guid ItemId, ItemAction Action);   event ItemActionCleared(G
 - `ItemCategory { General, Meeting, Appointment, Meal, Occasion, Outing, Trip, Stay, Activity, Focus, Chore }` on the item. Details are a **composable bag**, not a per-kind union: `ItemDetails(BookingDetail? Booking, TravelLeg? Travel, PresenceDetail? Presence)` — a booked flight sets `Booking` + `Travel` on one item.
 - `TravelLeg(TransportMode Mode, ToPlaceId?, FromPlaceId?, ToLabel?, FromLabel?, DepartAt?, ArriveAt?, Carrier?, ServiceNumber?, DeparturePoint?, ArrivalPoint?, Seat?, DriverContactId?)`; `TransportMode { Flight, Train, Metro, Tram, Bus, Coach, Car, Ferry, Bike, Walk, Other }` — flights/trains are modes of a `Trip` leg, not categories. `BookingDetail(ProviderContactId?, ConfirmationNumber?, Reference?, Url?, Amount?, Currency?, PartySize?)` is category-free.
 - **Validation:** `Travel` applies only to `Trip` (and requires `ToPlace`); unknown enum names → 400 listing valid values; partial details are legal (progressive enrichment).
-- **Places live in LupiraGeoApi:** `CalendarItem.PlaceId` (and `TravelLeg.ToPlaceId`/`FromPlaceId`) reference a geo place id; a denormalized `LocationLabel`/`ToLabel`/`FromLabel` is stored on write. Free-text resolves through `IGeoResolver` (geo when configured, else the raw text is kept as the label); DAV ICS renders the label with no lookup.
+- **Places live in LupiraGeoApi:** `CalendarItem.PlaceId` (and `TravelLeg.ToPlaceId`/`FromPlaceId`) reference a geo place id; a denormalized `LocationLabel`/`ToLabel`/`FromLabel` is stored on write. Free-text resolves through `IGeoResolver` on the DAV path (geo when configured, else the raw text is kept as the label); REST/MCP take a resolved place id, or keep free text as a label only with `LocationUnresolved`. DAV ICS renders the label with no lookup.
 
 ### Availability — partial-day presence segments
 - A presence item carries `ItemDetails.Presence` = `PresenceDetail(AvailabilityStatus Status)`, `Status = Office | Home | Vacation | Sick | Leave`, on the Availability calendar.
@@ -206,6 +206,8 @@ This buys exactly what a raw calendar lacks:
 - **retry/backoff** — `attempts` + `locked_until`.
 
 **Ownership:** cal-api owns "what's due" (it has the items, payloads, RRULE); assistant-api runs the fired payload. The same queue is the clock for LlmPrompts (Elicit, research, follow-ups), DevOps routines, *and* ordinary reminders/leave-by — built once.
+
+**Non-goal — participant reminders.** `scheduled_fire` never materializes a participant's own reminder (`ItemAttendee.Reminder`). Those are delivered on the participant's device from the synced item; the queue only fires item payloads.
 
 ### Dispatcher options (dispatch lives outside the cal-api host)
 - **A — dedicated dispatcher host + the Postgres `scheduled_fire` queue (recommended).** SKIP-LOCKED claim loop; zero new infrastructure; full control of catch-up/expiry; the florence/gpt host+worker pattern.

@@ -3,8 +3,8 @@ using System.Text.Json.Nodes;
 namespace LupiraCalApi.Core.Dtos.CalendarItems;
 
 /// <summary>Create an item via REST/MCP. <c>CalendarId</c> optional — when set, the item is accepted into that calendar;
-/// when null, the item is created unfiled (e.g. an automated source) for later curation. <c>Location</c> is free text
-/// resolved to a <see cref="LupiraCalApi.Core.Domain.Place"/>. <c>Category</c>/<c>Status</c> are the enum names.</summary>
+/// when null, the item is created unfiled (e.g. an automated source) for later curation. A location is a resolved
+/// <c>PlaceId</c>, or free text with <c>LocationUnresolved</c>. <c>Category</c>/<c>Status</c> are the enum names.</summary>
 public sealed class CreateCalendarItemRequest
 {
     public Guid? CalendarId { get; set; }
@@ -26,14 +26,17 @@ public sealed class CreateCalendarItemRequest
 
     public string? Description { get; set; }
 
-    /// <summary>Free-text location resolved server-side to a LupiraGeoApi place (fail-closed if geo is up but can't resolve).
-    /// Prefer <see cref="PlaceId"/> when you have already resolved/vetted the place (places-first imports) — then <see cref="Location"/>
-    /// is used only as the display label.</summary>
+    /// <summary>The location's display label. Requires <see cref="PlaceId"/> unless <see cref="LocationUnresolved"/> is set;
+    /// free text alone is rejected.</summary>
     public string? Location { get; set; }
 
     /// <summary>A pre-resolved LupiraGeoApi place id, kept with <see cref="Location"/> as its label. Checked against geo: an
     /// unknown id is rejected, a merged-away id is stored as its survivor.</summary>
     public Guid? PlaceId { get; set; }
+
+    /// <summary>Keep <see cref="Location"/> as a label with no place (the caller couldn't resolve it); geo is not called.
+    /// Cannot be combined with <see cref="PlaceId"/>.</summary>
+    public bool LocationUnresolved { get; set; }
 
     public string? Status { get; set; }
 

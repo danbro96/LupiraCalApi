@@ -274,6 +274,62 @@ public sealed class GeoResolutionTests(CalApiTestFactory factory) : IntegrationT
         Assert.Null(dto.PlaceId);
         Assert.Null(dto.LocationLabel);
     }
+    [Fact]
+    public async Task Rest_create_with_location_unresolved_stores_a_label_only_without_geo()
+    {
+        var geo = new GazetteerGeo([], down: true);
+        var api = ClientWith(geo);
+        var calId = await CreateCalendarAsync(api);
+        var request = Coffee(calId, location: "Cafe Central");
+        request.LocationUnresolved = true;
+
+        var resp = await api.PostAsJsonAsync("/items", request);
+        resp.EnsureSuccessStatusCode();
+        var dto = (await resp.Content.ReadFromJsonAsync<CalendarItemDto>())!;
+        Assert.Null(dto.PlaceId);
+        Assert.Equal("Cafe Central", dto.LocationLabel);
+        Assert.Empty(geo.LookedUp);
+    }
+
+    [Fact]
+    public async Task Rest_create_with_location_unresolved_and_a_place_id_is_rejected()
+    {
+        var api = Factory.ApiClient(Email);
+        var calId = await CreateCalendarAsync(api);
+        var request = Coffee(calId, location: "Cafe Central", placeId: Guid.NewGuid());
+        request.LocationUnresolved = true;
+
+        Assert.Equal(HttpStatusCode.BadRequest, (await api.PostAsJsonAsync("/items", request)).StatusCode);
+    }
+
+    [Fact]
+    public async Task Update_with_location_unresolved_stores_the_label_and_drops_the_place()
+    {
+        var api = Factory.ApiClient(Email);
+        var calId = await CreateCalendarAsync(api);
+        var item = await CreateWithPlaceAsync(api, calId, Guid.NewGuid(), "Cafe Central");
+
+        var resp = await api.PutAsJsonAsync($"/items/{item.Id}",
+            new UpdateCalendarItemRequest { Location = "Somewhere Else", LocationUnresolved = true });
+        resp.EnsureSuccessStatusCode();
+        var dto = (await resp.Content.ReadFromJsonAsync<CalendarItemDto>())!;
+        Assert.Null(dto.PlaceId);
+        Assert.Equal("Somewhere Else", dto.LocationLabel);
+    }
+
+    [Fact]
+    public async Task Update_clearing_the_place_with_a_new_label_is_rejected()
+    {
+        var api = Factory.ApiClient(Email);
+        var calId = await CreateCalendarAsync(api);
+        var item = await CreateWithPlaceAsync(api, calId, Guid.NewGuid(), "Cafe Central");
+
+        var resp = await api.PutAsJsonAsync($"/items/{item.Id}",
+            new UpdateCalendarItemRequest { PlaceIdProvided = true, PlaceId = null, Location = "Somewhere Else" });
+        Assert.Equal(HttpStatusCode.BadRequest, resp.StatusCode);
+        Assert.Contains("LocationUnresolved", await resp.Content.ReadAsStringAsync());
+    }
+
     // ---- Supplied place ids are checked against geo (merge redirects followed) ----
 
     private static CreateCalendarItemRequest Trip(Guid calId, Guid to, Guid? from = null) => new()

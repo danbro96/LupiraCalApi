@@ -56,6 +56,7 @@ public static class MartenRegistrations
         opts.Events.MapEventType<AttendanceConfirmed>("attendance_confirmed");
         opts.Events.MapEventType<ParticipantLeft>("participant_left");
         opts.Events.MapEventType<AttendeeRemoved>("attendee_removed");
+        opts.Events.MapEventType<ParticipantReminderSet>("participant_reminder_set");
         opts.Events.MapEventType<AddedToCalendar>("added_to_calendar");
         opts.Events.MapEventType<CalendarEntryStatusChanged>("calendar_entry_status_changed");
         opts.Events.MapEventType<RemovedFromCalendar>("removed_from_calendar");

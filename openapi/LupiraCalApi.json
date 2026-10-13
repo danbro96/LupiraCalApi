@@ -920,7 +920,7 @@
         "tags": [
           "CalendarItems"
         ],
-        "summary": "Create a calendar item (filed into CalendarId if given, else unfiled for later curation). A location must be a resolved PlaceId.",
+        "summary": "Create a calendar item (filed into CalendarId if given, else unfiled for later curation). A location is a resolved PlaceId (Location = its label), or free text kept as a label only with LocationUnresolved=true (no geo lookup); free text alone 400s.",
         "operationId": "CreateItem",
         "requestBody": {
           "content": {
@@ -1234,7 +1234,7 @@
         "tags": [
           "CalendarItems"
         ],
-        "summary": "Update a calendar item. Plain fields: omitted = kept; fields paired with a *Provided sentinel are written verbatim when it is true (enables clearing recurrence, switching all-day, editing timezones, clearing the parent with ParentItemIdProvided=true and a null ParentItemId). Offline clients send Idempotency-Key (their command id) + body OccurredAt for replay-safe, last-writer-wins updates.",
+        "summary": "Update a calendar item. Plain fields: omitted = kept; fields paired with a *Provided sentinel are written verbatim when it is true (enables clearing recurrence, switching all-day, editing timezones, clearing the parent with ParentItemIdProvided=true and a null ParentItemId). A location change needs PlaceId, or LocationUnresolved=true to store Location as a label with no place. Offline clients send Idempotency-Key (their command id) + body OccurredAt for replay-safe, last-writer-wins updates.",
         "operationId": "UpdateItem",
         "parameters": [
           {
@@ -3780,6 +3780,126 @@
         ]
       }
     },
+    "/items/{id}/participants/{participationId}/reminder": {
+      "put": {
+        "tags": [
+          "Participation"
+        ],
+        "summary": "Set this participant's own reminder for the item, delivered on their device. mode = Default|Off|Before; required, anything else 400s. minutesBefore (0..40320) is required for Before and rejected otherwise. Last writer wins per participation on occurredAt. Offline clients pass ?occurredAt= + Idempotency-Key for replay-safe delivery.",
+        "operationId": "SetParticipantReminder",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "participationId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "mode",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "minutesBefore",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "format": "int32"
+            }
+          },
+          {
+            "name": "occurredAt",
+            "in": "query",
+            "schema": {
+              "type": [
+                "null",
+                "string"
+              ],
+              "format": "date-time"
+            }
+          },
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CalendarItemDto"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not Found",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal server error",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "Bearer": [ ]
+          }
+        ]
+      }
+    },
     "/items/{id}/participants/{participationId}": {
       "delete": {
         "tags": [
@@ -4839,7 +4959,7 @@
               "null",
               "string"
             ],
-            "description": "Free-text location resolved server-side to a LupiraGeoApi place (fail-closed if geo is up but can't resolve).\n            Prefer Guid? CreateCalendarItemRequest.PlaceId when you have already resolved/vetted the place (places-first imports) — then string? CreateCalendarItemRequest.Location\n            is used only as the display label."
+            "description": "The location's display label. Requires Guid? CreateCalendarItemRequest.PlaceId unless bool CreateCalendarItemRequest.LocationUnresolved is set;\n            free text alone is rejected."
           },
           "placeId": {
             "type": [
@@ -4848,6 +4968,10 @@
             ],
             "description": "A pre-resolved LupiraGeoApi place id, kept with string? CreateCalendarItemRequest.Location as its label. Checked against geo: an\n            unknown id is rejected, a merged-away id is stored as its survivor.",
             "format": "uuid"
+          },
+          "locationUnresolved": {
+            "type": "boolean",
+            "description": "Keep string? CreateCalendarItemRequest.Location as a label with no place (the caller couldn't resolve it); geo is not called.\n            Cannot be combined with Guid? CreateCalendarItemRequest.PlaceId."
           },
           "status": {
             "type": [
@@ -4969,7 +5093,7 @@
             ]
           }
         },
-        "description": "Create an item via REST/MCP. `CalendarId` optional — when set, the item is accepted into that calendar;\n            when null, the item is created unfiled (e.g. an automated source) for later curation. `Location` is free text\n            resolved to a <see cref=\"!:LupiraCalApi.Core.Domain.Place\" />. `Category`/`Status` are the enum names."
+        "description": "Create an item via REST/MCP. `CalendarId` optional — when set, the item is accepted into that calendar;\n            when null, the item is created unfiled (e.g. an automated source) for later curation. A location is a resolved\n            `PlaceId`, or free text with `LocationUnresolved`. `Category`/`Status` are the enum names."
       },
       "CreateCalendarItemsBatchRequest": {
         "required": [
@@ -5273,7 +5397,8 @@
           "invitedAt",
           "respondedAt",
           "attendedAt",
-          "leftAt"
+          "leftAt",
+          "reminder"
         ],
         "type": "object",
         "properties": {
@@ -5318,6 +5443,17 @@
               "string"
             ],
             "format": "date-time"
+          },
+          "reminder": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "description": "Null = the default reminder, delivered on the participant's device.",
+                "$ref": "#/components/schemas/ParticipantReminderDto"
+              }
+            ]
           }
         },
         "description": "One attendee's participation, composed from the participation events."
@@ -5785,6 +5921,26 @@
         },
         "description": "The result of granting a member access to a container: who now has what access on which container."
       },
+      "ParticipantReminderDto": {
+        "required": [
+          "mode",
+          "minutesBefore"
+        ],
+        "type": "object",
+        "properties": {
+          "mode": {
+            "$ref": "#/components/schemas/ReminderMode"
+          },
+          "minutesBefore": {
+            "type": [
+              "null",
+              "integer"
+            ],
+            "format": "int32"
+          }
+        },
+        "description": "A participant's own reminder for an item; `MinutesBefore` is set only for `Before`."
+      },
       "ParticipationRef": {
         "required": [
           "contactId",
@@ -6144,6 +6300,14 @@
           }
         }
       },
+      "ReminderMode": {
+        "enum": [
+          "Default",
+          "Off",
+          "Before"
+        ],
+        "description": "How a participant wants to be reminded of an item: the device's default, never, or a set lead time."
+      },
       "SectionGuardDto": {
         "required": [
           "ts",
@@ -6167,7 +6331,8 @@
           "core",
           "metadata",
           "payload",
-          "filing"
+          "filing",
+          "reminders"
         ],
         "type": "object",
         "properties": {
@@ -6185,9 +6350,15 @@
             "additionalProperties": {
               "$ref": "#/components/schemas/SectionGuardDto"
             }
+          },
+          "reminders": {
+            "type": "object",
+            "additionalProperties": {
+              "$ref": "#/components/schemas/SectionGuardDto"
+            }
           }
         },
-        "description": "Per-section guards for an item: core fields, metadata, the XOR payload, and per-calendar filing."
+        "description": "Per-section guards for an item: core fields, metadata, the XOR payload, per-calendar filing, and\n            per-participation reminders (keyed by participation id, only those ever set)."
       },
       "SetItemActionRequest": {
         "required": [
@@ -6648,11 +6819,15 @@
               "null",
               "string"
             ],
-            "description": "Re-anchor the location to a resolved LupiraGeoApi place; string? UpdateCalendarItemRequest.Location then carries the display\n            label. Set bool UpdateCalendarItemRequest.PlaceIdProvided with a null value to clear. Free-text-only location changes are rejected\n            (resolve via geo first); an id geo doesn't know is rejected, a merged-away id is stored as its survivor.",
+            "description": "Re-anchor the location to a resolved LupiraGeoApi place; string? UpdateCalendarItemRequest.Location then carries the display\n            label. Set bool UpdateCalendarItemRequest.PlaceIdProvided with a null value to clear the place; its label goes too unless\n            string? UpdateCalendarItemRequest.Location re-sends it. A changed label without a place is rejected unless\n            bool UpdateCalendarItemRequest.LocationUnresolved is set; an id geo doesn't know is rejected, a merged-away id is stored as its survivor.",
             "format": "uuid"
           },
           "placeIdProvided": {
             "type": "boolean"
+          },
+          "locationUnresolved": {
+            "type": "boolean",
+            "description": "Store string? UpdateCalendarItemRequest.Location verbatim as a label with no place (null clears it); geo is not called.\n            Cannot be combined with Guid? UpdateCalendarItemRequest.PlaceId."
           },
           "startsAt": {
             "type": [

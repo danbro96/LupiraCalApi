@@ -37,7 +37,12 @@ public static class ParticipationEndpoints
             .WithSummary("Record that the participant left; already left is a no-op. " + ReplaySafe)
             .Produces<CalendarItemDto>(StatusCodes.Status200OK).ProducesProblem(StatusCodes.Status404NotFound);
 
-        group.MapDelete("/{participationId:guid}", (Guid id, Guid participationId, [FromHeader(Name = "Idempotency-Key")] Guid? idempotencyKey, ParticipationHandler h, CancellationToken ct) => h.RemoveAsync(id, participationId, idempotencyKey, ct))
+        group.MapPut("/{participationId:guid}/reminder", (Guid id, Guid participationId, string? mode, int? minutesBefore, DateTimeOffset? occurredAt, [FromHeader(Name = "Idempotency-Key")] Guid? idempotencyKey, ParticipationHandler h, CancellationToken ct) => h.SetReminderAsync(id, participationId, mode, minutesBefore, occurredAt, idempotencyKey, ct))
+            .WithName("SetParticipantReminder")
+            .WithSummary("Set this participant's own reminder for the item, delivered on their device. mode = Default|Off|Before; required, anything else 400s. minutesBefore (0..40320) is required for Before and rejected otherwise. Last writer wins per participation on occurredAt. " + ReplaySafe)
+            .Produces<CalendarItemDto>(StatusCodes.Status200OK).ProducesProblem(StatusCodes.Status404NotFound).ProducesProblem(StatusCodes.Status400BadRequest);
+
+        group.MapDelete("/{participationId:guid}",(Guid id, Guid participationId, [FromHeader(Name = "Idempotency-Key")] Guid? idempotencyKey, ParticipationHandler h, CancellationToken ct) => h.RemoveAsync(id, participationId, idempotencyKey, ct))
             .WithName("RemoveParticipant")
             .WithSummary("Remove an attendee. Pass Idempotency-Key so a redelivered removal succeeds rather than 404s.")
             .Produces<CalendarItemDto>(StatusCodes.Status200OK).ProducesProblem(StatusCodes.Status404NotFound);
