@@ -119,6 +119,7 @@ classDiagram
         Guid? PlaceId
         string? LocationLabel
         Guid? ParentItemId
+        Guid? ContinuesItemId
         string[]? Tags
         ItemPrompt? Prompt
         ItemAction? Action
@@ -229,6 +230,7 @@ classDiagram
     ItemDetails "1" *-- "0..1" TravelLeg
     ItemDetails "1" *-- "0..1" PresenceDetail
     CalendarItem "*" --> "0..1" CalendarItem : parent of
+    CalendarItem "0..1" --> "0..1" CalendarItem : continues
 
     CalendarItem "*" ..> "*" Relation : cross-API
 ```
@@ -246,6 +248,29 @@ A `CalendarItem` is calendar-independent. Its membership of a calendar is a `Cal
 `CalendarEntryStatus`: an automated source can create an item and **propose** it; a member **accepts** it
 into zero-or-many calendars (or it's **removed** — kept as a sync tombstone). An item with no accepted
 membership is "unfiled".
+
+### Recurring series
+
+A series recurs at the same wall-clock time in its zone (an all-day series on dates). Every occurrence is identified by
+the start it has in the unmodified series (`originalStart`, UTC; an all-day one at 00:00Z), which search results carry
+with `isChanged`. Its per-occurrence deviations key on that start: `ExcludedOccurrences` drop one, `ExtraOccurrences` add
+one-off starts, and an `OccurrenceOverride` changes one (time, title, description, status; a cancelled one stays hidden
+but on record). An all-day override's `EndsAt` is its inclusive last day, like `EndDate`. Excluding an extra start removes
+it; two occurrences moved onto the same start both stay. Moving the series (time, day, zone, rule) carries its
+deviations along with their occurrences and, for an unchanged rule, moves its last start too, so it keeps as many
+occurrences.
+
+"This and following" (`POST /items/{id}/occurrences/{originalStart}/following`, MCP `change_following_occurrences`) cuts the
+series at one of its rule's occurrences: the series' rule ends before it (a count is divided, otherwise it ends at the
+last earlier start) and a new series, `ContinuesItemId` = the original, starts at it with the rest of the rule and the
+changes applied. Deviations go with the part their occurrence falls in, so the two parts' occurrences are the series'.
+The continuation copies calendar memberships, attendees (role, response and reminder; not attended/left) under
+participation ids derived from the continuation's id, metadata, the payload (re-targeted when it pointed at the item)
+and relations; child items stay on the original. Everything is written in one transaction; `SourceKey` (else the
+`Idempotency-Key`) fixes the continuation's id, so an offline client knows it up front and a replay lands on it, and an
+`occurredAt` older than the series' last schedule change is a `409` with nothing written. At the series' first
+occurrence the whole series is updated or deleted instead; an extra one-off start can't start a series. A split series
+counts once in the participation summary.
 
 ### Participation
 

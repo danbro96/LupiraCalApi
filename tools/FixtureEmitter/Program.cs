@@ -1,13 +1,18 @@
 using System.Text.Json;
 using System.Text.Json.Serialization;
+using Lupira.Primitives;
 using LupiraCalApi.Core.Data;
 using LupiraCalApi.Core.Domain.CalendarItems;
+using LupiraCalApi.Core.Domain.Shared;
 using Marten;
 
 // Emits parity fixtures for the mobile domain package (packages/domain in the LupiraCal monorepo):
-//   <out-dir>/recurrence.json   — recurrence-rule expansions computed by the server's RecurrenceExpander;
-//                                 the TS expander must reproduce `expected` exactly (UTC, half-open window).
-//   <out-dir>/lww-vectors.json  — SectionLww wins/tiebreak decisions; the client reducer must agree on every row.
+//   <out-dir>/recurrence.json     — recurrence-rule expansions computed by the server's RecurrenceExpander;
+//                                   the TS expander must reproduce `expected` exactly (UTC, half-open window).
+//   <out-dir>/series.json         — occurrences of series with excluded, extra and changed occurrences (RecurrenceExpander.Occurrences).
+//   <out-dir>/series-follow.json  — where a series' end and deviations land when the series moves (KeepingBoundOf + SeriesDeviations.Follow).
+//   <out-dir>/split.json          — a series cut at an occurrence (SeriesSplit), with the continuation's derived ids.
+//   <out-dir>/lww-vectors.json    — SectionLww wins/tiebreak decisions; the client reducer must agree on every row.
 //
 //   dotnet run --project tools/FixtureEmitter -- <out-dir> [--from-db <connection-string>]
 //
@@ -104,6 +109,118 @@ if (fromDb >= 0 && fromDb + 1 < args.Length)
 
 await File.WriteAllTextAsync(Path.Combine(outDir, "recurrence.json"), JsonSerializer.Serialize(cases, json));
 Console.WriteLine($"recurrence.json: {cases.Count} cases → {outDir}");
+
+// ---- Series with deviations: every occurrence keeps the start it has in the unmodified series. ----
+
+OccurrenceOverride Change(DateTimeOffset originalStart, DateTimeOffset? startsAt = null, DateTimeOffset? endsAt = null, string? title = null, ItemStatus? status = null) =>
+    new(originalStart, startsAt, endsAt, title, null, status, null);
+SeriesShape Timed(DateTimeOffset start, int minutes, string rule, string? zone = "UTC") => new(false, start, start.AddMinutes(minutes), null, null, zone, rule);
+SeriesShape AllDay(DateOnly start, DateOnly end, string rule) => new(true, null, null, start, end, null, rule);
+
+var seriesCases = new List<SeriesCase>();
+void Series(string name, SeriesShape item, DateTimeOffset windowStart, DateTimeOffset windowEnd) =>
+    seriesCases.Add(new SeriesCase(name, item, windowStart, windowEnd, expander.Occurrences(item.ToItem(), windowStart, windowEnd)));
+
+var jul = Utc(2026, 7, 1, 9);
+Series("exclude-add-move-cancel-and-pull-in", Timed(jul, 60, "FREQ=WEEKLY") with
+{
+    ExcludedOccurrences = [Utc(2026, 7, 8, 9)],
+    ExtraOccurrences = [Utc(2026, 7, 10, 12)],
+    OccurrenceOverrides = [Change(Utc(2026, 7, 15, 9), Utc(2026, 7, 15, 14), title: "Moved"), Change(Utc(2026, 7, 22, 9), status: ItemStatus.Cancelled),
+        Change(Utc(2026, 7, 29, 9), Utc(2026, 7, 28, 9))],
+}, Utc(2026, 7, 1, 0), Utc(2026, 7, 29, 0));
+Series("excluded-extra", Timed(jul, 60, "FREQ=WEEKLY;COUNT=2") with { ExtraOccurrences = [Utc(2026, 7, 3, 12)], ExcludedOccurrences = [Utc(2026, 7, 3, 12)] },
+    Utc(2026, 7, 1, 0), Utc(2026, 8, 1, 0));
+Series("moved-onto-another-start", Timed(jul, 60, "FREQ=WEEKLY;COUNT=3") with { OccurrenceOverrides = [Change(Utc(2026, 7, 8, 9), Utc(2026, 7, 15, 9), title: "Moved")] },
+    Utc(2026, 7, 1, 0), Utc(2026, 8, 1, 0));
+Series("moved-out-of-the-window", Timed(jul, 60, "FREQ=WEEKLY") with { OccurrenceOverrides = [Change(Utc(2026, 7, 8, 9), Utc(2026, 8, 20, 9))] },
+    Utc(2026, 7, 1, 0), Utc(2026, 7, 20, 0));
+Series("change-keyed-off-the-series", Timed(jul, 60, "FREQ=WEEKLY;COUNT=2") with { OccurrenceOverrides = [Change(Utc(2026, 7, 2, 9), Utc(2026, 7, 3, 9))] },
+    Utc(2026, 7, 1, 0), Utc(2026, 8, 1, 0));
+Series("change-on-an-extra", Timed(jul, 60, "FREQ=WEEKLY;COUNT=2") with
+{
+    ExtraOccurrences = [Utc(2026, 7, 3, 12)], OccurrenceOverrides = [Change(Utc(2026, 7, 3, 12), Utc(2026, 7, 4, 12), title: "Extra moved")],
+}, Utc(2026, 7, 1, 0), Utc(2026, 8, 1, 0));
+Series("zoned-across-the-autumn-shift", Timed(Utc(2026, 10, 4, 16), 180, "FREQ=WEEKLY;BYDAY=SU", "Europe/Stockholm") with
+{
+    ExcludedOccurrences = [Utc(2026, 11, 1, 17)], OccurrenceOverrides = [Change(Utc(2026, 10, 18, 16), Utc(2026, 10, 19, 16), Utc(2026, 10, 19, 19), "Monday")],
+}, Utc(2026, 10, 1, 0), Utc(2026, 11, 16, 0));
+Series("all-day-with-a-longer-occurrence", AllDay(new DateOnly(2026, 7, 27), new DateOnly(2026, 7, 28), "FREQ=WEEKLY;COUNT=3") with
+{
+    OccurrenceOverrides = [Change(Utc(2026, 8, 3, 0), Utc(2026, 8, 4, 0), Utc(2026, 8, 7, 0))],
+}, Utc(2026, 7, 1, 0), Utc(2026, 9, 1, 0));
+
+await File.WriteAllTextAsync(Path.Combine(outDir, "series.json"), JsonSerializer.Serialize(seriesCases, json));
+Console.WriteLine($"series.json: {seriesCases.Count} cases → {outDir}");
+
+// ---- Moving a series: its end and deviations follow their occurrences. ----
+
+var followCases = new List<SeriesFollowCase>();
+void Follow(string name, SeriesShape before, SeriesShape after)
+{
+    var moved = after.ToSeries().KeepingBoundOf(before.ToSeries());
+    var deviations = SeriesDeviations.Of(before.ToItem()).Follow(before.ToSeries(), moved, before.ExtraOccurrences, expander);
+    followCases.Add(new SeriesFollowCase(name, before, after, moved.RecurrenceRule, deviations.Excluded, deviations.Overrides));
+}
+
+var sundays = Timed(Utc(2026, 10, 4, 16), 180, "FREQ=WEEKLY;BYDAY=SU", "Europe/Stockholm") with
+{
+    ExcludedOccurrences = [Utc(2026, 10, 18, 16), Utc(2026, 11, 1, 17)],
+    OccurrenceOverrides = [Change(Utc(2026, 10, 11, 16), title: "Renamed"), Change(Utc(2026, 10, 25, 17), Utc(2026, 10, 26, 17), Utc(2026, 10, 26, 19), status: ItemStatus.Tentative)],
+};
+Follow("new-time-across-the-autumn-shift", sundays, sundays with { StartsAt = Utc(2026, 10, 4, 17), EndsAt = Utc(2026, 10, 4, 20) });
+Follow("new-day", sundays, sundays with { StartsAt = Utc(2026, 10, 5, 16), EndsAt = Utc(2026, 10, 5, 19), RecurrenceRule = "FREQ=WEEKLY;BYDAY=MO" });
+Follow("new-zone-same-wall-clock", sundays, sundays with { StartsAt = Utc(2026, 10, 4, 17), EndsAt = Utc(2026, 10, 4, 20), StartTimezone = "Europe/London" });
+Follow("rule-no-longer-has-them", sundays, sundays with { RecurrenceRule = "FREQ=MONTHLY;BYDAY=1SU" });
+Follow("stops-recurring", sundays, sundays with { RecurrenceRule = null });
+Follow("extra-stays-put", sundays with { ExtraOccurrences = [Utc(2026, 10, 14, 10)], ExcludedOccurrences = [Utc(2026, 10, 14, 10)] },
+    sundays with { StartsAt = Utc(2026, 10, 4, 17), EndsAt = Utc(2026, 10, 4, 20) });
+Follow("bounded-instant-moves-along", sundays with { RecurrenceRule = "FREQ=WEEKLY;BYDAY=SU;UNTIL=20261025T170000Z" },
+    sundays with { StartsAt = Utc(2026, 10, 4, 17), EndsAt = Utc(2026, 10, 4, 20), RecurrenceRule = "FREQ=WEEKLY;BYDAY=SU;UNTIL=20261025T170000Z" });
+Follow("bounded-wall-clock-moves-along", sundays with { RecurrenceRule = "FREQ=WEEKLY;BYDAY=SU;UNTIL=20261025T180000" },
+    sundays with { StartsAt = Utc(2026, 10, 4, 17), EndsAt = Utc(2026, 10, 4, 20), RecurrenceRule = "FREQ=WEEKLY;BYDAY=SU;UNTIL=20261025T180000" });
+Follow("bounded-count-is-kept", sundays with { RecurrenceRule = "FREQ=WEEKLY;BYDAY=SU;COUNT=5" },
+    sundays with { StartsAt = Utc(2026, 10, 4, 17), EndsAt = Utc(2026, 10, 4, 20), RecurrenceRule = "FREQ=WEEKLY;BYDAY=SU;COUNT=5" });
+Follow("new-rule-taken-as-written", sundays with { RecurrenceRule = "FREQ=WEEKLY;BYDAY=SU;UNTIL=20261025T170000Z" },
+    sundays with { StartsAt = Utc(2026, 10, 4, 17), EndsAt = Utc(2026, 10, 4, 20), RecurrenceRule = "FREQ=WEEKLY;BYDAY=SU;UNTIL=20261101T170000Z" });
+var saturdays = AllDay(new DateOnly(2026, 10, 3), new DateOnly(2026, 10, 4), "FREQ=WEEKLY;UNTIL=20261031") with { ExcludedOccurrences = [Utc(2026, 10, 17, 0)] };
+Follow("all-day-by-whole-days", saturdays, saturdays with { StartDate = new DateOnly(2026, 10, 4), EndDate = new DateOnly(2026, 10, 5) });
+
+await File.WriteAllTextAsync(Path.Combine(outDir, "series-follow.json"), JsonSerializer.Serialize(followCases, json));
+Console.WriteLine($"series-follow.json: {followCases.Count} cases → {outDir}");
+
+// ---- Splitting a series at an occurrence (null parts: the start can't split it — not a later rule occurrence). ----
+
+var splitCases = new List<SplitCase>();
+void Split(string name, SeriesShape item, DateTimeOffset at)
+{
+    var split = SeriesSplit.At(item.ToItem(), at, expander);
+    var sourceKey = $"split-{name}";
+    var continuationId = DeterministicGuid.From(sourceKey);
+    var participationId = DeterministicGuid.From($"participation-{name}");
+    splitCases.Add(new SplitCase(name, item, at, split is null ? null : SeriesShape.Of(split.Earlier), split is null ? null : SeriesShape.Of(split.Following),
+        sourceKey, continuationId, participationId, SeriesSplit.ContinuedParticipationId(continuationId, participationId)));
+}
+
+var mondays = Timed(Utc(2026, 7, 6, 9), 120, "FREQ=WEEKLY;BYDAY=MO");
+Split("count", mondays with { RecurrenceRule = "FREQ=WEEKLY;BYDAY=MO;COUNT=5" }, Utc(2026, 7, 20, 9));
+Split("open", mondays, Utc(2026, 7, 27, 9));
+Split("until", Timed(Utc(2026, 7, 6, 9), 60, "FREQ=DAILY;UNTIL=20260715T090000Z"), Utc(2026, 7, 10, 9));
+Split("all-day", AllDay(new DateOnly(2026, 7, 4), new DateOnly(2026, 7, 5), "FREQ=WEEKLY"), Utc(2026, 7, 18, 0));
+Split("zoned-across-the-autumn-shift", Timed(Utc(2026, 10, 4, 16), 180, "FREQ=WEEKLY;BYDAY=SU", "Europe/Stockholm"), Utc(2026, 11, 1, 17));
+Split("sub-second-start", Timed(Utc(2026, 7, 6, 9).AddMilliseconds(500), 60, "FREQ=DAILY"), Utc(2026, 7, 9, 9));
+Split("deviations-go-with-their-part", mondays with
+{
+    ExcludedOccurrences = [Utc(2026, 7, 13, 9), Utc(2026, 8, 3, 9)],
+    ExtraOccurrences = [Utc(2026, 7, 15, 12), Utc(2026, 7, 29, 12)],
+    OccurrenceOverrides = [Change(Utc(2026, 7, 6, 9), title: "First"), Change(Utc(2026, 7, 27, 9), Utc(2026, 7, 19, 9), title: "Pulled earlier")],
+}, Utc(2026, 7, 20, 9));
+Split("first-occurrence", mondays, Utc(2026, 7, 6, 9));
+Split("extra-only", mondays with { ExtraOccurrences = [Utc(2026, 7, 15, 12)] }, Utc(2026, 7, 15, 12));
+Split("off-the-series", mondays, Utc(2026, 7, 14, 9));
+
+await File.WriteAllTextAsync(Path.Combine(outDir, "split.json"), JsonSerializer.Serialize(splitCases, json));
+Console.WriteLine($"split.json: {splitCases.Count} cases → {outDir}");
 
 // ---- LWW vectors: every row's `wins` is computed by the server rule the client must mirror. ----
 
