@@ -246,4 +246,13 @@ public class RecurrenceExpanderTests
 
         Assert.Equal([Utc(2026, 7, 1, 9), Utc(2026, 7, 8, 9)], Expander.Expand(item, Utc(2026, 7, 1), Utc(2026, 8, 1)));
     }
+
+    [Fact]
+    public void Last_end_of_an_all_day_series_follows_a_changed_inclusive_last_day()
+    {
+        var item = new CalendarItem { IsAllDay = true, StartDate = new DateOnly(2026, 7, 27), EndDate = new DateOnly(2026, 7, 28), RecurrenceRule = "FREQ=WEEKLY;COUNT=2" };
+        item.OccurrenceOverrides = [new OccurrenceOverride(Utc(2026, 8, 3), null, Utc(2026, 8, 6), null, null, null, null)];
+
+        Assert.Equal(Utc(2026, 8, 7), Expander.LastEnd(item));
+    }
 }

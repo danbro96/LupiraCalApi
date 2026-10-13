@@ -4820,7 +4820,7 @@
             "format": "date-time"
           }
         },
-        "description": "Change one occurrence of a recurring item, identified by its unmodified start. bool ChangeOccurrenceRequest.Excluded removes it\n            from the series; otherwise the given members override the series for that occurrence (omitted = inherit). Each change\n            replaces the occurrence's previous one."
+        "description": "Change one occurrence of a recurring item, identified by its unmodified start. bool ChangeOccurrenceRequest.Excluded removes it\n            from the series; otherwise the given members override the series for that occurrence (omitted = inherit). Each change\n            replaces the occurrence's previous one. On an all-day series the times are dates at 00:00Z and DateTimeOffset? ChangeOccurrenceRequest.EndsAt is the\n            last day."
       },
       "CompletenessGap": {
         "required": [
@@ -5884,7 +5884,7 @@
             ]
           }
         },
-        "description": "A change to one occurrence of a recurring item, identified by the start it would have had unchanged\n            (DateTimeOffset OccurrenceOverride.OriginalStart, UTC; an all-day series uses the date at 00:00Z). Null members inherit from the series;\n            ItemStatus.Cancelled drops the occurrence."
+        "description": "A change to one occurrence of a recurring item, identified by the start it would have had unchanged\n            (DateTimeOffset OccurrenceOverride.OriginalStart, UTC; an all-day series uses the date at 00:00Z, and DateTimeOffset? OccurrenceOverride.EndsAt is then the inclusive\n            last day at 00:00Z). Null members inherit from the series; ItemStatus.Cancelled drops the occurrence."
       },
       "OriginKind": {
         "enum": [

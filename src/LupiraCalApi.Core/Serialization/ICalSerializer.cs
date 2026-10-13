@@ -13,7 +13,7 @@ namespace LupiraCalApi.Core.Serialization;
 /// <summary>iCalendar (VEVENT) author + parse via Ical.Net. The structured fields are canonical: GET regenerates the ICS on
 /// demand from them, and the ETag is derived from that generated form — so generation must be deterministic (fixed DTSTAMP,
 /// no wall-clock fields). Works in primitives so it stays decoupled from the domain aggregates. The one place that maps the
-/// domain's inclusive all-day <c>EndDate</c> to and from the exclusive DTEND.</summary>
+/// domain's inclusive all-day ends (<c>EndDate</c>, an all-day occurrence change's <c>EndsAt</c>) to and from the exclusive DTEND.</summary>
 public static class ICalSerializer
 {
     // The library default embeds its own version, so every upgrade would change every ETag.
@@ -70,17 +70,17 @@ public static class ICalSerializer
             foreach (var x in (excludedOccurrences ?? []).Order()) ev.ExceptionDates.Add(At(x));
             foreach (var x in (extraOccurrences ?? []).Order()) ev.RecurrenceDates.Add(At(x));
             foreach (var o in (occurrenceOverrides ?? []).OrderBy(o => o.OriginalStart))
-                calendar.Events.Add(OverrideEvent(uid, o, ev, At, SeriesLength(isAllDay, startsAt, endsAt, startDate, endDate)));
+                calendar.Events.Add(OverrideEvent(uid, o, ev, At, isAllDay, SeriesLength(isAllDay, startsAt, endsAt, startDate, endDate)));
         }
 
         var ics = new CalendarSerializer().SerializeToString(calendar) ?? string.Empty;
         return vtimezone is null ? ics : ics.Insert(ics.IndexOf("BEGIN:VEVENT", StringComparison.Ordinal), vtimezone);
     }
 
-    private static CalendarEvent OverrideEvent(string uid, OccurrenceOverride o, CalendarEvent series, Func<DateTimeOffset, CalDateTime> at, TimeSpan? length)
+    private static CalendarEvent OverrideEvent(string uid, OccurrenceOverride o, CalendarEvent series, Func<DateTimeOffset, CalDateTime> at, bool isAllDay, TimeSpan? length)
     {
         var start = o.StartsAt ?? o.OriginalStart;
-        var end = o.EndsAt ?? (length is { } l ? start + l : null);
+        var end = o.EndsAt is { } last && isAllDay ? last.AddDays(1) : o.EndsAt ?? (length is { } l ? start + l : null);
         var ev = new CalendarEvent
         {
             Uid = uid,
@@ -193,7 +193,7 @@ public static class ICalSerializer
         var extra = ev.RecurrenceDates.GetAllDates().Select(d => ToInstant(d, floatingZone))
             .Concat(ev.RecurrenceDates.GetAllPeriods().Select(p => ToInstant(p.StartTime, floatingZone))).Distinct().Order().ToArray();
         var length = SeriesLength(allDay, startsAt, endsAt, startDate, endDate);
-        var overrides = overrideEvents.Select(x => ToOverride(x, ev, length, floatingZone)).OrderBy(o => o.OriginalStart).ToArray();
+        var overrides = overrideEvents.Select(x => ToOverride(x, ev, allDay, length, floatingZone)).OrderBy(o => o.OriginalStart).ToArray();
 
         return new ParsedEvent(uid, ev.Summary, ev.Description, ev.Location, ParseStatus(ev.Status), ParseCategory(ev.Categories), allDay,
             startsAt, endsAt, ZoneOf(ev.Start, floatingZone), ZoneOf(ev.End, floatingZone), startDate, endDate, rrule,
@@ -207,16 +207,17 @@ public static class ICalSerializer
         categories.Select(c => Enum.GetNames<ItemCategory>().FirstOrDefault(n => string.Equals(n, c.Trim(), StringComparison.OrdinalIgnoreCase)))
             .FirstOrDefault(n => n is not null) is { } name ? Enum.Parse<ItemCategory>(name) : null;
 
-    // Only what differs from the series is kept; null members inherit.
-    private static OccurrenceOverride ToOverride(CalendarEvent o, CalendarEvent series, TimeSpan? length, DateTimeZone? floatingZone)
+    // Only what differs from the series is kept; null members inherit. An all-day end is kept as its inclusive last day.
+    private static OccurrenceOverride ToOverride(CalendarEvent o, CalendarEvent series, bool allDay, TimeSpan? length, DateTimeZone? floatingZone)
     {
         var original = ToInstant(o.RecurrenceIdentifier!.StartTime, floatingZone);
         var start = o.Start is { } s ? ToInstant(s, floatingZone) : original;
         DateTimeOffset? end = o.End is { } e ? ToInstant(e, floatingZone) : null;
+        DateTimeOffset? changedEnd = end is { } x && (length is not { } l || x != start + l) ? x : null;
         return new OccurrenceOverride(
             original,
             start != original ? start : null,
-            end is { } x && (length is not { } l || x != start + l) ? x : null,
+            allDay && changedEnd is { } dayAfter ? (dayAfter.AddDays(-1) < start ? start : dayAfter.AddDays(-1)) : changedEnd,
             o.Summary != series.Summary ? o.Summary : null,
             o.Description != series.Description ? o.Description : null,
             ParseStatus(o.Status) is { } st && st != ParseStatus(series.Status) ? st : null,

@@ -212,4 +212,25 @@ public sealed class OccurrenceDeviationTests(CalApiTestFactory factory) : Integr
         Assert.Equal([Utc(10, 5, 9), Utc(10, 12, 9), Utc(10, 19, 9)], occ.Select(o => o.Start).ToList());
         Assert.Equal("Annex", occ[1].LocationLabel);
     }
+
+    [Fact]
+    public async Task An_all_day_occurrence_change_takes_dates_and_ends_on_its_last_day()
+    {
+        var api = Factory.ApiClient(Email);
+        var cal = await CreateCalendarAsync(api);
+        var created = await api.PostAsJsonAsync("/items", new CreateCalendarItemRequest
+        {
+            CalendarId = cal, Title = "Camp", IsAllDay = true, StartDate = new DateOnly(2026, 10, 5), EndDate = new DateOnly(2026, 10, 6), RecurrenceRule = "FREQ=WEEKLY;COUNT=3",
+        });
+        var item = (await created.Content.ReadFromJsonAsync<CalendarItemDto>())!;
+
+        var timed = await api.PutAsJsonAsync($"/items/{item.Id}/occurrences/2026-10-12T00:00:00Z", new ChangeOccurrenceRequest { EndsAt = Utc(10, 14, 12) });
+        Assert.Equal(HttpStatusCode.BadRequest, timed.StatusCode);
+        await DeviateAsync(api, item.Id, Utc(10, 12, 0), new ChangeOccurrenceRequest { EndsAt = Utc(10, 14, 0) });
+
+        var longer = Assert.Single(await OccurrencesAsync(api, item.Id), o => o.OriginalStart == Utc(10, 12, 0));
+        Assert.Equal(Utc(10, 14, 0), longer.End);
+        var body = await (await GetIcsBackendAsync(api, Email, cal, item.ExternalId)).Content.ReadAsStringAsync();
+        Assert.Contains("DTEND;VALUE=DATE:20261015", body[body.LastIndexOf("BEGIN:VEVENT", StringComparison.Ordinal)..]);
+    }
 }

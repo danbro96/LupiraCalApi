@@ -84,6 +84,30 @@ public class ICalSerializerTests
     }
 
     [Fact]
+    public void All_day_override_end_is_its_inclusive_last_day()
+    {
+        var longer = new[] { new OccurrenceOverride(Utc(2026, 8, 3), Utc(2026, 8, 4), Utc(2026, 8, 7), null, null, null, null) };
+        var ics = ICalSerializer.ToICalendar("week@x", "Camp", null, null, null, true, null, null,
+            new DateOnly(2026, 7, 27), new DateOnly(2026, 7, 29), "FREQ=WEEKLY;COUNT=3", null, null, longer);
+
+        Assert.Contains("DTEND;VALUE=DATE:20260808", ics[ics.LastIndexOf("BEGIN:VEVENT", StringComparison.Ordinal)..]);
+        Assert.Equal(longer, ICalSerializer.ParseICalendar(ics).OccurrenceOverrides);
+    }
+
+    [Theory]
+    [InlineData("20260803", 3)]   // zero-length: clamped to the start
+    [InlineData("20260806", 5)]
+    public void All_day_override_end_parses_to_its_last_day(string dtend, int lastDay)
+    {
+        var ics = "BEGIN:VCALENDAR\r\nVERSION:2.0\r\nPRODID:-//t//EN\r\n" +
+            "BEGIN:VEVENT\r\nUID:e1@x\r\nDTSTART;VALUE=DATE:20260727\r\nDTEND;VALUE=DATE:20260728\r\nRRULE:FREQ=WEEKLY\r\nEND:VEVENT\r\n" +
+            "BEGIN:VEVENT\r\nUID:e1@x\r\nRECURRENCE-ID;VALUE=DATE:20260803\r\nDTSTART;VALUE=DATE:20260803\r\nDTEND;VALUE=DATE:" + dtend + "\r\nEND:VEVENT\r\n" +
+            "END:VCALENDAR\r\n";
+
+        Assert.Equal(Utc(2026, 8, lastDay), Assert.Single(ICalSerializer.ParseICalendar(ics).OccurrenceOverrides!).EndsAt);
+    }
+
+    [Fact]
     public void All_day_regeneration_is_byte_stable_with_a_fixed_product_id()
     {
         string Regen() => ICalSerializer.ToICalendar("trip@x", "Trip", null, null, null, true, null, null,

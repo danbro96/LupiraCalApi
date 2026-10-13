@@ -14,6 +14,7 @@ using LupiraCalApi.Auth;
 using LupiraCalApi.Clients;
 using LupiraCalApi.Core.Abstractions;
 using LupiraCalApi.Core.Application.Dav;
+using LupiraCalApi.Core.Data.Migrations;
 using LupiraCalApi.Core.Domain.CalendarItems;
 using LupiraCalApi.Core.Scheduling;
 using LupiraCalApi.Dav;
@@ -177,6 +178,18 @@ if (args.Contains("--rebuild-items"))
     await daemon.RebuildProjectionAsync<CalendarItem>(CancellationToken.None);
     await DavChangeFeed.AdvanceEpochAsync(store);
     Console.WriteLine("CalendarItem projection rebuilt; DAV clients will resync.");
+    return;
+}
+
+// One-shot, in-place conversion of all-day occurrence change ends to the inclusive last day. Back up first; follow with
+// --rebuild-items. --dry-run reports without writing.
+if (args.Contains("--migrate-all-day-occurrence-ends"))
+{
+    var dryRun = args.Contains("--dry-run");
+    var (count, samples) = await AllDayOccurrenceEndMigration.RunAsync(app.Services.GetRequiredService<IDocumentStore>(),
+        app.Configuration.GetConnectionString("Postgres") ?? CoreServiceCollectionExtensions.DefaultConnectionString, dryRun, CancellationToken.None);
+    foreach (var sample in samples) Console.WriteLine(sample);
+    Console.WriteLine(dryRun ? $"{count} event(s) carry all-day occurrence ends to move back one day; nothing written." : $"Moved all-day occurrence ends back one day in {count} event(s).");
     return;
 }
 

@@ -8,8 +8,8 @@ Docs: `docs/` (architecture, event-sourcing, temporal-backbone, dav-backend-cont
 - Remaining ICS coupling in core (`ContentHash`, expander via `ICalSerializer`) is legacy; do not extend it.
 
 ## All-day spans
-- All-day `EndDate` is the inclusive last day.
-- `ICalSerializer` is the only place that knows `DTEND` is exclusive: emit writes `EndDate + 1`, parse reads `DTEND - 1` (clamped to `StartDate`), `SeriesLength` counts days inclusively.
+- All-day `EndDate` is the inclusive last day; so is an all-day occurrence change's `EndsAt` (00:00Z). REST/MCP reject non-midnight all-day occurrence times.
+- `ICalSerializer` is the only place that knows `DTEND` is exclusive: emit writes `EndDate + 1` (and a change's `EndsAt + 1`), parse reads `DTEND - 1` (clamped to the start), `SeriesLength` counts days inclusively.
 - ICS `DTEND` is exclusive (RFC 5545): imports seed `endDate = DTEND - 1`.
 
 ## Time zones

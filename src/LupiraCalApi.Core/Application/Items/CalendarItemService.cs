@@ -6,6 +6,7 @@ using Lupira.Results;
 using LupiraCalApi.Core.Abstractions;
 using LupiraCalApi.Core.Application.Dav;
 using LupiraCalApi.Core.Auth;
+using LupiraCalApi.Core.Data.Migrations;
 using LupiraCalApi.Core.Domain.CalendarItems;
 using LupiraCalApi.Core.Domain.CalendarItems.Events;
 using LupiraCalApi.Core.Domain.Calendars;
@@ -325,7 +326,8 @@ public sealed class CalendarItemService(IDocumentSession session, AccessResolver
                 foreach (var occ in expander.Occurrences(i, Lookback(windowStart, coverage), expansionEnd))
                 {
                     var change = occ.Change;
-                    if (!Overlaps(occ.Start, change?.EndsAt ?? occ.Start + coverage, windowStart, windowEnd)) continue;
+                    var coveredUntil = change?.EndsAt is { } changedEnd ? (i.IsAllDay ? changedEnd.AddDays(1) : changedEnd) : occ.Start + coverage;
+                    if (!Overlaps(occ.Start, coveredUntil, windowStart, windowEnd)) continue;
                     results.Add(new CalendarItemOccurrenceDto { Id = i.Id, Title = change?.Title ?? i.Title, PlaceId = i.PlaceId, LocationLabel = change?.LocationLabel ?? i.LocationLabel, IsAllDay = i.IsAllDay, Start = occ.Start, End = change?.EndsAt ?? (duration is { } d ? occ.Start + d : null), OriginalStart = occ.OriginalStart, IsChanged = change is not null, CalendarIds = memberIds, Category = i.Category, Status = change?.Status ?? i.Status, Tags = i.Tags, ParentItemId = i.ParentItemId, ParentTitle = parentTitle, ChildCount = childCount, Completeness = score, Etag = i.ContentHash });
                 }
             }
@@ -495,6 +497,7 @@ public sealed class CalendarItemService(IDocumentSession session, AccessResolver
             ? (categoryChanged ? new ItemDetails() : null)
             : (categoryChanged ? incoming : ItemDetailsMapper.Merge(item.Details, incoming));
 
+        session.SetHeader(AllDayOccurrenceEndMigration.InclusiveEndHeader, true);
         stream.AppendOne(new ItemRevised(id, fields, details, r.OccurredAt, commandId));
         await idempotency.CommitAsync(commandId, id, (int) (stream.CurrentVersion ?? 0) + 1, ct);
         var updated = await session.LoadAsync<CalendarItem>(id, ct);
@@ -584,8 +587,11 @@ public sealed class CalendarItemService(IDocumentSession session, AccessResolver
         if (!r.Excluded && r is { StartsAt: null, EndsAt: null, Title: null, Description: null } && status is null)
             return OpResult<CalendarItemDto>.Invalid("Nothing to change; restore the occurrence to drop its change.");
         if (r.StartsAt is { } s && r.EndsAt is { } e && e < s) return OpResult<CalendarItemDto>.Invalid("EndsAt precedes StartsAt.");
+        if (item.IsAllDay && new[] { r.StartsAt, r.EndsAt }.Any(t => t is { } x && x.ToUniversalTime().TimeOfDay != TimeSpan.Zero))
+            return OpResult<CalendarItemDto>.Invalid("An all-day occurrence starts and ends on dates: send 00:00Z (EndsAt is the last day).");
 
         var keptLocationLabel = item.OccurrenceOverrides?.FirstOrDefault(o => o.OriginalStart == original)?.LocationLabel;
+        session.SetHeader(AllDayOccurrenceEndMigration.InclusiveEndHeader, true);
         stream.AppendOne(r.Excluded
             ? new OccurrenceExcluded(id, original, r.OccurredAt, commandId)
             : new OccurrenceOverridden(id, new OccurrenceOverride(original, r.StartsAt?.ToUniversalTime(), r.EndsAt?.ToUniversalTime(),
@@ -683,6 +689,7 @@ public sealed class CalendarItemService(IDocumentSession session, AccessResolver
             p.StartTimezone, p.EndTimezone, p.StartDate, p.EndDate, p.RecurrenceRule,
             p.ExcludedOccurrences, p.ExtraOccurrences, p.OccurrenceOverrides, null, placeId, locationLabel, null, null);
 
+        session.SetHeader(AllDayOccurrenceEndMigration.InclusiveEndHeader, true);
         stream.AppendOne(new ItemImported(id, externalId, fields));   // also clears any soft-delete (resurrect)
         if (existing is null || !existing.IsAcceptedIn(calendarId))
             stream.AppendOne(new AddedToCalendar(id, calendarId, CalendarEntryStatus.Accepted, DateTimeOffset.UtcNow));

@@ -56,7 +56,7 @@ public sealed class RecurrenceExpander
 
         var length = firstEnd - first;
         return Occurrences(item, DateTimeOffset.MinValue, DateTimeOffset.MaxValue)
-            .Select(o => o.Change?.EndsAt ?? o.Start + length)
+            .Select(o => o.Change?.EndsAt is { } end ? (item.IsAllDay ? end.AddDays(1) : end) : o.Start + length)
             .Cast<DateTimeOffset?>()
             .Max();
     }

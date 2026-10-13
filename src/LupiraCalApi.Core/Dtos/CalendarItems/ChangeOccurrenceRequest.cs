@@ -2,7 +2,8 @@ namespace LupiraCalApi.Core.Dtos.CalendarItems;
 
 /// <summary>Change one occurrence of a recurring item, identified by its unmodified start. <see cref="Excluded"/> removes it
 /// from the series; otherwise the given members override the series for that occurrence (omitted = inherit). Each change
-/// replaces the occurrence's previous one.</summary>
+/// replaces the occurrence's previous one. On an all-day series the times are dates at 00:00Z and <see cref="EndsAt"/> is the
+/// last day.</summary>
 public sealed class ChangeOccurrenceRequest
 {
     public bool Excluded { get; set; }
