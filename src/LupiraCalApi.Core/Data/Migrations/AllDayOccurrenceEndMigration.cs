@@ -32,7 +32,7 @@ public static class AllDayOccurrenceEndMigration
         var rewrites = new List<(long Seq, string Data)>();
         var samples = new List<string>();
         await using (var select = new NpgsqlCommand(
-            "select seq_id, stream_id, type, data::text, coalesce(headers ? @header, false) from cal.mt_events " +
+            "select seq_id, stream_id, type, data::text, coalesce(jsonb_typeof(headers) = 'object' and headers ? @header, false) from cal.mt_events " +
             "where type in ('item_scheduled', 'item_imported', 'item_revised', 'occurrence_overridden') order by seq_id",
             conn, tx))
         {
@@ -73,7 +73,8 @@ public static class AllDayOccurrenceEndMigration
         foreach (var (seq, data) in rewrites)
         {
             await using var update = new NpgsqlCommand(
-                "update cal.mt_events set data = @data, headers = coalesce(headers, '{}'::jsonb) || jsonb_build_object(@header, true) where seq_id = @seq",
+                "update cal.mt_events set data = @data, headers = (case when jsonb_typeof(headers) = 'object' then headers else '{}'::jsonb end) " +
+                "|| jsonb_build_object(@header, true) where seq_id = @seq",
                 conn, tx);
             update.Parameters.AddWithValue("data", NpgsqlDbType.Jsonb, data);
             update.Parameters.AddWithValue("header", InclusiveEndHeader);

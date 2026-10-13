@@ -29,10 +29,15 @@ public sealed class AllDayOccurrenceEndMigrationTests(CalApiTestFactory factory)
         await using (var old = Store.LightweightSession())
         {
             old.Events.StartStream<CalendarItem>(imported, new ItemImported(imported, "imported@x", Series(true, [dayAfter])));
-            old.Events.StartStream<CalendarItem>(changed, new ItemScheduled(changed, "changed@x", Series(true, null), null),
-                new OccurrenceOverridden(changed, dayAfter));
+            old.Events.StartStream<CalendarItem>(changed, new ItemScheduled(changed, "changed@x", Series(true, null), null));
             old.Events.StartStream<CalendarItem>(timed, new ItemImported(timed, "timed@x",
                 Series(false, [new OccurrenceOverride(Day(8, 3).AddHours(9), null, Day(8, 3).AddHours(12), null, null, null, null)])));
+            await old.SaveChangesAsync();
+        }
+
+        await using (var old = Store.LightweightSession())
+        {
+            old.Events.Append(changed, new OccurrenceOverridden(changed, dayAfter));
             await old.SaveChangesAsync();
         }
 
