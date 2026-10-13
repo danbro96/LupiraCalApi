@@ -60,6 +60,9 @@ public sealed class CalendarItem
 
     public Guid? ParentItemId { get; set; }
 
+    /// <summary>The series this one continues, when it was split off at one of that series' occurrences.</summary>
+    public Guid? ContinuesItemId { get; set; }
+
     public string[]? Tags { get; set; }
 
     public ItemDetails? Details { get; set; }
@@ -119,9 +122,10 @@ public sealed class CalendarItem
         ExternalId = e.Data.ExternalId;
         SetFields(e.Data.Fields);
         Details = e.Data.Details;
+        ContinuesItemId = e.Data.ContinuesItemId;
         DeletedAt = null;
-        // Creation seeds the core guard from the server stamp: a stale offline edit predating the create loses.
-        (CoreTs, CoreCmd) = SectionLww.Stamp(e, null, null);
+        // Creation seeds the core guard: a stale offline edit predating the create loses.
+        (CoreTs, CoreCmd) = SectionLww.Stamp(e, e.Data.OccurredAt, e.Data.CommandId);
         RecomputeHash();
     }
 

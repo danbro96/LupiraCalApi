@@ -72,6 +72,12 @@ public sealed class CalendarItemsHandler(CurrentUser user, CalendarItemService i
         return OpResultMap.OkNotFoundProblem(await items.ChangeOccurrenceAsync(u.Id, id, originalStart, body, idempotencyKey, ct));
     }
 
+    public async Task<Results<Ok<SeriesSplitDto>, NotFound, ProblemHttpResult, UnauthorizedHttpResult>> ChangeFollowingOccurrencesAsync(Guid id, DateTimeOffset originalStart, ChangeFollowingOccurrencesRequest body, Guid? idempotencyKey, CancellationToken ct)
+    {
+        var u = await user.GetAsync(ct);
+        return OpResultMap.OkNotFoundProblem(await items.ChangeFollowingOccurrencesAsync(u.Id, id, originalStart, body, idempotencyKey, ct));
+    }
+
     public async Task<Results<NoContent, NotFound, ProblemHttpResult, UnauthorizedHttpResult>> RestoreOccurrenceAsync(Guid id, DateTimeOffset originalStart, DateTimeOffset? occurredAt, Guid? idempotencyKey, CancellationToken ct)
     {
         var u = await user.GetAsync(ct);

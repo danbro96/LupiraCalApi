@@ -173,4 +173,17 @@ public class FireMaterializerTests
         Assert.Equal(first.Id, second.Id);             // deterministic id from dedupe_key → on-conflict-do-nothing safe
         Assert.Equal(first.DedupeKey, second.DedupeKey);
     }
+
+    [Fact]
+    public void Occurrences_moved_onto_one_start_fire_once()
+    {
+        var item = Timed(OnStart);
+        item.RecurrenceRule = "FREQ=WEEKLY";
+        item.OccurrenceOverrides = [new OccurrenceOverride(new DateTimeOffset(2026, 7, 8, 9, 0, 0, TimeSpan.Zero), new DateTimeOffset(2026, 7, 15, 9, 0, 0, TimeSpan.Zero), null, null, null, null, null)];
+
+        var rows = Mat.Materialize(item, Ctx(), Now, Horizon);
+
+        Assert.Equal(rows.Count, rows.Select(r => r.DedupeKey).Distinct().Count());
+        Assert.Single(rows, r => r.OccurrenceAt == new DateTimeOffset(2026, 7, 15, 9, 0, 0, TimeSpan.Zero));
+    }
 }

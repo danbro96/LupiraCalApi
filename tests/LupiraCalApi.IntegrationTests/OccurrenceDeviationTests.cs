@@ -233,4 +233,17 @@ public sealed class OccurrenceDeviationTests(CalApiTestFactory factory) : Integr
         var body = await (await GetIcsBackendAsync(api, Email, cal, item.ExternalId)).Content.ReadAsStringAsync();
         Assert.Contains("DTEND;VALUE=DATE:20261015", body[body.LastIndexOf("BEGIN:VEVENT", StringComparison.Ordinal)..]);
     }
+
+    [Fact]
+    public async Task Moving_a_bounded_series_later_keeps_its_last_occurrence()
+    {
+        var api = Factory.ApiClient(Email);
+        var item = await CreateWeeklyAsync(api, await CreateCalendarAsync(api));
+        await ReviseAsync(api, item.Id, new UpdateCalendarItemRequest { RecurrenceRule = "FREQ=WEEKLY;BYDAY=SU;UNTIL=20261018T160000Z" });
+
+        var moved = await ReviseAsync(api, item.Id, new UpdateCalendarItemRequest { StartsAt = Utc(10, 4, 17), EndsAt = Utc(10, 4, 20) });
+
+        Assert.Equal("FREQ=WEEKLY;BYDAY=SU;UNTIL=20261018T170000Z", moved.RecurrenceRule);
+        Assert.Equal([Utc(10, 4, 17), Utc(10, 11, 17), Utc(10, 18, 17)], (await OccurrencesAsync(api, item.Id)).Select(o => o.Start).ToList());
+    }
 }

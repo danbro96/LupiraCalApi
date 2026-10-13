@@ -14,6 +14,13 @@ public sealed record RecurringSeries(bool IsAllDay, DateTimeOffset? StartsAt, Da
     [MemberNotNullWhen(true, nameof(RecurrenceRule))]
     public bool Recurs => !string.IsNullOrWhiteSpace(RecurrenceRule);
 
+    /// <summary>This series moved from <paramref name="before"/>: when both have the same bounded rule, its last start moves
+    /// along, so the moved series keeps as many occurrences.</summary>
+    public RecurringSeries KeepingBoundOf(RecurringSeries before) =>
+        this != before && Recurs && RecurrenceRule == before.RecurrenceRule && SeriesShift.Between(before, this) is { } shift
+            ? this with { RecurrenceRule = RecurrenceRuleBounds.Shifted(RecurrenceRule, shift) }
+            : this;
+
     /// <summary>The first start and the zone the series recurs in — UTC for an all-day series (it recurs on dates) and
     /// for an absent or unknown zone. Null when the series has no start.</summary>
     public (Instant At, DateTimeZone Zone)? Anchor =>

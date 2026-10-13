@@ -173,7 +173,11 @@ public sealed class ParticipationService(
         DateTimeOffset now, RecurrenceExpander expander)
     {
         var perContact = new Dictionary<Guid, (int Count, DateTimeOffset? LastAt, double Score)>();
-        foreach (var i in items)
+        var all = items.ToList();
+        var byId = all.ToDictionary(i => i.Id);
+        var counted = new HashSet<(Guid ContactId, Guid SeriesId)>();
+        var planned = new HashSet<(Guid ContactId, Guid SeriesId)>();
+        foreach (var i in all)
         {
             if (!i.Calendars.Any(m => m.Status == CalendarEntryStatus.Accepted && readableCalendarIds.Contains(m.CalendarId))) continue;
             var at = CalendarItemService.OccurrenceStart(i);
@@ -182,11 +186,14 @@ public sealed class ParticipationService(
             // Withdrawn participations (LeftAt) don't count as interaction; removed attendees are already gone.
             var attendees = i.Attendees.Where(a => a.LeftAt is null).DistinctBy(a => a.ContactId).ToList();
             if (attendees.Count == 0) continue;
-            var weight = at is null ? 0 : RecencyWeight(i, now, from, to, expander);
+            var (past, upcoming) = at is null ? (0, false) : RecencyWeight(i, now, from, to, expander);
+            var seriesId = FirstOfSeries(i, byId).Id;
             foreach (var a in attendees)
             {
                 var prev = perContact.GetValueOrDefault(a.ContactId);
-                perContact[a.ContactId] = (prev.Count + 1, at > prev.LastAt || prev.LastAt is null ? at : prev.LastAt, prev.Score + weight);
+                var count = prev.Count + (counted.Add((a.ContactId, seriesId)) ? 1 : 0);
+                var weight = past + (upcoming && planned.Add((a.ContactId, seriesId)) ? 1 : 0);
+                perContact[a.ContactId] = (count, at > prev.LastAt || prev.LastAt is null ? at : prev.LastAt, prev.Score + weight);
             }
         }
 
@@ -196,15 +203,22 @@ public sealed class ParticipationService(
             .ThenByDescending(e => e.LastAt ?? DateTimeOffset.MinValue).ThenBy(e => e.ContactId)];
     }
 
+    /// <summary>The item a series split into continuations started as, so the parts count as one item.</summary>
+    private static CalendarItem FirstOfSeries(CalendarItem item, Dictionary<Guid, CalendarItem> byId)
+    {
+        var seen = new HashSet<Guid> { item.Id };
+        while (item.ContinuesItemId is { } earlier && byId.TryGetValue(earlier, out var previous) && seen.Add(earlier)) item = previous;
+        return item;
+    }
+
     /// <summary>Each past occurrence weighs 0.5^(age / 90 days), so a weekly series outranks a one-off and people you
     /// stopped meeting fade. The next planned occurrence weighs 1 — a meeting on the books is a current relationship —
     /// and only the next, so an open-ended series doesn't count forever.</summary>
-    internal static double RecencyWeight(CalendarItem item, DateTimeOffset now, DateTimeOffset? from, DateTimeOffset? to, RecurrenceExpander expander)
+    internal static (double Past, bool Planned) RecencyWeight(CalendarItem item, DateTimeOffset now, DateTimeOffset? from, DateTimeOffset? to, RecurrenceExpander expander)
     {
         var past = expander.Expand(item, Later(now - ScoreLookback, from), Earlier(now, to))
             .Sum(s => Math.Pow(0.5, (now - s) / HalfLife));
-        var planned = expander.Expand(item, Later(now, from), Earlier(now + NextLookahead, to)).Count > 0 ? 1 : 0;
-        return past + planned;
+        return (past, expander.Expand(item, Later(now, from), Earlier(now + NextLookahead, to)).Count > 0);
     }
 
     private static DateTimeOffset Later(DateTimeOffset a, DateTimeOffset? b) => b is { } v && v > a ? v : a;

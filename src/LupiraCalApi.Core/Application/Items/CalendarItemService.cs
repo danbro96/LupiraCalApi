@@ -437,71 +437,81 @@ public sealed class CalendarItemService(IDocumentSession session, AccessResolver
         var item = stream.Aggregate;
         if (item is null || item.DeletedAt is not null) return OpResult<CalendarItemDto>.NotFound();
         if (!await CanWriteItemAsync(principalId, item, ct)) return OpResult<CalendarItemDto>.Forbidden("No write access to this item.");
+        var revision = await ReviseAsync(principalId, item, r, ct);
+        if (!revision.IsOk) return OpResult<CalendarItemDto>.Invalid(revision.Error!);
 
-        if (!TryParseDefined<ItemStatus>(r.Status, out var statusIn)) return OpResult<CalendarItemDto>.Invalid(UnknownEnum<ItemStatus>("status", r.Status!));
-        if (!TryParseDefined<ItemCategory>(r.Category, out var categoryIn)) return OpResult<CalendarItemDto>.Invalid(UnknownEnum<ItemCategory>("category", r.Category!));
+        session.SetHeader(AllDayOccurrenceEndMigration.InclusiveEndHeader, true);
+        stream.AppendOne(new ItemRevised(id, revision.Value!.Fields, revision.Value.Details, r.OccurredAt, commandId));
+        await idempotency.CommitAsync(commandId, id, (int) (stream.CurrentVersion ?? 0) + 1, ct);
+        var updated = await session.LoadAsync<CalendarItem>(id, ct);
+        return OpResult<CalendarItemDto>.Ok(await ToDtoAsync(updated!, ct));
+    }
 
-        var title = r.Title ?? item.Title;
-        var description = r.Description ?? item.Description;
-        var status = statusIn ?? item.Status;
+    /// <summary>What <paramref name="current"/> becomes under <paramref name="r"/>: its fields, and its details (null =
+    /// unchanged). Shared by the whole-item update and the series that continues a split.</summary>
+    private async Task<OpResult<Revision>> ReviseAsync(Guid principalId, CalendarItem current, UpdateCalendarItemRequest r, CancellationToken ct)
+    {
+        if (!TryParseDefined<ItemStatus>(r.Status, out var statusIn)) return OpResult<Revision>.Invalid(UnknownEnum<ItemStatus>("status", r.Status!));
+        if (!TryParseDefined<ItemCategory>(r.Category, out var categoryIn)) return OpResult<Revision>.Invalid(UnknownEnum<ItemCategory>("category", r.Category!));
+
+        var title = r.Title ?? current.Title;
+        var description = r.Description ?? current.Description;
+        var status = statusIn ?? current.Status;
         // Sentinel merge: Provided writes the value verbatim (incl. null = clear); else omitted ⇒ kept.
-        var startsAt = r.StartsAtProvided ? r.StartsAt : r.StartsAt ?? item.StartsAt;
-        var endsAt = r.EndsAtProvided ? r.EndsAt : r.EndsAt ?? item.EndsAt;
-        var isAllDay = r.IsAllDay ?? item.IsAllDay;
-        var startDate = r.StartDateProvided ? r.StartDate : r.StartDate ?? item.StartDate;
-        var endDate = r.EndDateProvided ? r.EndDate : r.EndDate ?? item.EndDate;
-        var startTimezone = r.StartTimezoneProvided ? r.StartTimezone : r.StartTimezone ?? item.StartTimezone;
-        var endTimezone = r.EndTimezoneProvided ? r.EndTimezone : r.EndTimezone ?? item.EndTimezone;
-        var rrule = r.RecurrenceRuleProvided ? r.RecurrenceRule : r.RecurrenceRule ?? item.RecurrenceRule;
-        var tags = r.Tags ?? item.Tags;
-        if (isAllDay && startDate is null) return OpResult<CalendarItemDto>.Invalid("An all-day item needs StartDate.");
-        var location = LocationOnUpdate(r, item);
-        if (!location.IsOk) return OpResult<CalendarItemDto>.Invalid(location.Error!);
+        var startsAt = r.StartsAtProvided ? r.StartsAt : r.StartsAt ?? current.StartsAt;
+        var endsAt = r.EndsAtProvided ? r.EndsAt : r.EndsAt ?? current.EndsAt;
+        var isAllDay = r.IsAllDay ?? current.IsAllDay;
+        var startDate = r.StartDateProvided ? r.StartDate : r.StartDate ?? current.StartDate;
+        var endDate = r.EndDateProvided ? r.EndDate : r.EndDate ?? current.EndDate;
+        var startTimezone = r.StartTimezoneProvided ? r.StartTimezone : r.StartTimezone ?? current.StartTimezone;
+        var endTimezone = r.EndTimezoneProvided ? r.EndTimezone : r.EndTimezone ?? current.EndTimezone;
+        var rrule = r.RecurrenceRuleProvided ? r.RecurrenceRule : r.RecurrenceRule ?? current.RecurrenceRule;
+        var tags = r.Tags ?? current.Tags;
+        if (isAllDay && startDate is null) return OpResult<Revision>.Invalid("An all-day item needs StartDate.");
+        var location = LocationOnUpdate(r, current);
+        if (!location.IsOk) return OpResult<Revision>.Invalid(location.Error!);
         var (placeId, locationLabel) = location.Value;
 
-        var category = categoryIn ?? item.Category;
-        var categoryChanged = category != item.Category;
+        var category = categoryIn ?? current.Category;
+        var categoryChanged = category != current.Category;
 
         // Validate against the resolved category (an omitted r.Category means "the item's current category").
         if (ItemDetailsMapper.Validate(category, r.Details) is { } detailsError)
-            return OpResult<CalendarItemDto>.Invalid(detailsError);
-        var places = await CanonicalPlacesAsync([placeId, r.Details?.Travel?.ToPlaceId, r.Details?.Travel?.FromPlaceId], PlaceRefs(item), ct);
-        if (places.Status != OpStatus.Ok) return OpResult<CalendarItemDto>.Invalid(places.Error!);
+            return OpResult<Revision>.Invalid(detailsError);
+        var places = await CanonicalPlacesAsync([placeId, r.Details?.Travel?.ToPlaceId, r.Details?.Travel?.FromPlaceId], PlaceRefs(current), ct);
+        if (places.Status != OpStatus.Ok) return OpResult<Revision>.Invalid(places.Error!);
         placeId = Canonical(places.Value!, placeId);
-        if (r.ParentItemId == id) return OpResult<CalendarItemDto>.Invalid("An item cannot be its own parent.");
+        if (r.ParentItemId == current.Id) return OpResult<Revision>.Invalid("An item cannot be its own parent.");
         if (await ParentInvalidAsync(principalId, r.ParentItemId, ct) is { } parentError)
-            return OpResult<CalendarItemDto>.Invalid(parentError);
-        var parentItemId = r.ParentItemIdProvided ? r.ParentItemId : r.ParentItemId ?? item.ParentItemId;
+            return OpResult<Revision>.Invalid(parentError);
+        var parentItemId = r.ParentItemIdProvided ? r.ParentItemId : r.ParentItemId ?? current.ParentItemId;
 
-        var becameTimed = item.IsAllDay || item.StartsAt is null;
+        var becameTimed = current.IsAllDay || current.StartsAt is null;
         if (!isAllDay && startsAt is not null && string.IsNullOrWhiteSpace(startTimezone) && (becameTimed || !string.IsNullOrWhiteSpace(r.RecurrenceRule)))
         {
-            startTimezone = await DefaultZoneAsync(item.Calendars.Where(m => m.Status == CalendarEntryStatus.Accepted).Select(m => m.CalendarId), ct);
+            startTimezone = await DefaultZoneAsync(current.Calendars.Where(m => m.Status == CalendarEntryStatus.Accepted).Select(m => m.CalendarId), ct);
             if (string.IsNullOrWhiteSpace(endTimezone)) endTimezone = startTimezone;
         }
 
-        // Moving the series (time, day, zone, rule) carries its per-occurrence changes along with their occurrences.
-        var deviations = SeriesDeviations.Of(item).Follow(
-            RecurringSeries.Of(item), new RecurringSeries(isAllDay, startsAt, startDate, startTimezone, rrule), item.ExtraOccurrences, expander);
+        // Moving the series (time, day, zone, rule) carries its end and its per-occurrence changes along with their occurrences.
+        var before = RecurringSeries.Of(current);
+        var after = new RecurringSeries(isAllDay, startsAt, startDate, startTimezone, rrule).KeepingBoundOf(before);
+        var deviations = SeriesDeviations.Of(current).Follow(before, after, current.ExtraOccurrences, expander);
 
         var fields = new CalendarItemFields(title, description, status, isAllDay, startsAt, endsAt,
-            startTimezone, endTimezone, startDate, endDate, rrule,
-            deviations.Excluded, item.ExtraOccurrences, deviations.Overrides, category, placeId, locationLabel, parentItemId, tags,
-            r.StartPrecision ?? item.StartPrecision, r.EndPrecision ?? item.EndPrecision);
+            startTimezone, endTimezone, startDate, endDate, after.RecurrenceRule,
+            deviations.Excluded, current.ExtraOccurrences, deviations.Overrides, category, placeId, locationLabel, parentItemId, tags,
+            r.StartPrecision ?? current.StartPrecision, r.EndPrecision ?? current.EndPrecision);
 
         var (incoming, detailsUnresolved) = await ItemDetailsMapper.BuildAsync(r.Details, r.Availability, geo, ct);
-        if (detailsUnresolved) return OpResult<CalendarItemDto>.Invalid(TravelUnresolved);
+        if (detailsUnresolved) return OpResult<Revision>.Invalid(TravelUnresolved);
         incoming = WithCanonicalTravel(incoming, places.Value!);
         // null incoming keeps existing details (Apply only overwrites when non-null); reclassifying with none clears the previous details.
         var details = incoming is null
             ? (categoryChanged ? new ItemDetails() : null)
-            : (categoryChanged ? incoming : ItemDetailsMapper.Merge(item.Details, incoming));
+            : (categoryChanged ? incoming : ItemDetailsMapper.Merge(current.Details, incoming));
 
-        session.SetHeader(AllDayOccurrenceEndMigration.InclusiveEndHeader, true);
-        stream.AppendOne(new ItemRevised(id, fields, details, r.OccurredAt, commandId));
-        await idempotency.CommitAsync(commandId, id, (int) (stream.CurrentVersion ?? 0) + 1, ct);
-        var updated = await session.LoadAsync<CalendarItem>(id, ct);
-        return OpResult<CalendarItemDto>.Ok(await ToDtoAsync(updated!, ct));
+        return OpResult<Revision>.Ok(new Revision(fields, details));
     }
 
     public async Task<OpResult> DeleteAsync(Guid principalId, Guid id, Guid? commandId = null, CancellationToken ct = default)
@@ -618,6 +628,127 @@ public sealed class CalendarItemService(IDocumentSession session, AccessResolver
         await idempotency.CommitAsync(commandId, id, (int) (stream.CurrentVersion ?? 0) + 1, ct);
         return OpResult.Ok();
     }
+
+    /// <summary>Change one occurrence of a recurring item and every one after it: the series ends before it, and a series
+    /// continuing it takes the rest with the changes — unless they're deleted. At the first occurrence the whole series
+    /// changes or goes.</summary>
+    public async Task<OpResult<SeriesSplitDto>> ChangeFollowingOccurrencesAsync(
+        Guid principalId, Guid id, DateTimeOffset originalStart, ChangeFollowingOccurrencesRequest r, Guid? commandId = null, CancellationToken ct = default)
+    {
+        var uid = string.IsNullOrWhiteSpace(r.SourceKey) ? $"{commandId ?? Guid.NewGuid():N}@cal.lupira.com" : r.SourceKey.Trim();
+        var continuationId = DeterministicGuid.From(uid);
+        if (await idempotency.SeenAsync(commandId, ct) is not null) return OpResult<SeriesSplitDto>.Ok(await SplitStateAsync(id, continuationId, r.Excluded, ct));
+        if (!r.Excluded && r.Changes is null) return OpResult<SeriesSplitDto>.Invalid("Nothing to change; send Changes, or Excluded=true to delete these occurrences.");
+        var stream = await session.Events.FetchForWriting<CalendarItem>(id, ct);
+        var item = stream.Aggregate;
+        if (item is null || item.DeletedAt is not null) return OpResult<SeriesSplitDto>.NotFound();
+        if (!await CanWriteItemAsync(principalId, item, ct)) return OpResult<SeriesSplitDto>.Forbidden("No write access to this item.");
+        if (!r.Excluded && await session.LoadAsync<CalendarItem>(continuationId, ct) is { } taken)
+            return taken is { DeletedAt: null } && taken.ContinuesItemId == id
+                ? OpResult<SeriesSplitDto>.Ok(await SplitStateAsync(id, continuationId, excluded: false, ct))
+                : OpResult<SeriesSplitDto>.Conflict("This source key already names another item.");
+        var at = originalStart.ToUniversalTime();
+        var series = RecurringSeries.Of(item);
+        if (!series.Recurs) return OpResult<SeriesSplitDto>.Invalid("Only a recurring item has following occurrences.");
+        if (!expander.Generates(series, at))
+            return OpResult<SeriesSplitDto>.Invalid("No occurrence of this series' rule starts at that time (use the unmodified start, UTC; an added one-off occurrence can't start a series).");
+        var occurredAt = (r.OccurredAt ?? r.Changes?.OccurredAt)?.ToUniversalTime();
+        if (occurredAt is { } stamp && !SectionLww.Wins(stamp, commandId ?? Guid.Empty, item.CoreTs, item.CoreCmd))
+            return OpResult<SeriesSplitDto>.Conflict("The series changed after this edit was made.");
+
+        session.SetHeader(AllDayOccurrenceEndMigration.InclusiveEndHeader, true);
+        var version = (int) (stream.CurrentVersion ?? 0) + 1;
+        if (SeriesSplit.At(item, at, expander) is not { } split)
+        {
+            if (r.Excluded)
+            {
+                stream.AppendOne(new ItemDeleted(id, DateTimeOffset.UtcNow));
+                await idempotency.CommitAsync(commandId, id, version, ct);
+                return OpResult<SeriesSplitDto>.Ok(new SeriesSplitDto());
+            }
+
+            var whole = await ReviseAsync(principalId, item, r.Changes!, ct);
+            if (!whole.IsOk) return OpResult<SeriesSplitDto>.Invalid(whole.Error!);
+            stream.AppendOne(new ItemRevised(id, whole.Value!.Fields, whole.Value.Details, occurredAt, commandId));
+            await idempotency.CommitAsync(commandId, id, version, ct);
+            return OpResult<SeriesSplitDto>.Ok(new SeriesSplitDto { Following = await LiveDtoAsync(id, ct) });
+        }
+
+        var earlier = new ItemRevised(id, FieldsOf(item) with
+        {
+            RecurrenceRule = split.Earlier.Series.RecurrenceRule, ExcludedOccurrences = split.Earlier.Excluded,
+            ExtraOccurrences = split.Earlier.Extra, OccurrenceOverrides = split.Earlier.Overrides,
+        }, null, occurredAt, commandId);
+        if (r.Excluded)
+        {
+            stream.AppendOne(earlier);
+            await idempotency.CommitAsync(commandId, id, version, ct);
+            return OpResult<SeriesSplitDto>.Ok(new SeriesSplitDto { Earlier = await LiveDtoAsync(id, ct) });
+        }
+
+        var following = await ReviseAsync(principalId, Continuation(item, continuationId, split.Following), r.Changes!, ct);
+        if (!following.IsOk) return OpResult<SeriesSplitDto>.Invalid(following.Error!);
+
+        stream.AppendOne(earlier);
+        session.Events.StartStream<CalendarItem>(continuationId, [.. ContinuationEvents(item, continuationId, uid, following.Value!, occurredAt, commandId)]);
+        foreach (var relation in await session.Query<Relation>().Where(x => x.FromKind == "item" && x.FromId == id).ToListAsync(ct))
+            session.Store(new Relation
+            {
+                Id = DeterministicGuid.From($"relation:{continuationId}:{relation.Id}"), FromKind = relation.FromKind, FromId = continuationId,
+                ToKind = relation.ToKind, ToRef = relation.ToRef, RelationType = relation.RelationType, Metadata = relation.Metadata,
+            });
+        await idempotency.CommitAsync(commandId, id, version, ct);
+        return OpResult<SeriesSplitDto>.Ok(new SeriesSplitDto { Earlier = await LiveDtoAsync(id, ct), Following = await LiveDtoAsync(continuationId, ct) });
+    }
+
+    private async Task<SeriesSplitDto> SplitStateAsync(Guid id, Guid continuationId, bool excluded, CancellationToken ct)
+    {
+        var original = await LiveDtoAsync(id, ct);
+        if (excluded) return new SeriesSplitDto { Earlier = original };
+        return await LiveDtoAsync(continuationId, ct) is { } continuation
+            ? new SeriesSplitDto { Earlier = original, Following = continuation }
+            : new SeriesSplitDto { Following = original };
+    }
+
+    private async Task<CalendarItemDto?> LiveDtoAsync(Guid id, CancellationToken ct) =>
+        await session.LoadAsync<CalendarItem>(id, ct) is { DeletedAt: null } item ? await ToDtoAsync(item, ct) : null;
+
+    private static CalendarItem Continuation(CalendarItem item, Guid id, SeriesPart part) => new()
+    {
+        Id = id, Title = item.Title, Description = item.Description, Status = item.Status, IsAllDay = item.IsAllDay,
+        StartsAt = part.Series.StartsAt, EndsAt = part.EndsAt, StartTimezone = item.StartTimezone, EndTimezone = item.EndTimezone,
+        StartDate = part.Series.StartDate, EndDate = part.EndDate, StartPrecision = item.StartPrecision, EndPrecision = item.EndPrecision,
+        RecurrenceRule = part.Series.RecurrenceRule, ExcludedOccurrences = part.Excluded, ExtraOccurrences = part.Extra, OccurrenceOverrides = part.Overrides,
+        Category = item.Category, PlaceId = item.PlaceId, LocationLabel = item.LocationLabel, ParentItemId = item.ParentItemId, Tags = item.Tags,
+        Details = item.Details, Calendars = item.Calendars,
+    };
+
+    // Attended/left stay with the occurrences they happened at; the continuing series starts with the invitations alone.
+    private static IEnumerable<object> ContinuationEvents(CalendarItem item, Guid id, string uid, Revision revision, DateTimeOffset? occurredAt, Guid? commandId)
+    {
+        var at = occurredAt ?? DateTimeOffset.UtcNow;
+        Ref? Retarget(Ref? target) => target is { Kind: RefKind.Event } && target.Id == item.Id ? target with { Id = id } : target;
+
+        yield return new ItemScheduled(id, uid, revision.Fields, revision.Details ?? item.Details, item.Id, occurredAt, commandId);
+        foreach (var m in item.Calendars.Where(m => m.Status != CalendarEntryStatus.Removed))
+            yield return new AddedToCalendar(id, m.CalendarId, m.Status, at, commandId);
+        foreach (var a in item.Attendees)
+        {
+            var participationId = SeriesSplit.ContinuedParticipationId(id, a.ParticipationId);
+            yield return new AttendeeInvited(id, participationId, a.ContactId, a.Role, a.InvitedAt ?? at);
+            if (a.Status != ParticipationStatus.NeedsAction) yield return new InvitationResponded(id, participationId, a.Status, a.RespondedAt ?? at);
+            if (a.Reminder is { } reminder) yield return new ParticipantReminderSet(id, participationId, reminder, a.ReminderTs, a.ReminderCmd);
+        }
+
+        if (!string.IsNullOrWhiteSpace(item.Metadata) && item.Metadata != "{}") yield return new ItemMetadataAttached(id, item.Metadata, occurredAt, commandId);
+        if (item.Prompt is { } prompt) yield return new ItemPromptSet(id, prompt with { Target = Retarget(prompt.Target) }, occurredAt, commandId);
+        if (item.Action is { } action) yield return new ItemActionSet(id, action with { Target = Retarget(action.Target) }, occurredAt, commandId);
+    }
+
+    private static CalendarItemFields FieldsOf(CalendarItem i) =>
+        new(i.Title, i.Description, i.Status, i.IsAllDay, i.StartsAt, i.EndsAt, i.StartTimezone, i.EndTimezone, i.StartDate, i.EndDate,
+            i.RecurrenceRule, i.ExcludedOccurrences, i.ExtraOccurrences, i.OccurrenceOverrides, i.Category, i.PlaceId, i.LocationLabel,
+            i.ParentItemId, i.Tags, i.StartPrecision, i.EndPrecision);
 
     private string? OccurrenceUnknown(CalendarItem item, DateTimeOffset originalStart) =>
         string.IsNullOrWhiteSpace(item.RecurrenceRule) ? "Only a recurring item has occurrences to change."
@@ -837,4 +968,6 @@ public sealed class CalendarItemService(IDocumentSession session, AccessResolver
         $"Unknown {field} '{value}'. Valid values: {string.Join(", ", Enum.GetNames<TEnum>())}.";
 
     private static string? Trimmed(string? s) => string.IsNullOrWhiteSpace(s) ? null : s.Trim();
+
+    private sealed record Revision(CalendarItemFields Fields, ItemDetails? Details);
 }

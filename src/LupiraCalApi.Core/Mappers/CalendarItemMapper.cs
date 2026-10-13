@@ -33,6 +33,7 @@ internal static class CalendarItemMapper
         PlaceId = i.PlaceId,
         LocationLabel = i.LocationLabel,
         ParentItemId = i.ParentItemId,
+        ContinuesItemId = i.ContinuesItemId,
         Tags = i.Tags,
         Metadata = JsonNode.Parse(string.IsNullOrWhiteSpace(i.Metadata) ? "{}" : i.Metadata)!.AsObject(),
         Prompt = i.Prompt,

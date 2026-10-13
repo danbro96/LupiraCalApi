@@ -173,4 +173,20 @@ public class ParticipationSummaryTests
 
         Assert.Equal(Math.Pow(0.5, ((7 * 8) - (1 / 24.0)) / 90), Assert.Single(s).Score, 3);
     }
+
+    [Fact]
+    public void A_series_split_into_a_continuation_counts_once()
+    {
+        var anna = Guid.NewGuid();
+        var earlier = Series(ReadableCal, Now.AddDays(-7 * 4), "FREQ=WEEKLY;COUNT=2", anna);
+        var continuation = Series(ReadableCal, Now.AddDays(-7 * 2), "FREQ=WEEKLY;COUNT=4", anna);
+        continuation.ContinuesItemId = earlier.Id;
+        var whole = Series(ReadableCal, Now.AddDays(-7 * 4), "FREQ=WEEKLY;COUNT=6", anna);
+
+        var split = Assert.Single(Summarize([earlier, continuation]));
+        var unsplit = Assert.Single(Summarize([whole]));
+
+        Assert.Equal(1, split.Count);
+        Assert.Equal(unsplit.Score, split.Score);
+    }
 }

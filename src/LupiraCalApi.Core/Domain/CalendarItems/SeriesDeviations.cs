@@ -1,5 +1,3 @@
-using NodaTime;
-
 namespace LupiraCalApi.Core.Domain.CalendarItems;
 
 /// <summary>A series' excluded and overridden occurrences, each keyed by the start its occurrence had. Empty = null,
@@ -16,15 +14,12 @@ public sealed record SeriesDeviations(DateTimeOffset[]? Excluded, OccurrenceOver
     public SeriesDeviations Follow(RecurringSeries before, RecurringSeries after, DateTimeOffset[]? extras, RecurrenceExpander expander)
     {
         if (before == after || (Excluded is null && Overrides is null)) return this;
-        if (!after.Recurs || before.Anchor is not { } from || after.Anchor is not { } to) return new SeriesDeviations(null, null);
-
-        var shift = Period.Between(
-            from.At.InZone(from.Zone).LocalDateTime, to.At.InZone(to.Zone).LocalDateTime, PeriodUnits.Days | PeriodUnits.AllTimeUnits);
+        if (!after.Recurs || SeriesShift.Between(before, after) is not { } shift) return new SeriesDeviations(null, null);
 
         DateTimeOffset? Rekey(DateTimeOffset original)
         {
             if (extras?.Contains(original) == true) return original;
-            var moved = (Instant.FromDateTimeOffset(original).InZone(from.Zone).LocalDateTime + shift).InZoneLeniently(to.Zone).ToDateTimeOffset();
+            var moved = shift.Apply(original);
             return expander.Generates(after, moved) ? moved : null;
         }
 

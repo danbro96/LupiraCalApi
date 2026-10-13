@@ -59,6 +59,9 @@ public sealed class CalendarItemDto
 
     public Guid? ParentItemId { get; set; }
 
+    /// <summary>The series this one continues, when it was split off at one of that series' occurrences.</summary>
+    public Guid? ContinuesItemId { get; set; }
+
     public string[]? Tags { get; set; }
 
     public required JsonObject Metadata { get; set; }

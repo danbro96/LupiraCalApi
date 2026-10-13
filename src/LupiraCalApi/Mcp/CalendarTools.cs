@@ -24,7 +24,7 @@ namespace LupiraCalApi.Mcp;
 public sealed class CalendarTools
 {
     [McpServerTool(Name = "search_items")]
-    [Description("Search calendar items the caller can access, optionally by text, time window (matches occurrences overlapping it), category/status, tag; pageable.")]
+    [Description("Search calendar items the caller can access, optionally by text, time window (matches occurrences overlapping it), category/status, tag; pageable. Each occurrence of a recurring item carries originalStart (its start in the unmodified series — the key the occurrence tools take) and isChanged.")]
     public static async Task<IReadOnlyList<CalendarItemOccurrenceDto>> SearchItems(
         CalendarItemService items, CurrentUser user,
         [Description("Free-text query over title/description. With no from/to, matches all-time.")] string? query = null,
@@ -79,21 +79,32 @@ public sealed class CalendarTools
     }
 
     [McpServerTool(Name = "change_occurrence")]
-    [Description("Change ONE occurrence of a recurring item, addressed by the start it has in the unmodified series (UTC). Excluded=true removes it from the series (skip); otherwise StartsAt/EndsAt/Title/Description/Status override the series for that occurrence only (omitted = inherit; Status Cancelled keeps it on record as cancelled). A move is StartsAt (+ EndsAt). Replaces any earlier change to that occurrence. Use update_item to change the whole series.")]
+    [Description("Change ONE occurrence of a recurring item, addressed by the start it has in the unmodified series (UTC; use originalStart from search_items). Excluded=true removes it from the series (skip); otherwise StartsAt/EndsAt/Title/Description/Status override the series for that occurrence only (omitted = inherit; Status Cancelled keeps it on record as cancelled). A move is StartsAt (+ EndsAt); on an all-day series both are dates at 00:00Z and EndsAt is the last day. Replaces any earlier change to that occurrence. Use change_following_occurrences for this and every later occurrence, update_item for the whole series.")]
     public static async Task<CalendarItemDto> ChangeOccurrence(CalendarItemService items, CurrentUser user,
         [Description("Calendar item id (the recurring series).")] Guid itemId,
-        [Description("The occurrence's start in the unmodified series, ISO 8601.")] DateTimeOffset originalStart,
+        [Description("The occurrence's start in the unmodified series, ISO 8601 (originalStart from search_items).")] DateTimeOffset originalStart,
         ChangeOccurrenceRequest request)
     {
         var u = await user.GetAsync();
         return (await items.ChangeOccurrenceAsync(u.Id, itemId, originalStart, request)).Require();
     }
 
+    [McpServerTool(Name = "change_following_occurrences")]
+    [Description("Change ONE occurrence of a recurring item and EVERY one after it (\"this and following\"), addressed by the start it has in the unmodified series (UTC; use originalStart from search_items). The series ends before it; a new series continuing it takes the rest with Changes applied (an update_item request: omitted fields keep the series' values), or Excluded=true deletes them. At the first occurrence the whole series is updated or deleted instead. Returns {earlier, following}: the series up to the occurrence and the one continuing from it (null when none). Use change_occurrence for one occurrence, update_item for the whole series.")]
+    public static async Task<SeriesSplitDto> ChangeFollowingOccurrences(CalendarItemService items, CurrentUser user,
+        [Description("Recurring calendar item id.")] Guid itemId,
+        [Description("The occurrence's start in the unmodified series, ISO 8601 (originalStart from search_items).")] DateTimeOffset originalStart,
+        ChangeFollowingOccurrencesRequest request)
+    {
+        var u = await user.GetAsync();
+        return (await items.ChangeFollowingOccurrencesAsync(u.Id, itemId, originalStart, request)).Require();
+    }
+
     [McpServerTool(Name = "restore_occurrence")]
     [Description("Revert ONE occurrence of a recurring item to the series, dropping its exclusion or override.")]
     public static async Task<string> RestoreOccurrence(CalendarItemService items, CurrentUser user,
         [Description("Calendar item id (the recurring series).")] Guid itemId,
-        [Description("The occurrence's start in the unmodified series, ISO 8601.")] DateTimeOffset originalStart)
+        [Description("The occurrence's start in the unmodified series, ISO 8601 (originalStart from search_items).")] DateTimeOffset originalStart)
     {
         var u = await user.GetAsync();
         (await items.RestoreOccurrenceAsync(u.Id, itemId, originalStart)).Require();
