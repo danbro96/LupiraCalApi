@@ -23,6 +23,7 @@ using LupiraCalApi.Handlers;
 using LupiraCalApi.Mcp;
 using Marten;
 using Microsoft.AspNetCore.HttpOverrides;
+using Microsoft.OpenApi;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -131,15 +132,25 @@ builder.AddLupiraDefaults(o =>
 
 builder.Services.AddLupiraProblems(o => o.BadRequestDetail = IdempotencyKeyProblem.Detail);
 
-builder.Services.AddOpenApi("v1", options => options.AddLupiraConventions(o =>
+builder.Services.AddOpenApi("v1", options =>
 {
-    o.Title = "Lupira Cal API";
-    o.Description =
-        "Calendar backend for Lupira (contacts live in LupiraContactApi). " +
-        "Authenticate with a Bearer token issued by the OIDC provider (Authentik).";
-    o.DropNullEnumMembers = true;
-    o.DateTimeOffsetAsString = true;
-}));
+    options.AddLupiraConventions(o =>
+    {
+        o.Title = "Lupira Cal API";
+        o.Description =
+            "Calendar backend for Lupira (contacts live in LupiraContactApi). " +
+            "Authenticate with a Bearer token issued by the OIDC provider (Authentik).";
+        o.DropNullEnumMembers = true;
+        o.DateTimeOffsetAsString = true;
+    });
+    // The UTC converter hides the element type of instant lists, which DateTimeOffsetAsString only restores for scalars.
+    options.AddSchemaTransformer((schema, context, _) =>
+    {
+        if (context.JsonTypeInfo.Type == typeof(DateTimeOffset[]))
+            schema.Items = new OpenApiSchema { Type = JsonSchemaType.String, Format = "date-time" };
+        return Task.CompletedTask;
+    });
+});
 
 // MCP server for the agent, mounted at /mcp (LAN/WireGuard-only — not published through the tunnel).
 builder.Services.AddLupiraMcp().WithTools<CalendarTools>();

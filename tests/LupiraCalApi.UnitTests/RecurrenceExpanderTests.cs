@@ -200,4 +200,50 @@ public class RecurrenceExpanderTests
 
         Assert.Equal([Utc(2026, 7, 1, 9), Utc(2026, 7, 10, 12), Utc(2026, 7, 15, 14), Utc(2026, 7, 28, 9)], occ);
     }
+
+    [Fact]
+    public void Excluding_an_extra_occurrence_removes_it()
+    {
+        var item = Series(Utc(2026, 7, 1, 9), "FREQ=WEEKLY;COUNT=2");
+        item.ExtraOccurrences = [Utc(2026, 7, 3, 12)];
+        item.ExcludedOccurrences = [Utc(2026, 7, 3, 12)];
+
+        Assert.Equal([Utc(2026, 7, 1, 9), Utc(2026, 7, 8, 9)], Expander.Expand(item, Utc(2026, 7, 1), Utc(2026, 8, 1)));
+    }
+
+    [Fact]
+    public void Each_occurrence_keeps_the_start_it_has_in_the_unmodified_series()
+    {
+        var item = Series(Utc(2026, 7, 1, 9), "FREQ=WEEKLY;COUNT=3");
+        var moved = new OccurrenceOverride(Utc(2026, 7, 8, 9), Utc(2026, 7, 9, 10), null, "Moved", null, null, null);
+        item.OccurrenceOverrides = [moved];
+
+        var occ = Expander.Occurrences(item, Utc(2026, 7, 1), Utc(2026, 8, 1));
+
+        Assert.Equal(
+            [new SeriesOccurrence(Utc(2026, 7, 1, 9), Utc(2026, 7, 1, 9), null), new SeriesOccurrence(Utc(2026, 7, 8, 9), Utc(2026, 7, 9, 10), moved),
+                new SeriesOccurrence(Utc(2026, 7, 15, 9), Utc(2026, 7, 15, 9), null)],
+            occ);
+    }
+
+    [Fact]
+    public void Occurrences_moved_onto_one_start_stay_apart_and_expand_once()
+    {
+        var item = Series(Utc(2026, 7, 1, 9), "FREQ=WEEKLY;COUNT=3");
+        item.OccurrenceOverrides = [new OccurrenceOverride(Utc(2026, 7, 8, 9), Utc(2026, 7, 15, 9), null, "Moved", null, null, null)];
+
+        var occ = Expander.Occurrences(item, Utc(2026, 7, 1), Utc(2026, 8, 1));
+
+        Assert.Equal([Utc(2026, 7, 8, 9), Utc(2026, 7, 15, 9)], occ.Where(o => o.Start == Utc(2026, 7, 15, 9)).Select(o => o.OriginalStart));
+        Assert.Equal([Utc(2026, 7, 1, 9), Utc(2026, 7, 15, 9)], Expander.Expand(item, Utc(2026, 7, 1), Utc(2026, 8, 1)));
+    }
+
+    [Fact]
+    public void A_change_keyed_off_the_series_has_no_occurrence()
+    {
+        var item = Series(Utc(2026, 7, 1, 9), "FREQ=WEEKLY;COUNT=2");
+        item.OccurrenceOverrides = [new OccurrenceOverride(Utc(2026, 7, 2, 9), Utc(2026, 7, 3, 9), null, "Stray", null, null, null)];
+
+        Assert.Equal([Utc(2026, 7, 1, 9), Utc(2026, 7, 8, 9)], Expander.Expand(item, Utc(2026, 7, 1), Utc(2026, 8, 1)));
+    }
 }

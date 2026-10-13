@@ -21,6 +21,13 @@ public sealed class CalendarItemOccurrenceDto
 
     public DateTimeOffset? End { get; set; }
 
+    /// <summary>The start this occurrence has in the unmodified series — the key its per-occurrence changes and a split
+    /// address it by. Null when the item doesn't recur.</summary>
+    public DateTimeOffset? OriginalStart { get; set; }
+
+    /// <summary>This occurrence deviates from its series (moved, renamed, re-described or re-statused).</summary>
+    public required bool IsChanged { get; set; }
+
     /// <summary>Accepted calendar memberships, limited to calendars the caller can read.</summary>
     public required Guid[] CalendarIds { get; set; }
 

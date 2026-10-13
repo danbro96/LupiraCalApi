@@ -4456,6 +4456,10 @@
               "null",
               "array"
             ],
+            "items": {
+              "type": "string",
+              "format": "date-time"
+            },
             "description": "Recurring items: unmodified starts removed from the series."
           },
           "extraOccurrences": {
@@ -4463,6 +4467,10 @@
               "null",
               "array"
             ],
+            "items": {
+              "type": "string",
+              "format": "date-time"
+            },
             "description": "Recurring items: one-off starts added to the series."
           },
           "occurrenceOverrides": {
@@ -4594,6 +4602,7 @@
           "id",
           "isAllDay",
           "start",
+          "isChanged",
           "calendarIds",
           "childCount",
           "etag"
@@ -4636,6 +4645,18 @@
               "string"
             ],
             "format": "date-time"
+          },
+          "originalStart": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "description": "The start this occurrence has in the unmodified series — the key its per-occurrence changes and a split\n            address it by. Null when the item doesn't recur.",
+            "format": "date-time"
+          },
+          "isChanged": {
+            "type": "boolean",
+            "description": "This occurrence deviates from its series (moved, renamed, re-described or re-statused)."
           },
           "calendarIds": {
             "type": "array",

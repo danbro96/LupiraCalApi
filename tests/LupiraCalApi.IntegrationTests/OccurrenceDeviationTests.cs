@@ -168,4 +168,48 @@ public sealed class OccurrenceDeviationTests(CalApiTestFactory factory) : Integr
         var empty = await api.PutAsJsonAsync($"/items/{item.Id}/occurrences/2026-10-11T16:00:00Z", new ChangeOccurrenceRequest());
         Assert.Equal(HttpStatusCode.BadRequest, empty.StatusCode);
     }
+
+    [Fact]
+    public async Task Search_occurrences_carry_their_original_start_and_whether_they_changed()
+    {
+        var api = Factory.ApiClient(Email);
+        var cal = await CreateCalendarAsync(api);
+        var item = await CreateWeeklyAsync(api, cal);
+        await DeviateAsync(api, item.Id, Utc(10, 11, 16), new ChangeOccurrenceRequest { StartsAt = Utc(10, 12, 16), EndsAt = Utc(10, 12, 19) });
+        var once = await api.PostAsJsonAsync("/items", new CreateCalendarItemRequest { CalendarId = cal, Title = "Once", IsAllDay = false, StartsAt = Utc(10, 6, 9) });
+        var onceId = (await once.Content.ReadFromJsonAsync<CalendarItemDto>())!.Id;
+
+        var all = (await api.GetFromJsonAsync<List<CalendarItemOccurrenceDto>>("/items/?from=2026-10-01T00:00:00Z&to=2026-10-26T00:00:00Z"))!;
+
+        var series = all.Where(o => o.Id == item.Id).ToList();
+        Assert.Equal([Utc(10, 4, 16), Utc(10, 11, 16), Utc(10, 18, 16), Utc(10, 25, 17)], series.Select(o => o.OriginalStart!.Value));
+        Assert.Equal([false, true, false, false], series.Select(o => o.IsChanged));
+        Assert.Equal(Utc(10, 12, 16), series[1].Start);
+        var single = Assert.Single(all, o => o.Id == onceId);
+        Assert.Null(single.OriginalStart);
+        Assert.False(single.IsChanged);
+    }
+
+    private const string SeriesWithExtraAndLocatedChange = "BEGIN:VCALENDAR\r\nVERSION:2.0\r\nPRODID:-//lupira-test//EN\r\n" +
+        "BEGIN:VEVENT\r\nUID:extra@x\r\nDTSTART:20261005T090000Z\r\nDTEND:20261005T100000Z\r\nSUMMARY:Standup\r\nLOCATION:Office\r\n" +
+        "RRULE:FREQ=WEEKLY;COUNT=3\r\nRDATE:20261007T120000Z\r\nEND:VEVENT\r\n" +
+        "BEGIN:VEVENT\r\nUID:extra@x\r\nRECURRENCE-ID:20261012T090000Z\r\nDTSTART:20261012T090000Z\r\nDTEND:20261012T100000Z\r\n" +
+        "SUMMARY:Standup\r\nLOCATION:Annex\r\nEND:VEVENT\r\nEND:VCALENDAR\r\n";
+
+    [Fact]
+    public async Task Excluding_an_extra_occurrence_removes_it_and_a_change_keeps_its_imported_location_label()
+    {
+        var api = Factory.ApiClient(Email);
+        var cal = await CreateCalendarAsync(api);
+        Assert.Equal(HttpStatusCode.Created, (await PutIcsBackendAsync(api, Email, cal, "extra@x", SeriesWithExtraAndLocatedChange)).StatusCode);
+        var id = DeterministicGuid.From("extra@x");
+
+        await DeviateAsync(api, id, Utc(10, 7, 12), new ChangeOccurrenceRequest { Excluded = true });
+        var renamed = await DeviateAsync(api, id, Utc(10, 12, 9), new ChangeOccurrenceRequest { Title = "Standup (annex)" });
+
+        Assert.Equal("Annex", Assert.Single(renamed.OccurrenceOverrides!).LocationLabel);
+        var occ = await OccurrencesAsync(api, id);
+        Assert.Equal([Utc(10, 5, 9), Utc(10, 12, 9), Utc(10, 19, 9)], occ.Select(o => o.Start).ToList());
+        Assert.Equal("Annex", occ[1].LocationLabel);
+    }
 }

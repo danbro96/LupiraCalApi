@@ -322,16 +322,16 @@ public sealed class CalendarItemService(IDocumentSession session, AccessResolver
                 : TimeSpan.Zero;
             if (!string.IsNullOrWhiteSpace(i.RecurrenceRule))
             {
-                foreach (var occ in expander.Expand(i, Lookback(windowStart, coverage), expansionEnd))
+                foreach (var occ in expander.Occurrences(i, Lookback(windowStart, coverage), expansionEnd))
                 {
-                    var change = i.OccurrenceOverrides?.FirstOrDefault(o => (o.StartsAt ?? o.OriginalStart) == occ);
-                    if (!Overlaps(occ, change?.EndsAt ?? occ + coverage, windowStart, windowEnd)) continue;
-                    results.Add(new CalendarItemOccurrenceDto { Id = i.Id, Title = change?.Title ?? i.Title, PlaceId = i.PlaceId, LocationLabel = change?.LocationLabel ?? i.LocationLabel, IsAllDay = i.IsAllDay, Start = occ, End = change?.EndsAt ?? (duration is { } d ? occ + d : null), CalendarIds = memberIds, Category = i.Category, Status = change?.Status ?? i.Status, Tags = i.Tags, ParentItemId = i.ParentItemId, ParentTitle = parentTitle, ChildCount = childCount, Completeness = score, Etag = i.ContentHash });
+                    var change = occ.Change;
+                    if (!Overlaps(occ.Start, change?.EndsAt ?? occ.Start + coverage, windowStart, windowEnd)) continue;
+                    results.Add(new CalendarItemOccurrenceDto { Id = i.Id, Title = change?.Title ?? i.Title, PlaceId = i.PlaceId, LocationLabel = change?.LocationLabel ?? i.LocationLabel, IsAllDay = i.IsAllDay, Start = occ.Start, End = change?.EndsAt ?? (duration is { } d ? occ.Start + d : null), OriginalStart = occ.OriginalStart, IsChanged = change is not null, CalendarIds = memberIds, Category = i.Category, Status = change?.Status ?? i.Status, Tags = i.Tags, ParentItemId = i.ParentItemId, ParentTitle = parentTitle, ChildCount = childCount, Completeness = score, Etag = i.ContentHash });
                 }
             }
             else if (OccurrenceStart(i) is { } start && Overlaps(start, start + coverage, windowStart, windowEnd))
             {
-                results.Add(new CalendarItemOccurrenceDto { Id = i.Id, Title = i.Title, PlaceId = i.PlaceId, LocationLabel = i.LocationLabel, IsAllDay = i.IsAllDay, Start = start, End = duration is { } d ? start + d : i.EndsAt, CalendarIds = memberIds, Category = i.Category, Status = i.Status, Tags = i.Tags, ParentItemId = i.ParentItemId, ParentTitle = parentTitle, ChildCount = childCount, Completeness = score, Etag = i.ContentHash });
+                results.Add(new CalendarItemOccurrenceDto { Id = i.Id, Title = i.Title, PlaceId = i.PlaceId, LocationLabel = i.LocationLabel, IsAllDay = i.IsAllDay, Start = start, End = duration is { } d ? start + d : i.EndsAt, IsChanged = false, CalendarIds = memberIds, Category = i.Category, Status = i.Status, Tags = i.Tags, ParentItemId = i.ParentItemId, ParentTitle = parentTitle, ChildCount = childCount, Completeness = score, Etag = i.ContentHash });
             }
         }
 
@@ -585,10 +585,11 @@ public sealed class CalendarItemService(IDocumentSession session, AccessResolver
             return OpResult<CalendarItemDto>.Invalid("Nothing to change; restore the occurrence to drop its change.");
         if (r.StartsAt is { } s && r.EndsAt is { } e && e < s) return OpResult<CalendarItemDto>.Invalid("EndsAt precedes StartsAt.");
 
+        var keptLocationLabel = item.OccurrenceOverrides?.FirstOrDefault(o => o.OriginalStart == original)?.LocationLabel;
         stream.AppendOne(r.Excluded
             ? new OccurrenceExcluded(id, original, r.OccurredAt, commandId)
             : new OccurrenceOverridden(id, new OccurrenceOverride(original, r.StartsAt?.ToUniversalTime(), r.EndsAt?.ToUniversalTime(),
-                r.Title, r.Description, status, null), r.OccurredAt, commandId));
+                r.Title, r.Description, status, keptLocationLabel), r.OccurredAt, commandId));
         await idempotency.CommitAsync(commandId, id, (int) (stream.CurrentVersion ?? 0) + 1, ct);
         var updated = await session.LoadAsync<CalendarItem>(id, ct);
         return OpResult<CalendarItemDto>.Ok(await ToDtoAsync(updated!, ct));
@@ -780,6 +781,7 @@ public sealed class CalendarItemService(IDocumentSession session, AccessResolver
                     IsAllDay = true,
                     Start = start,
                     End = null,
+                    IsChanged = false,
                     CalendarIds = calendarIds,
                     Status = ItemStatus.Confirmed,
                     ChildCount = 0,
