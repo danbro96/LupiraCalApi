@@ -6,7 +6,6 @@ using Lupira.Results;
 using LupiraCalApi.Core.Abstractions;
 using LupiraCalApi.Core.Application.Dav;
 using LupiraCalApi.Core.Auth;
-using LupiraCalApi.Core.Data.Migrations;
 using LupiraCalApi.Core.Domain.CalendarItems;
 using LupiraCalApi.Core.Domain.CalendarItems.Events;
 using LupiraCalApi.Core.Domain.Calendars;
@@ -440,7 +439,6 @@ public sealed class CalendarItemService(IDocumentSession session, AccessResolver
         var revision = await ReviseAsync(principalId, item, r, ct);
         if (!revision.IsOk) return OpResult<CalendarItemDto>.Invalid(revision.Error!);
 
-        session.SetHeader(AllDayOccurrenceEndMigration.InclusiveEndHeader, true);
         stream.AppendOne(new ItemRevised(id, revision.Value!.Fields, revision.Value.Details, r.OccurredAt, commandId));
         await idempotency.CommitAsync(commandId, id, (int) (stream.CurrentVersion ?? 0) + 1, ct);
         var updated = await session.LoadAsync<CalendarItem>(id, ct);
@@ -601,7 +599,6 @@ public sealed class CalendarItemService(IDocumentSession session, AccessResolver
             return OpResult<CalendarItemDto>.Invalid("An all-day occurrence starts and ends on dates: send 00:00Z (EndsAt is the last day).");
 
         var keptLocationLabel = item.OccurrenceOverrides?.FirstOrDefault(o => o.OriginalStart == original)?.LocationLabel;
-        session.SetHeader(AllDayOccurrenceEndMigration.InclusiveEndHeader, true);
         stream.AppendOne(r.Excluded
             ? new OccurrenceExcluded(id, original, r.OccurredAt, commandId)
             : new OccurrenceOverridden(id, new OccurrenceOverride(original, r.StartsAt?.ToUniversalTime(), r.EndsAt?.ToUniversalTime(),
@@ -656,7 +653,6 @@ public sealed class CalendarItemService(IDocumentSession session, AccessResolver
         if (occurredAt is { } stamp && !SectionLww.Wins(stamp, commandId ?? Guid.Empty, item.CoreTs, item.CoreCmd))
             return OpResult<SeriesSplitDto>.Conflict("The series changed after this edit was made.");
 
-        session.SetHeader(AllDayOccurrenceEndMigration.InclusiveEndHeader, true);
         var version = (int) (stream.CurrentVersion ?? 0) + 1;
         if (SeriesSplit.At(item, at, expander) is not { } split)
         {
@@ -820,7 +816,6 @@ public sealed class CalendarItemService(IDocumentSession session, AccessResolver
             p.StartTimezone, p.EndTimezone, p.StartDate, p.EndDate, p.RecurrenceRule,
             p.ExcludedOccurrences, p.ExtraOccurrences, p.OccurrenceOverrides, null, placeId, locationLabel, null, null);
 
-        session.SetHeader(AllDayOccurrenceEndMigration.InclusiveEndHeader, true);
         stream.AppendOne(new ItemImported(id, externalId, fields));   // also clears any soft-delete (resurrect)
         if (existing is null || !existing.IsAcceptedIn(calendarId))
             stream.AppendOne(new AddedToCalendar(id, calendarId, CalendarEntryStatus.Accepted, DateTimeOffset.UtcNow));
