@@ -590,7 +590,7 @@ public sealed class CalendarItemService(IDocumentSession session, AccessResolver
         if (item is null || item.DeletedAt is not null) return OpResult<CalendarItemDto>.NotFound();
         if (!await CanWriteItemAsync(principalId, item, ct)) return OpResult<CalendarItemDto>.Forbidden("No write access to this item.");
         var original = originalStart.ToUniversalTime();
-        if (OccurrenceUnknown(item, original) is { } unknown) return OpResult<CalendarItemDto>.Invalid(unknown);
+        if (OccurrenceUnknown(item, original) is { } unknown) return OpResult<CalendarItemDto>.Invalid(unknown, ProblemTypes.OccurrenceNotInSeries);
         if (!TryParseDefined<ItemStatus>(r.Status, out var status)) return OpResult<CalendarItemDto>.Invalid(UnknownEnum<ItemStatus>("status", r.Status!));
         if (!r.Excluded && r is { StartsAt: null, EndsAt: null, Title: null, Description: null } && status is null)
             return OpResult<CalendarItemDto>.Invalid("Nothing to change; restore the occurrence to drop its change.");
@@ -617,7 +617,7 @@ public sealed class CalendarItemService(IDocumentSession session, AccessResolver
         if (item is null || item.DeletedAt is not null) return OpResult.NotFound();
         if (!await CanWriteItemAsync(principalId, item, ct)) return OpResult.Forbidden("No write access to this item.");
         var original = originalStart.ToUniversalTime();
-        if (OccurrenceUnknown(item, original) is { } unknown) return OpResult.Invalid(unknown);
+        if (OccurrenceUnknown(item, original) is not null) return OpResult.Ok();
         var changed = (item.ExcludedOccurrences ?? []).Contains(original) || (item.OccurrenceOverrides ?? []).Any(o => o.OriginalStart == original);
         if (!changed) return OpResult.Ok();   // already the series default; don't append a meaningless event
 

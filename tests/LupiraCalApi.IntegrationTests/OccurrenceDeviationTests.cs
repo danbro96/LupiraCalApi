@@ -2,9 +2,11 @@ using System.Net;
 using System.Net.Http.Json;
 using Lupira.Primitives;
 using Lupira.Testing.Postgres;
+using LupiraCalApi.Core.Application.Items;
 using LupiraCalApi.Core.Domain.CalendarItems;
 using LupiraCalApi.Core.Domain.Shared;
 using LupiraCalApi.Core.Dtos.CalendarItems;
+using Microsoft.AspNetCore.Mvc;
 using Xunit;
 
 namespace LupiraCalApi.IntegrationTests;
@@ -165,8 +167,10 @@ public sealed class OccurrenceDeviationTests(CalApiTestFactory factory) : Integr
 
         var offSeries = await api.PutAsJsonAsync($"/items/{item.Id}/occurrences/2026-10-12T16:00:00Z", new ChangeOccurrenceRequest { Excluded = true });
         Assert.Equal(HttpStatusCode.BadRequest, offSeries.StatusCode);
+        Assert.Equal(ProblemTypes.OccurrenceNotInSeries, (await offSeries.Content.ReadFromJsonAsync<ProblemDetails>())!.Type);
         var empty = await api.PutAsJsonAsync($"/items/{item.Id}/occurrences/2026-10-11T16:00:00Z", new ChangeOccurrenceRequest());
         Assert.Equal(HttpStatusCode.BadRequest, empty.StatusCode);
+        Assert.Equal("https://httpstatuses.com/400", (await empty.Content.ReadFromJsonAsync<ProblemDetails>())!.Type);
     }
 
     [Fact]

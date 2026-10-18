@@ -258,7 +258,8 @@ one-off starts, and an `OccurrenceOverride` changes one (time, title, descriptio
 but on record). An all-day override's `EndsAt` is its inclusive last day, like `EndDate`. Excluding an extra start removes
 it; two occurrences moved onto the same start both stay. Moving the series (time, day, zone, rule) carries its
 deviations along with their occurrences and, for an unchanged rule, moves its last start too, so it keeps as many
-occurrences.
+occurrences. Changing a start the series doesn't have (e.g. past a split) is a `400` of type
+`https://cal.lupira.com/problems/occurrence-not-in-series`; restoring one is a no-op.
 
 "This and following" (`POST /items/{id}/occurrences/{originalStart}/following`, MCP `change_following_occurrences`) cuts the
 series at one of its rule's occurrences: the series' rule ends before it (a count is divided, otherwise it ends at the

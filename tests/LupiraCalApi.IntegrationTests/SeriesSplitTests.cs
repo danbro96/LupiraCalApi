@@ -4,10 +4,12 @@ using System.Text.Json.Nodes;
 using Lupira.Contracts.Fires;
 using Lupira.Primitives;
 using Lupira.Testing.Postgres;
+using LupiraCalApi.Core.Application.Items;
 using LupiraCalApi.Core.Domain.CalendarItems;
 using LupiraCalApi.Core.Domain.Shared;
 using LupiraCalApi.Core.Dtos.CalendarItems;
 using LupiraCalApi.Core.Dtos.Relations;
+using Microsoft.AspNetCore.Mvc;
 using ModelContextProtocol.Client;
 using Npgsql;
 using Xunit;
@@ -166,6 +168,23 @@ public sealed class SeriesSplitTests(CalApiTestFactory factory) : IntegrationTes
         Assert.Null(split.Following);
         Assert.Equal("FREQ=WEEKLY;BYDAY=SU;COUNT=2", split.Earlier!.RecurrenceRule);
         Assert.Equal([Utc(10, 4, 16), Utc(10, 11, 16)], (await OccurrencesAsync(api)).Select(o => o.Start));
+    }
+
+    [Fact]
+    public async Task Past_a_split_an_occurrence_change_is_a_typed_problem_and_a_restore_a_no_op()
+    {
+        var api = Factory.ApiClient(Email);
+        var item = await CreateWeeklyAsync(api, await CreateCalendarAsync(api));
+        await SplitOkAsync(api, item.Id, Utc(10, 18, 16), new ChangeFollowingOccurrencesRequest { Changes = new UpdateCalendarItemRequest { Title = "Ny" } });
+
+        var change = await api.PutAsJsonAsync($"/items/{item.Id}/occurrences/2026-11-01T17:00:00Z", new ChangeOccurrenceRequest { Title = "Flyttad" });
+        Assert.Equal(HttpStatusCode.BadRequest, change.StatusCode);
+        Assert.Equal(ProblemTypes.OccurrenceNotInSeries, (await change.Content.ReadFromJsonAsync<ProblemDetails>())!.Type);
+        Assert.Equal(HttpStatusCode.NoContent, (await api.DeleteAsync($"/items/{item.Id}/occurrences/2026-11-01T17:00:00Z")).StatusCode);
+
+        var split = await SplitAsync(api, item.Id, Utc(11, 1, 17), new ChangeFollowingOccurrencesRequest { Changes = new UpdateCalendarItemRequest { Title = "Igen" } });
+        Assert.Equal(HttpStatusCode.BadRequest, split.StatusCode);
+        Assert.Equal("https://httpstatuses.com/400", (await split.Content.ReadFromJsonAsync<ProblemDetails>())!.Type);
     }
 
     private const string SeriesWithExtra = "BEGIN:VCALENDAR\r\nVERSION:2.0\r\nPRODID:-//lupira-test//EN\r\nBEGIN:VEVENT\r\nUID:extra@x\r\n" +
