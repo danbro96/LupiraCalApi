@@ -264,8 +264,8 @@ occurrences.
 series at one of its rule's occurrences: the series' rule ends before it (a count is divided, otherwise it ends at the
 last earlier start) and a new series, `ContinuesItemId` = the original, starts at it with the rest of the rule and the
 changes applied. Deviations go with the part their occurrence falls in, so the two parts' occurrences are the series'.
-The continuation copies calendar memberships, attendees (role, response and reminder; not attended/left) under
-participation ids derived from the continuation's id, metadata, the payload (re-targeted when it pointed at the item)
+The continuation copies calendar memberships, attendees who haven't left (role, response and reminder; not attended)
+under participation ids derived from the continuation's id, metadata, the payload (re-targeted when it pointed at the item)
 and relations; child items stay on the original. Everything is written in one transaction; `SourceKey` (else the
 `Idempotency-Key`) fixes the continuation's id, so an offline client knows it up front and a replay lands on it, and an
 `occurredAt` older than the series' last schedule change is a `409` with nothing written. At the series' first

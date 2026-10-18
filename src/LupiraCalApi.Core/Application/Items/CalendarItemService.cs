@@ -719,7 +719,7 @@ public sealed class CalendarItemService(IDocumentSession session, AccessResolver
         Details = item.Details, Calendars = item.Calendars,
     };
 
-    // Attended/left stay with the occurrences they happened at; the continuing series starts with the invitations alone.
+    // Attended stays with the occurrences it happened at and a withdrawn attendee doesn't continue; the rest carry their invitations.
     private static IEnumerable<object> ContinuationEvents(CalendarItem item, Guid id, string uid, Revision revision, DateTimeOffset? occurredAt, Guid? commandId)
     {
         var at = occurredAt ?? DateTimeOffset.UtcNow;
@@ -728,7 +728,7 @@ public sealed class CalendarItemService(IDocumentSession session, AccessResolver
         yield return new ItemScheduled(id, uid, revision.Fields, revision.Details ?? item.Details, item.Id, occurredAt, commandId);
         foreach (var m in item.Calendars.Where(m => m.Status != CalendarEntryStatus.Removed))
             yield return new AddedToCalendar(id, m.CalendarId, m.Status, at, commandId);
-        foreach (var a in item.Attendees)
+        foreach (var a in item.Attendees.Where(a => a.LeftAt is null))
         {
             var participationId = SeriesSplit.ContinuedParticipationId(id, a.ParticipationId);
             yield return new AttendeeInvited(id, participationId, a.ContactId, a.Role, a.InvitedAt ?? at);

@@ -104,6 +104,23 @@ public sealed class SeriesSplitTests(CalApiTestFactory factory) : IntegrationTes
     }
 
     [Fact]
+    public async Task A_withdrawn_attendee_does_not_continue()
+    {
+        var api = Factory.ApiClient(Email);
+        var item = await CreateWeeklyAsync(api, await CreateCalendarAsync(api));
+        var (staying, leaving) = (Guid.NewGuid(), Guid.NewGuid());
+        (await api.PostAsync($"/items/{item.Id}/participants?contactId={staying}", null)).EnsureSuccessStatusCode();
+        var invited = await (await api.PostAsync($"/items/{item.Id}/participants?contactId={leaving}", null)).Content.ReadFromJsonAsync<CalendarItemDto>();
+        var left = invited!.Attendees.Single(a => a.ContactId == leaving).ParticipationId;
+        (await api.PostAsync($"/items/{item.Id}/participants/{left}/leave", null)).EnsureSuccessStatusCode();
+
+        var split = await SplitOkAsync(api, item.Id, Utc(10, 18, 16), new ChangeFollowingOccurrencesRequest { Changes = new UpdateCalendarItemRequest { Title = "Ny" } });
+
+        Assert.Equal(staying, Assert.Single(split.Following!.Attendees).ContactId);
+        Assert.NotNull(split.Earlier!.Attendees.Single(a => a.ContactId == leaving).LeftAt);
+    }
+
+    [Fact]
     public async Task A_replay_lands_on_the_same_series_and_writes_nothing()
     {
         var api = Factory.ApiClient(Email);
