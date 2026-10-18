@@ -287,7 +287,7 @@
         "tags": [
           "Participation"
         ],
-        "summary": "Per-contact participation across your readable calendars (contactId, item count, most recent occurrence start, recency-weighted score), ordered by score: each past occurrence weighs 0.5^(age / 90 days), the next planned one 1. Optional from/to restricts the window. A ranking signal for contact pickers/resolvers.",
+        "summary": "Per-contact participation across your readable calendars (contactId, count of items with a started occurrence, latest started occurrence start, recency-weighted score), ordered by score: each past occurrence weighs 0.5^(age / 90 days), the next planned one 1. Declined and withdrawn participations and cancelled items don't count. Optional from/to restricts the occurrences considered. A ranking signal for contact pickers/resolvers.",
         "operationId": "GetParticipationSummary",
         "parameters": [
           {
@@ -6196,7 +6196,7 @@
             "format": "double"
           }
         },
-        "description": "One contact's participation across the caller's readable calendars: how many items they attend(ed), the most\n            recent occurrence start (past or planned), and a score — interaction weighted by recency (each past\n            occurrence 0.5^(age / 90 days), the next planned one 1). A ranking signal for pickers/resolvers, not an ACL surface."
+        "description": "One contact's participation across the caller's readable calendars: how many items they took part in that\n            have started, the latest started occurrence's start, and a score — interaction weighted by recency (each past\n            occurrence 0.5^(age / 90 days), the next planned one 1). Declined and withdrawn participations and cancelled items don't\n            count. A ranking signal for pickers/resolvers, not an ACL surface."
       },
       "PingDto": {
         "required": [

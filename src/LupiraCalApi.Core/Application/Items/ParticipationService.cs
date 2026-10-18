@@ -159,8 +159,8 @@ public sealed class ParticipationService(
             : [new AttendeeInvited(itemId, participationId, contactId, role, at)];
 
     /// <summary>Per-contact participation across the caller's readable calendars, ordered by recency-weighted
-    /// <see cref="ParticipationSummaryEntry.Score"/>. Optional from/to restricts to items whose occurrence start falls in
-    /// the window (start-less items only match the unbounded query).</summary>
+    /// <see cref="ParticipationSummaryEntry.Score"/>. Count and LastAt come from occurrences that have started; declined
+    /// and withdrawn participations and cancelled items don't count. Optional from/to bounds the occurrences considered.</summary>
     public async Task<OpResult<List<ParticipationSummaryEntry>>> SummaryAsync(Guid principalId, DateTimeOffset? from, DateTimeOffset? to, CancellationToken ct = default)
     {
         var calIds = await access.AccessibleCalendarIdsAsync(principalId, ct);
@@ -179,21 +179,20 @@ public sealed class ParticipationService(
         var planned = new HashSet<(Guid ContactId, Guid SeriesId)>();
         foreach (var i in all)
         {
+            if (i.Status == ItemStatus.Cancelled) continue;
             if (!i.Calendars.Any(m => m.Status == CalendarEntryStatus.Accepted && readableCalendarIds.Contains(m.CalendarId))) continue;
-            var at = CalendarItemService.OccurrenceStart(i);
-            if (from is { } f && (at is null || at < f)) continue;
-            if (to is { } t && (at is null || at >= t)) continue;
-            // Withdrawn participations (LeftAt) don't count as interaction; removed attendees are already gone.
-            var attendees = i.Attendees.Where(a => a.LeftAt is null).DistinctBy(a => a.ContactId).ToList();
+            // Declined and withdrawn participations aren't interaction; removed attendees are already gone.
+            var attendees = i.Attendees.Where(a => a.LeftAt is null && a.Status != ParticipationStatus.Declined).DistinctBy(a => a.ContactId).ToList();
             if (attendees.Count == 0) continue;
-            var (past, upcoming) = at is null ? (0, false) : RecencyWeight(i, now, from, to, expander);
+            var (lastPast, past, upcoming) = Recency(i, now, from, to, expander);
+            if (lastPast is null && !upcoming) continue;
             var seriesId = FirstOfSeries(i, byId).Id;
             foreach (var a in attendees)
             {
                 var prev = perContact.GetValueOrDefault(a.ContactId);
-                var count = prev.Count + (counted.Add((a.ContactId, seriesId)) ? 1 : 0);
+                var count = prev.Count + (lastPast is not null && counted.Add((a.ContactId, seriesId)) ? 1 : 0);
                 var weight = past + (upcoming && planned.Add((a.ContactId, seriesId)) ? 1 : 0);
-                perContact[a.ContactId] = (count, at > prev.LastAt || prev.LastAt is null ? at : prev.LastAt, prev.Score + weight);
+                perContact[a.ContactId] = (count, lastPast > prev.LastAt || prev.LastAt is null ? lastPast : prev.LastAt, prev.Score + weight);
             }
         }
 
@@ -211,14 +210,21 @@ public sealed class ParticipationService(
         return item;
     }
 
-    /// <summary>Each past occurrence weighs 0.5^(age / 90 days), so a weekly series outranks a one-off and people you
-    /// stopped meeting fade. The next planned occurrence weighs 1 — a meeting on the books is a current relationship —
-    /// and only the next, so an open-ended series doesn't count forever.</summary>
-    internal static (double Past, bool Planned) RecencyWeight(CalendarItem item, DateTimeOffset now, DateTimeOffset? from, DateTimeOffset? to, RecurrenceExpander expander)
+    /// <summary>Each past occurrence (start at or before <paramref name="now"/>) weighs 0.5^(age / 90 days), so a weekly
+    /// series outranks a one-off and people you stopped meeting fade. The next planned occurrence weighs 1 — a meeting on
+    /// the books is a current relationship — and only the next, so an open-ended series doesn't count forever. LastPast is
+    /// the latest past occurrence start in the window.</summary>
+    internal static (DateTimeOffset? LastPast, double Past, bool Planned) Recency(
+        CalendarItem item, DateTimeOffset now, DateTimeOffset? from, DateTimeOffset? to, RecurrenceExpander expander)
     {
-        var past = expander.Expand(item, Later(now - ScoreLookback, from), Earlier(now, to))
-            .Sum(s => Math.Pow(0.5, (now - s) / HalfLife));
-        return (past, expander.Expand(item, Later(now, from), Earlier(now + NextLookahead, to)).Count > 0);
+        var pastEnd = Earlier(now.AddTicks(1), to);
+        var scoredFrom = Later(now - ScoreLookback, from);
+        var recent = expander.Expand(item, scoredFrom, pastEnd);
+        var lastPast = recent.Count > 0
+            ? recent[^1]
+            : expander.Expand(item, from ?? DateTimeOffset.MinValue, Earlier(scoredFrom, pastEnd)) is { Count: > 0 } older ? older[^1] : (DateTimeOffset?) null;
+        var past = recent.Sum(s => Math.Pow(0.5, (now - s) / HalfLife));
+        return (lastPast, past, expander.Expand(item, Later(now.AddTicks(1), from), Earlier(now + NextLookahead, to)).Count > 0);
     }
 
     private static DateTimeOffset Later(DateTimeOffset a, DateTimeOffset? b) => b is { } v && v > a ? v : a;

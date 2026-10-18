@@ -8,8 +8,9 @@ using static LupiraCalApi.UnitTests.TestEvents;
 
 namespace LupiraCalApi.UnitTests;
 
-/// <summary>Aggregation rules of <see cref="ParticipationService.Summarize"/>: readable-calendar scoping,
-/// withdrawn-attendee exclusion, per-contact counting, recency weighting, window filtering, and ordering.</summary>
+/// <summary>Aggregation rules of <see cref="ParticipationService.Summarize"/>: readable-calendar scoping, withdrawn,
+/// declined and cancelled exclusion, per-contact counting of started occurrences, recency weighting, window filtering,
+/// and ordering.</summary>
 public class ParticipationSummaryTests
 {
     private static readonly Guid ReadableCal = Guid.NewGuid();
@@ -86,6 +87,50 @@ public class ParticipationSummaryTests
     }
 
     [Fact]
+    public void Declined_attendee_does_not_count()
+    {
+        var anna = Guid.NewGuid();
+        var item = Item(ReadableCal, T1, anna);
+        item.Apply(Ev(new InvitationResponded(item.Id, item.Attendees[0].ParticipationId, ParticipationStatus.Declined, T1)));
+
+        Assert.Empty(Summarize([item]));
+    }
+
+    [Fact]
+    public void Cancelled_item_does_not_count()
+    {
+        var anna = Guid.NewGuid();
+        var item = Item(ReadableCal, T1, anna);
+        item.Status = ItemStatus.Cancelled;
+
+        Assert.Empty(Summarize([item]));
+    }
+
+    [Fact]
+    public void Series_counts_and_dates_its_started_occurrences_only()
+    {
+        var anna = Guid.NewGuid();
+        var weekly = Series(ReadableCal, Now.AddDays(-21).AddHours(1), "FREQ=WEEKLY", anna);
+
+        var s = Assert.Single(Summarize([weekly]));
+
+        Assert.Equal(1, s.Count);
+        Assert.Equal(Now.AddDays(-7).AddHours(1), s.LastAt);
+    }
+
+    [Fact]
+    public void Window_applies_to_occurrences_not_the_series_start()
+    {
+        var anna = Guid.NewGuid();
+        var weekly = Series(ReadableCal, T1, "FREQ=WEEKLY", anna);
+
+        var s = Assert.Single(Summarize([weekly], from: T2, to: T3));
+
+        Assert.Equal(1, s.Count);
+        Assert.Equal(T1.AddDays(7 * 21), s.LastAt);
+    }
+
+    [Fact]
     public void Window_filters_on_occurrence_start()
     {
         var anna = Guid.NewGuid();
@@ -98,7 +143,7 @@ public class ParticipationSummaryTests
     }
 
     [Fact]
-    public void Startless_items_count_only_without_a_window()
+    public void Startless_items_do_not_count()
     {
         var anna = Guid.NewGuid();
         var i = new CalendarItem();
@@ -108,7 +153,7 @@ public class ParticipationSummaryTests
         i.Apply(Ev(new AddedToCalendar(id, ReadableCal, CalendarEntryStatus.Accepted, DateTimeOffset.UtcNow)));
         i.Apply(Ev(new AttendeeInvited(id, Guid.NewGuid(), anna, ParticipationRole.RequiredParticipant, T1)));
 
-        Assert.Single(Summarize([i]));
+        Assert.Empty(Summarize([i]));
         Assert.Empty(Summarize([i], from: T1));
     }
 
@@ -143,9 +188,11 @@ public class ParticipationSummaryTests
     {
         var anna = Guid.NewGuid();
 
-        var s = Summarize([Item(ReadableCal, Now.AddDays(200), anna)]);
+        var s = Assert.Single(Summarize([Item(ReadableCal, Now.AddDays(200), anna)]));
 
-        Assert.Equal(1, Assert.Single(s).Score, 3);
+        Assert.Equal(1, s.Score, 3);
+        Assert.Equal(0, s.Count);
+        Assert.Null(s.LastAt);
     }
 
     [Fact]
