@@ -21,9 +21,11 @@ public sealed class OutboundAuthProvider(
     ServiceTokenProvider serviceTokens,
     IOptions<TokenExchangeOptions> exchange,
     IOptions<DavGatewayOptions> davGateway,
+    TimeProvider clock,
     ILogger<OutboundAuthProvider> logger)
 {
     private const string DevUserHeader = "X-Dev-User";
+    private static readonly TimeSpan ExpiryMargin = TimeSpan.FromSeconds(30);
 
     public static InboundCaller Classify(HttpContext? ctx, string? davGatewayClientId)
     {
@@ -63,6 +65,13 @@ public sealed class OutboundAuthProvider(
         if (!opts.IsConfigured || string.IsNullOrWhiteSpace(hop.Audience))
         {
             logger.LogWarning("Token exchange to {Audience} not configured; outbound call skipped.", hop.Audience);
+            return null;
+        }
+
+        // A subject token this close to expiry is rejected by the issuer or yields a token that dies in flight.
+        if (caller.SubjectExpiresAt is { } expiresAt && expiresAt <= clock.GetUtcNow() + ExpiryMargin)
+        {
+            logger.LogDebug("Member token expires at {ExpiresAt}; token exchange to {Audience} skipped.", expiresAt, hop.Audience);
             return null;
         }
 

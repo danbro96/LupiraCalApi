@@ -48,6 +48,7 @@ public class OutboundAuthProviderTests
             new ServiceTokenProvider(endpoint, cache),
             Options.Create(exchange),
             Options.Create(new DavGatewayOptions { ClientId = DavClient }),
+            TimeProvider.System,
             NullLogger<OutboundAuthProvider>.Instance);
         return (provider, tokens);
     }
@@ -96,6 +97,28 @@ public class OutboundAuthProviderTests
         Assert.Equal("lupira-cal", form["client_id"]);
         Assert.Equal("member-token", form["subject_token"]);
         Assert.Equal("lupira-contact", form["audience"]);
+    }
+
+    [Fact]
+    public async Task Member_token_expiring_later_is_exchanged()
+    {
+        var exp = DateTimeOffset.UtcNow.AddHours(1).ToUnixTimeSeconds().ToString();
+        var (provider, tokens) = Create(Context("Bearer", [new Claim("sub", "a"), new Claim("exp", exp)], "Bearer member-token"));
+
+        var req = await AuthorizeAsync(provider, Hop);
+
+        Assert.Equal("Bearer tok-lupira-contact", Header(req!, "Authorization"));
+        Assert.Single(tokens.Forms);
+    }
+
+    [Fact]
+    public async Task Member_token_about_to_expire_skips_the_exchange()
+    {
+        var exp = DateTimeOffset.UtcNow.AddSeconds(10).ToUnixTimeSeconds().ToString();
+        var (provider, tokens) = Create(Context("Bearer", [new Claim("sub", "a"), new Claim("exp", exp)], "Bearer member-token"));
+
+        Assert.Null(await AuthorizeAsync(provider, Hop));
+        Assert.Empty(tokens.Forms);
     }
 
     [Fact]
