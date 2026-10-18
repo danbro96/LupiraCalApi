@@ -116,7 +116,7 @@ public sealed class ParticipationService(
             await session.SaveChangesAsync(ct);
         }
 
-        return OpResult<SetParticipantsResult>.Ok(new SetParticipantsResult(itemId, added, alreadyPresent));
+        return OpResult<SetParticipantsResult>.Ok(new SetParticipantsResult { ItemId = itemId, Added = added, AlreadyPresent = alreadyPresent });
     }
 
     /// <summary>When joining participants count as attended: never on an explicit false; at its end for an item that has
@@ -147,7 +147,7 @@ public sealed class ParticipationService(
 
             var pid = Guid.NewGuid();
             events.AddRange(Joined(item.Id, pid, cid, ParticipationRole.RequiredParticipant, at, attendedAt));
-            added.Add(new ParticipationRef(cid, pid));
+            added.Add(new ParticipationRef { ContactId = cid, ParticipationId = pid });
         }
 
         return (events, added, alreadyPresent);
@@ -197,7 +197,10 @@ public sealed class ParticipationService(
         }
 
         return [.. perContact
-            .Select(kv => new ParticipationSummaryEntry(kv.Key, kv.Value.Count, kv.Value.LastAt, Math.Round(kv.Value.Score, 4)))
+            .Select(kv => new ParticipationSummaryEntry
+            {
+                ContactId = kv.Key, Count = kv.Value.Count, LastAt = kv.Value.LastAt, Score = Math.Round(kv.Value.Score, 4),
+            })
             .OrderByDescending(e => e.Score).ThenByDescending(e => e.Count)
             .ThenByDescending(e => e.LastAt ?? DateTimeOffset.MinValue).ThenBy(e => e.ContactId)];
     }

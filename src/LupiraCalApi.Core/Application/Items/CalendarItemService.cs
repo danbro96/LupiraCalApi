@@ -196,16 +196,16 @@ public sealed class CalendarItemService(IDocumentSession session, AccessResolver
                 && await session.LoadAsync<CalendarItem>(DeterministicGuid.From(r.SourceKey!.Trim()), ct) is { DeletedAt: null } existing
                 && await MayReuseSourceKeyAsync(principalId, existing, ct))
             {
-                byRequest[r] = new ItemBatchResult(r.SourceKey, existing.Id, "existed", null);
+                byRequest[r] = new ItemBatchResult { SourceKey = r.SourceKey, ItemId = existing.Id, Status = "existed", Error = null };
                 continue;
             }
 
             var res = await CreateAsync(principalId, r, ct);
             byRequest[r] = res.Status switch
             {
-                OpStatus.Ok => new ItemBatchResult(r.SourceKey, res.Value!.Id, "created", null),
-                OpStatus.Forbidden => new ItemBatchResult(r.SourceKey, null, "forbidden", res.Error),
-                _ => new ItemBatchResult(r.SourceKey, null, "invalid", res.Error),
+                OpStatus.Ok => new ItemBatchResult { SourceKey = r.SourceKey, ItemId = res.Value!.Id, Status = "created", Error = null },
+                OpStatus.Forbidden => new ItemBatchResult { SourceKey = r.SourceKey, ItemId = null, Status = "forbidden", Error = res.Error },
+                _ => new ItemBatchResult { SourceKey = r.SourceKey, ItemId = null, Status = "invalid", Error = res.Error },
             };
         }
 

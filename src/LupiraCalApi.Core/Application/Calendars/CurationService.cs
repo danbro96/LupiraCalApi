@@ -54,7 +54,7 @@ public sealed class CurationService(IDocumentSession session, AccessResolver acc
         foreach (var e in entries)
         {
             var res = await AddToCalendarAsync(principalId, e.ItemId, e.CalendarId, e.Status, ct: ct);
-            results.Add(new FileItemResult(e.ItemId, e.CalendarId, StatusName(res.Status), res.Error));
+            results.Add(new FileItemResult { ItemId = e.ItemId, CalendarId = e.CalendarId, Status = StatusName(res.Status), Error = res.Error });
         }
 
         return OpResult<List<FileItemResult>>.Ok(results);
