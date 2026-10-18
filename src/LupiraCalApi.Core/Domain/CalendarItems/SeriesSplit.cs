@@ -13,12 +13,11 @@ public sealed record SeriesSplit(SeriesPart Earlier, SeriesPart Following)
     {
         var series = RecurringSeries.Of(item);
         if (!series.Recurs || !expander.Generates(series, at)) return null;
-        var earlierStarts = expander.Starts(series, DateTimeOffset.MinValue, at).ToList();
-        if (earlierStarts.Count == 0) return null;
+        if (expander.Before(series, at) is not (var earlierCount, { } earlierLast)) return null;
 
         var (earlierRule, followingRule) = RecurrenceRuleBounds.Count(series.RecurrenceRule) is { } count
-            ? (RecurrenceRuleBounds.WithCount(series.RecurrenceRule, earlierStarts.Count), RecurrenceRuleBounds.WithCount(series.RecurrenceRule, count - earlierStarts.Count))
-            : (RecurrenceRuleBounds.WithLastStart(series.RecurrenceRule, earlierStarts[^1], series.IsAllDay), series.RecurrenceRule);
+            ? (RecurrenceRuleBounds.WithCount(series.RecurrenceRule, earlierCount), RecurrenceRuleBounds.WithCount(series.RecurrenceRule, count - earlierCount))
+            : (RecurrenceRuleBounds.WithLastStart(series.RecurrenceRule, earlierLast, series.IsAllDay), series.RecurrenceRule);
 
         var day = DateOnly.FromDateTime(at.UtcDateTime);
         var (following, endsAt, endDate) = series.IsAllDay

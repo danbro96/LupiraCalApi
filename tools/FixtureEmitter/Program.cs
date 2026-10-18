@@ -83,6 +83,9 @@ Add("zoned-monthly-second-tuesday", "FREQ=MONTHLY;BYDAY=2TU", Utc(2026, 1, 13, 2
 Add("zoned-byday-is-local-weekday", "FREQ=WEEKLY;BYDAY=MO", Utc(2026, 1, 4, 23), 60, Utc(2026, 1, 1, 0), Utc(2026, 2, 1, 0), "Asia/Tokyo");
 Add("zoned-window-clips-mid-series", "FREQ=DAILY", Utc(2026, 10, 20, 16), 60, Utc(2026, 10, 24, 12), Utc(2026, 10, 27, 12), "Europe/Stockholm");
 Add("unknown-zone-is-utc", "FREQ=WEEKLY", Utc(2026, 10, 11, 16), 60, Utc(2026, 10, 1, 0), Utc(2026, 11, 15, 0), "Not/AZone");
+Add("daily-decades-in", "FREQ=DAILY", mon, 60, Utc(2056, 1, 1, 0), Utc(2056, 1, 8, 0));
+Add("zoned-daily-decades-in", "FREQ=DAILY", Utc(2026, 1, 5, 8), 60, Utc(2056, 3, 23, 0), Utc(2056, 3, 30, 0), "Europe/Stockholm");
+Add("weekdays-count-past-ten-thousand", "FREQ=WEEKLY;BYDAY=MO,TU,WE,TH,FR;COUNT=10010", mon, 60, Utc(2064, 4, 20, 0), Utc(2064, 6, 1, 0));
 
 // Real-store corpus: every distinct rule in a live database, expanded over a canonical window.
 var fromDb = Array.IndexOf(args, "--from-db");
@@ -218,6 +221,11 @@ Split("deviations-go-with-their-part", mondays with
 Split("first-occurrence", mondays, Utc(2026, 7, 6, 9));
 Split("extra-only", mondays with { ExtraOccurrences = [Utc(2026, 7, 15, 12)] }, Utc(2026, 7, 15, 12));
 Split("off-the-series", mondays, Utc(2026, 7, 14, 9));
+Split("daily-20-years", Timed(Utc(2026, 7, 6, 9), 60, "FREQ=DAILY"), Utc(2046, 7, 6, 9));
+Split("weekdays-40-years", Timed(Utc(2026, 7, 6, 9), 60, "FREQ=WEEKLY;BYDAY=MO,TU,WE,TH,FR"), Utc(2066, 7, 5, 9));
+Split("weekdays-count-15000", Timed(Utc(2026, 7, 6, 9), 60, "FREQ=WEEKLY;BYDAY=MO,TU,WE,TH,FR;COUNT=15000"), Utc(2066, 7, 5, 9));
+Split("monthly-31st", Timed(Utc(2026, 1, 31, 8), 30, "FREQ=MONTHLY;BYMONTHDAY=31"), Utc(2026, 8, 31, 8));
+Split("yearly-feb-29", Timed(Utc(2024, 2, 29, 9), 60, "FREQ=YEARLY"), Utc(2032, 2, 29, 9));
 
 await File.WriteAllTextAsync(Path.Combine(outDir, "split.json"), JsonSerializer.Serialize(splitCases, json));
 Console.WriteLine($"split.json: {splitCases.Count} cases → {outDir}");

@@ -255,4 +255,15 @@ public class RecurrenceExpanderTests
 
         Assert.Equal(Utc(2026, 8, 7), Expander.LastEnd(item));
     }
+
+    [Fact]
+    public void Before_counts_the_starts_ahead_and_ends_on_the_last()
+    {
+        var series = RecurringSeries.Of(Series(Utc(2026, 7, 1, 9), "FREQ=DAILY"));
+
+        Assert.Equal((9, Utc(2026, 7, 9, 9)), Expander.Before(series, Utc(2026, 7, 10, 9)));
+        Assert.Equal((9, Utc(2026, 7, 9, 9)), Expander.Before(series, Utc(2026, 7, 10, 8)));
+        Assert.Equal((7305, Utc(2046, 6, 30, 9)), Expander.Before(series, Utc(2046, 7, 1, 9)));
+        Assert.Equal((0, null), Expander.Before(series, Utc(2026, 7, 1, 9)));
+    }
 }

@@ -70,6 +70,14 @@ public sealed class RecurrenceExpander
     /// <paramref name="start"/>.</summary>
     public bool Generates(RecurringSeries series, DateTimeOffset start) => Starts(series, start, start.AddTicks(1)).Any();
 
+    /// <summary>How many starts <paramref name="series"/> itself places before <paramref name="at"/>, and the last of them.</summary>
+    public (int Count, DateTimeOffset? Last) Before(RecurringSeries series, DateTimeOffset at)
+    {
+        var (count, last) = (0, (DateTimeOffset?) null);
+        foreach (var start in Starts(series, DateTimeOffset.MinValue, at)) (count, last) = (count + 1, start);
+        return (count, last);
+    }
+
     private static DateTimeOffset Midnight(DateOnly d) => new(d.Year, d.Month, d.Day, 0, 0, 0, TimeSpan.Zero);
 
     /// <summary>The starts <paramref name="series"/> itself places in [windowStart, windowEnd), ascending — no extra or
