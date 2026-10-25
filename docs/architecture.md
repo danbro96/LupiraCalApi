@@ -297,7 +297,8 @@ Reminders are delivered on the participant's device; the server never fires them
 Places live in **LupiraGeoApi**, not here. A calendar item (`PlaceId` + denormalized `LocationLabel`) and a
 travel leg (`ToPlaceId`/`FromPlaceId` + `ToLabel`/`FromLabel`) reference a geo place by id (no FK, no local
 catalog). REST/MCP writes take resolved ids only: each newly supplied place id (item or travel leg) is looked up in
-geo — an unknown id is rejected, a merged-away id is stored as its survivor, and an unreachable geo fails the write.
+geo — an unknown id is rejected (`400`), a merged-away id is stored as its survivor, and an unreachable geo fails the
+write as retryable (`503`; MCP tool error; batch item `unavailable`).
 Free text alone is rejected unless the caller sets `LocationUnresolved` (create/update), which stores `Location` as
 the label with no place and no geo call — for a location the caller could not resolve.
 Free-text locations (DAV only) are resolved once at write time via `IGeoResolver` (the host's `GeoApiClient`

@@ -171,6 +171,7 @@ public sealed class DavBackendHandler(
         OpStatus.NotFound => StatusCodes.Status404NotFound,
         OpStatus.Conflict => StatusCodes.Status412PreconditionFailed,
         OpStatus.Invalid => StatusCodes.Status400BadRequest,
+        OpStatus.Unavailable => StatusCodes.Status503ServiceUnavailable,
         _ => StatusCodes.Status500InternalServerError,
     };
 }

@@ -71,7 +71,7 @@ public sealed class OutboundAuthProvider(
         // A subject token this close to expiry is rejected by the issuer or yields a token that dies in flight.
         if (caller.SubjectExpiresAt is { } expiresAt && expiresAt <= clock.GetUtcNow() + ExpiryMargin)
         {
-            logger.LogDebug("Member token expires at {ExpiresAt}; token exchange to {Audience} skipped.", expiresAt, hop.Audience);
+            logger.LogWarning("Member token expires at {ExpiresAt}; token exchange to {Audience} skipped.", expiresAt, hop.Audience);
             return null;
         }
 

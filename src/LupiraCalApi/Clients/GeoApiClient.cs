@@ -8,8 +8,8 @@ namespace LupiraCalApi.Clients;
 
 /// <summary>HTTP <see cref="IGeoResolver"/> against LupiraGeoApi (<c>POST /places/resolve</c>, <c>POST /places/lookup</c>,
 /// <c>GET /places</c> by proximity, <c>GET /geocode/reverse</c>), authenticated per <see cref="OutboundAuthProvider"/>.
-/// A failure returns null so a resolve never breaks an item write — the caller then keeps the existing place id or
-/// stores the raw label.</summary>
+/// A failure returns null (geo unavailable): an item write that needs a new place id fails as unavailable (503), while
+/// reads and enrichment fail open.</summary>
 public sealed class GeoApiClient(HttpClient http, IOptions<GeoApiOptions> options, OutboundAuthProvider auth, ILogger<GeoApiClient> logger) : IGeoResolver
 {
     private const int LookupBatch = 200;

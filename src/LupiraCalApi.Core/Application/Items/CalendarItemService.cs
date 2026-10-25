@@ -40,7 +40,6 @@ public sealed class CalendarItemService(IDocumentSession session, AccessResolver
         return (null, text.Trim(), true);
     }
 
-    private const string LocationUnresolved = "Location could not be resolved to a place (geo unavailable) — retry.";
     private const string TravelUnresolved = "A travel location could not be resolved to a place (geo unavailable) — retry.";
     private const string LocationNeedsPlaceId = "Resolve the location to a LupiraGeoApi place first and pass PlaceId, or set LocationUnresolved to keep it as a label only.";
     private const string UnresolvedWithPlaceId = "LocationUnresolved cannot be combined with PlaceId.";
@@ -82,7 +81,7 @@ public sealed class CalendarItemService(IDocumentSession session, AccessResolver
     {
         var ids = supplied.OfType<Guid>().Except(stored).Distinct().ToList();
         if (ids.Count == 0 || !geo.IsConfigured) return OpResult<Dictionary<Guid, Guid>>.Ok([]);
-        if (await geo.LookupAsync(ids, ct) is not { } found) return OpResult<Dictionary<Guid, Guid>>.Invalid(PlaceUnverified);
+        if (await geo.LookupAsync(ids, ct) is not { } found) return OpResult<Dictionary<Guid, Guid>>.Unavailable(PlaceUnverified);
         var unknown = ids.Where(id => !found.ContainsKey(id)).ToList();
         if (unknown.Count > 0)
             return OpResult<Dictionary<Guid, Guid>>.Invalid(
@@ -138,10 +137,10 @@ public sealed class CalendarItemService(IDocumentSession session, AccessResolver
         if (ItemDetailsMapper.Validate(category, r.Details) is { } detailsError)
             return OpResult<CalendarItemDto>.Invalid(detailsError);
         var places = await CanonicalPlacesAsync([placeId, r.Details?.Travel?.ToPlaceId, r.Details?.Travel?.FromPlaceId], [], ct);
-        if (places.Status != OpStatus.Ok) return OpResult<CalendarItemDto>.Invalid(places.Error!);
+        if (!places.IsOk) return new OpResult<CalendarItemDto>(places.Status, null, places.Error) { Type = places.Type };
         placeId = Canonical(places.Value!, placeId);
         var (details, detailsUnresolved) = await ItemDetailsMapper.BuildAsync(r.Details, r.Availability, geo, ct);
-        if (detailsUnresolved) return OpResult<CalendarItemDto>.Invalid(TravelUnresolved);
+        if (detailsUnresolved) return OpResult<CalendarItemDto>.Unavailable(TravelUnresolved);
         details = WithCanonicalTravel(details, places.Value!);
 
         var startTimezone = string.IsNullOrWhiteSpace(r.StartTimezone) ? null : r.StartTimezone;
@@ -180,7 +179,7 @@ public sealed class CalendarItemService(IDocumentSession session, AccessResolver
 
     /// <summary>Create many items in one call. Topologically orders by in-batch <c>ParentSourceKey</c> so parents persist
     /// before children (each item saves via <see cref="CreateAsync"/>, which is idempotent on <c>SourceKey</c>). Never aborts
-    /// the whole batch on one bad item — returns a per-item status (created | existed | invalid). Results are in input order.</summary>
+    /// the whole batch on one bad item — returns a per-item status (created | existed | forbidden | invalid | unavailable). Results are in input order.</summary>
     public async Task<OpResult<List<ItemBatchResult>>> CreateBatchAsync(Guid principalId, IReadOnlyList<CreateCalendarItemRequest> requests, CancellationToken ct = default)
     {
         if (requests.Count == 0) return OpResult<List<ItemBatchResult>>.Invalid("At least one item is required.");
@@ -205,6 +204,7 @@ public sealed class CalendarItemService(IDocumentSession session, AccessResolver
             {
                 OpStatus.Ok => new ItemBatchResult { SourceKey = r.SourceKey, ItemId = res.Value!.Id, Status = "created", Error = null },
                 OpStatus.Forbidden => new ItemBatchResult { SourceKey = r.SourceKey, ItemId = null, Status = "forbidden", Error = res.Error },
+                OpStatus.Unavailable => new ItemBatchResult { SourceKey = r.SourceKey, ItemId = null, Status = "unavailable", Error = res.Error },
                 _ => new ItemBatchResult { SourceKey = r.SourceKey, ItemId = null, Status = "invalid", Error = res.Error },
             };
         }
@@ -437,7 +437,7 @@ public sealed class CalendarItemService(IDocumentSession session, AccessResolver
         if (item is null || item.DeletedAt is not null) return OpResult<CalendarItemDto>.NotFound();
         if (!await CanWriteItemAsync(principalId, item, ct)) return OpResult<CalendarItemDto>.Forbidden("No write access to this item.");
         var revision = await ReviseAsync(principalId, item, r, ct);
-        if (!revision.IsOk) return OpResult<CalendarItemDto>.Invalid(revision.Error!);
+        if (!revision.IsOk) return new OpResult<CalendarItemDto>(revision.Status, null, revision.Error) { Type = revision.Type };
 
         stream.AppendOne(new ItemRevised(id, revision.Value!.Fields, revision.Value.Details, r.OccurredAt, commandId));
         await idempotency.CommitAsync(commandId, id, (int) (stream.CurrentVersion ?? 0) + 1, ct);
@@ -477,7 +477,7 @@ public sealed class CalendarItemService(IDocumentSession session, AccessResolver
         if (ItemDetailsMapper.Validate(category, r.Details) is { } detailsError)
             return OpResult<Revision>.Invalid(detailsError);
         var places = await CanonicalPlacesAsync([placeId, r.Details?.Travel?.ToPlaceId, r.Details?.Travel?.FromPlaceId], PlaceRefs(current), ct);
-        if (places.Status != OpStatus.Ok) return OpResult<Revision>.Invalid(places.Error!);
+        if (!places.IsOk) return new OpResult<Revision>(places.Status, null, places.Error) { Type = places.Type };
         placeId = Canonical(places.Value!, placeId);
         if (r.ParentItemId == current.Id) return OpResult<Revision>.Invalid("An item cannot be its own parent.");
         if (await ParentInvalidAsync(principalId, r.ParentItemId, ct) is { } parentError)
@@ -502,7 +502,7 @@ public sealed class CalendarItemService(IDocumentSession session, AccessResolver
             r.StartPrecision ?? current.StartPrecision, r.EndPrecision ?? current.EndPrecision);
 
         var (incoming, detailsUnresolved) = await ItemDetailsMapper.BuildAsync(r.Details, r.Availability, geo, ct);
-        if (detailsUnresolved) return OpResult<Revision>.Invalid(TravelUnresolved);
+        if (detailsUnresolved) return OpResult<Revision>.Unavailable(TravelUnresolved);
         incoming = WithCanonicalTravel(incoming, places.Value!);
         // null incoming keeps existing details (Apply only overwrites when non-null); reclassifying with none clears the previous details.
         var details = incoming is null
@@ -664,7 +664,7 @@ public sealed class CalendarItemService(IDocumentSession session, AccessResolver
             }
 
             var whole = await ReviseAsync(principalId, item, r.Changes!, ct);
-            if (!whole.IsOk) return OpResult<SeriesSplitDto>.Invalid(whole.Error!);
+            if (!whole.IsOk) return new OpResult<SeriesSplitDto>(whole.Status, null, whole.Error) { Type = whole.Type };
             stream.AppendOne(new ItemRevised(id, whole.Value!.Fields, whole.Value.Details, occurredAt, commandId));
             await idempotency.CommitAsync(commandId, id, version, ct);
             return OpResult<SeriesSplitDto>.Ok(new SeriesSplitDto { Following = await LiveDtoAsync(id, ct) });
@@ -683,7 +683,7 @@ public sealed class CalendarItemService(IDocumentSession session, AccessResolver
         }
 
         var following = await ReviseAsync(principalId, Continuation(item, continuationId, split.Following), r.Changes!, ct);
-        if (!following.IsOk) return OpResult<SeriesSplitDto>.Invalid(following.Error!);
+        if (!following.IsOk) return new OpResult<SeriesSplitDto>(following.Status, null, following.Error) { Type = following.Type };
 
         stream.AppendOne(earlier);
         session.Events.StartStream<CalendarItem>(continuationId, [.. ContinuationEvents(item, continuationId, uid, following.Value!, occurredAt, commandId)]);

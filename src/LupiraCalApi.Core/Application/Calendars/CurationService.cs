@@ -44,7 +44,7 @@ public sealed class CurationService(IDocumentSession session, AccessResolver acc
 
     /// <summary>File many existing items into calendars in one call. Each entry runs through <see cref="AddToCalendarAsync"/>
     /// so it carries the same per-calendar authorization and opaque-404 IDOR guard. Never aborts the whole batch — returns a
-    /// per-entry status (filed | notfound | forbidden | invalid | conflict), in input order.</summary>
+    /// per-entry status (filed | notfound | forbidden | invalid | conflict | unavailable), in input order.</summary>
     public async Task<OpResult<List<FileItemResult>>> AddToCalendarBatchAsync(Guid principalId, IReadOnlyList<FileItemRequest> entries, CancellationToken ct = default)
     {
         if (entries.Count == 0) return OpResult<List<FileItemResult>>.Invalid("At least one entry is required.");
@@ -66,6 +66,7 @@ public sealed class CurationService(IDocumentSession session, AccessResolver acc
         OpStatus.NotFound => "notfound",
         OpStatus.Forbidden => "forbidden",
         OpStatus.Conflict => "conflict",
+        OpStatus.Unavailable => "unavailable",
         _ => "invalid",
     };
 

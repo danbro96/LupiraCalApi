@@ -380,8 +380,51 @@ public sealed class GeoResolutionTests(CalApiTestFactory factory) : IntegrationT
 
         var resp = await api.PostAsJsonAsync("/items", Coffee(calId, location: "Cafe Central", placeId: Guid.NewGuid()));
 
-        Assert.Equal(HttpStatusCode.BadRequest, resp.StatusCode);
+        Assert.Equal(HttpStatusCode.ServiceUnavailable, resp.StatusCode);
         Assert.Contains("geo unavailable", await resp.Content.ReadAsStringAsync());
+    }
+
+    [Fact]
+    public async Task Rest_update_with_a_new_place_id_fails_when_geo_is_unreachable()
+    {
+        var api = ClientWith(new GazetteerGeo([], down: true));
+        var calId = await CreateCalendarAsync(api);
+        var created = await api.PostAsJsonAsync("/items", Coffee(calId));
+        created.EnsureSuccessStatusCode();
+        var item = (await created.Content.ReadFromJsonAsync<CalendarItemDto>())!;
+
+        var resp = await api.PutAsJsonAsync($"/items/{item.Id}", new UpdateCalendarItemRequest { PlaceId = Guid.NewGuid(), Location = "Cafe Central" });
+
+        Assert.Equal(HttpStatusCode.ServiceUnavailable, resp.StatusCode);
+        Assert.Contains("geo unavailable", await resp.Content.ReadAsStringAsync());
+    }
+
+    [Fact]
+    public async Task Rest_travel_place_ids_fail_when_geo_is_unreachable()
+    {
+        var api = ClientWith(new GazetteerGeo([], down: true));
+        var calId = await CreateCalendarAsync(api);
+
+        var resp = await api.PostAsJsonAsync("/items", Trip(calId, Guid.NewGuid()));
+
+        Assert.Equal(HttpStatusCode.ServiceUnavailable, resp.StatusCode);
+        Assert.Contains("geo unavailable", await resp.Content.ReadAsStringAsync());
+    }
+
+    [Fact]
+    public async Task Batch_create_reports_unavailable_when_geo_is_unreachable()
+    {
+        var api = ClientWith(new GazetteerGeo([], down: true));
+        var calId = await CreateCalendarAsync(api);
+        var request = Coffee(calId, location: "Cafe Central", placeId: Guid.NewGuid());
+        request.SourceKey = $"{Guid.NewGuid():N}@test";
+
+        var resp = await api.PostAsJsonAsync("/items/batch", new CreateCalendarItemsBatchRequest { Items = [request] });
+
+        resp.EnsureSuccessStatusCode();
+        var result = Assert.Single((await resp.Content.ReadFromJsonAsync<List<ItemBatchResult>>())!);
+        Assert.Equal("unavailable", result.Status);
+        Assert.Null(result.ItemId);
     }
 
     [Fact]
