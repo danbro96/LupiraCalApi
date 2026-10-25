@@ -53,7 +53,7 @@ public sealed class CalendarTools
     }
 
     [McpServerTool(Name = "create_items_batch")]
-    [Description("Create many calendar items in one call — for imports/backfills. Idempotent per item on its SourceKey (re-running returns the existing item, no duplicate). Children reference their parent by ParentSourceKey (the parent's SourceKey) in any order; the server orders parents first. Locations must be resolved PlaceIds (see create_item). Returns a per-item result {sourceKey, itemId, status: created|existed|forbidden|invalid|unavailable} in input order; one bad item does not fail the batch. forbidden = no write access to the calendar, or the SourceKey belongs to an item you can't access; unavailable = geo was unreachable, retry that item.")]
+    [Description("Create many calendar items in one call — for imports/backfills. Idempotent per item on its SourceKey (re-running returns the existing item, no duplicate). Children reference their parent by ParentSourceKey (the parent's SourceKey) in any order; the server orders parents first. Locations must be resolved PlaceIds (see create_item). Returns a per-item result {sourceKey, itemId, status: Created|Existed|Forbidden|Invalid|Unavailable} in input order; one bad item does not fail the batch. Forbidden = no write access to the calendar, or the SourceKey belongs to an item you can't access; Unavailable = geo was unreachable, retry that item.")]
     public static async Task<IReadOnlyList<ItemBatchResult>> CreateItemsBatch(CalendarItemService items, CurrentUser user, CreateCalendarItemsBatchRequest request)
     {
         var u = await user.GetAsync();
@@ -169,7 +169,7 @@ public sealed class CalendarTools
     }
 
     [McpServerTool(Name = "file_items_batch")]
-    [Description("File many existing calendar items into calendars in one call. Each entry files ItemId into CalendarId with an optional Status (proposed|accepted, default proposed) and is authorized independently — one bad entry never fails the batch. Returns a per-entry result {itemId, calendarId, status: filed|notfound|forbidden|invalid, error} in input order.")]
+    [Description("File many existing calendar items into calendars in one call. Each entry files ItemId into CalendarId with an optional Status (proposed|accepted, default proposed) and is authorized independently — one bad entry never fails the batch. Returns a per-entry result {itemId, calendarId, status: Filed|NotFound|Forbidden|Conflict|Unavailable|Invalid, error} in input order.")]
     public static async Task<IReadOnlyList<FileItemResult>> FileItemsBatch(
         CurationService curation, CurrentUser user, FileItemsBatchRequest request)
     {

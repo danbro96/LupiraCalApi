@@ -34,11 +34,11 @@ public sealed class BatchAndParticipantsTests(CalApiTestFactory factory) : Integ
         var body = new CreateCalendarItemsBatchRequest { Items = [Item(calId, "A", "k:a"), Item(calId, "B", "k:b")] };
 
         var first = (await (await api.PostAsJsonAsync("/items/batch", body)).Content.ReadFromJsonAsync<List<ItemBatchResult>>())!;
-        Assert.All(first, r => Assert.Equal("created", r.Status));
+        Assert.All(first, r => Assert.Equal(ItemBatchStatus.Created, r.Status));
         var ids = first.Select(r => r.ItemId).ToList();
 
         var second = (await (await api.PostAsJsonAsync("/items/batch", body)).Content.ReadFromJsonAsync<List<ItemBatchResult>>())!;
-        Assert.All(second, r => Assert.Equal("existed", r.Status));
+        Assert.All(second, r => Assert.Equal(ItemBatchStatus.Existed, r.Status));
         Assert.Equal(ids, second.Select(r => r.ItemId).ToList());   // same ids on replay — no duplicates
     }
 
@@ -57,7 +57,7 @@ public sealed class BatchAndParticipantsTests(CalApiTestFactory factory) : Integ
             ],
         };
         var res = (await (await api.PostAsJsonAsync("/items/batch", body)).Content.ReadFromJsonAsync<List<ItemBatchResult>>())!;
-        Assert.All(res, r => Assert.Equal("created", r.Status));
+        Assert.All(res, r => Assert.Equal(ItemBatchStatus.Created, r.Status));
 
         var parentId = res.First(r => r.SourceKey == "k:trip").ItemId;
         var childId = res.First(r => r.SourceKey == "k:child").ItemId!.Value;
@@ -78,9 +78,9 @@ public sealed class BatchAndParticipantsTests(CalApiTestFactory factory) : Integ
         resp.EnsureSuccessStatusCode();
         var res = (await resp.Content.ReadFromJsonAsync<List<ItemBatchResult>>())!;
 
-        Assert.Equal("created", res.First(r => r.SourceKey == "k:good").Status);
+        Assert.Equal(ItemBatchStatus.Created, res.First(r => r.SourceKey == "k:good").Status);
         var bad = res.First(r => r.SourceKey == "k:bad");
-        Assert.Equal("invalid", bad.Status);
+        Assert.Equal(ItemBatchStatus.Invalid, bad.Status);
         Assert.Null(bad.ItemId);
         Assert.NotNull(bad.Error);
     }

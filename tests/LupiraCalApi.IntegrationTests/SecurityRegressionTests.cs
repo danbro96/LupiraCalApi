@@ -149,13 +149,13 @@ public sealed class SecurityRegressionTests(CalApiTestFactory factory) : Integra
         Assert.DoesNotContain("A secret", body);
 
         var res = (await resp.Content.ReadFromJsonAsync<List<ItemBatchResult>>())!;
-        Assert.Equal("forbidden", res[0].Status);
+        Assert.Equal(ItemBatchStatus.Forbidden, res[0].Status);
         Assert.Null(res[0].ItemId);
-        Assert.Equal("created", res[1].Status);
+        Assert.Equal(ItemBatchStatus.Created, res[1].Status);
 
         var replay = (await (await a.PostAsJsonAsync("/items/batch", new CreateCalendarItemsBatchRequest { Items = [Keyed(calA, "A secret", Key)] }))
             .Content.ReadFromJsonAsync<List<ItemBatchResult>>())!;
-        Assert.Equal("existed", replay[0].Status);
+        Assert.Equal(ItemBatchStatus.Existed, replay[0].Status);
         Assert.Equal(item.Id, replay[0].ItemId);
     }
 
@@ -213,7 +213,7 @@ public sealed class SecurityRegressionTests(CalApiTestFactory factory) : Integra
         Assert.Equal(item.Id, (await replay.Content.ReadFromJsonAsync<CalendarItemDto>())!.Id);
         var batch = (await (await a.PostAsJsonAsync("/items/batch", new CreateCalendarItemsBatchRequest { Items = [Keyed(null, "A unfiled", Key)] }))
             .Content.ReadFromJsonAsync<List<ItemBatchResult>>())!;
-        Assert.Equal("existed", batch[0].Status);
+        Assert.Equal(ItemBatchStatus.Existed, batch[0].Status);
         Assert.Equal(item.Id, batch[0].ItemId);
 
         var probe = await Factory.ApiClient("b@x.test").PostAsJsonAsync("/items", Keyed(null, "B probe", Key));

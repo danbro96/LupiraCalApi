@@ -44,7 +44,7 @@ public sealed class CurationService(IDocumentSession session, AccessResolver acc
 
     /// <summary>File many existing items into calendars in one call. Each entry runs through <see cref="AddToCalendarAsync"/>
     /// so it carries the same per-calendar authorization and opaque-404 IDOR guard. Never aborts the whole batch — returns a
-    /// per-entry status (filed | notfound | forbidden | invalid | conflict | unavailable), in input order.</summary>
+    /// per-entry <see cref="FileItemStatus"/>, in input order.</summary>
     public async Task<OpResult<List<FileItemResult>>> AddToCalendarBatchAsync(Guid principalId, IReadOnlyList<FileItemRequest> entries, CancellationToken ct = default)
     {
         if (entries.Count == 0) return OpResult<List<FileItemResult>>.Invalid("At least one entry is required.");
@@ -54,20 +54,20 @@ public sealed class CurationService(IDocumentSession session, AccessResolver acc
         foreach (var e in entries)
         {
             var res = await AddToCalendarAsync(principalId, e.ItemId, e.CalendarId, e.Status, ct: ct);
-            results.Add(new FileItemResult { ItemId = e.ItemId, CalendarId = e.CalendarId, Status = StatusName(res.Status), Error = res.Error });
+            results.Add(new FileItemResult { ItemId = e.ItemId, CalendarId = e.CalendarId, Status = FileStatus(res.Status), Error = res.Error });
         }
 
         return OpResult<List<FileItemResult>>.Ok(results);
     }
 
-    private static string StatusName(OpStatus s) => s switch
+    private static FileItemStatus FileStatus(OpStatus s) => s switch
     {
-        OpStatus.Ok => "filed",
-        OpStatus.NotFound => "notfound",
-        OpStatus.Forbidden => "forbidden",
-        OpStatus.Conflict => "conflict",
-        OpStatus.Unavailable => "unavailable",
-        _ => "invalid",
+        OpStatus.Ok => FileItemStatus.Filed,
+        OpStatus.NotFound => FileItemStatus.NotFound,
+        OpStatus.Forbidden => FileItemStatus.Forbidden,
+        OpStatus.Conflict => FileItemStatus.Conflict,
+        OpStatus.Unavailable => FileItemStatus.Unavailable,
+        _ => FileItemStatus.Invalid,
     };
 
     private async Task<OpResult<CalendarItemDto>> MutateAsync(Guid principalId, Guid itemId, Guid calendarId, object @event, Guid? commandId, CancellationToken ct)

@@ -986,7 +986,7 @@
         "tags": [
           "CalendarItems"
         ],
-        "summary": "Create many items in one call (idempotent per item on SourceKey; children reference parents by ParentSourceKey in any order). Returns a per-item result (created|existed|forbidden|invalid|unavailable) in input order; unavailable = geo was unreachable, retry that item.",
+        "summary": "Create many items in one call (idempotent per item on SourceKey; children reference parents by ParentSourceKey in any order). Returns a per-item result (Created|Existed|Forbidden|Invalid|Unavailable) in input order; Unavailable = geo was unreachable, retry that item.",
         "operationId": "CreateItemsBatch",
         "requestBody": {
           "content": {
@@ -5703,7 +5703,7 @@
             "format": "uuid"
           },
           "status": {
-            "type": "string"
+            "$ref": "#/components/schemas/ItemBatchStatus"
           },
           "error": {
             "type": [
@@ -5712,7 +5712,17 @@
             ]
           }
         },
-        "description": "Per-item outcome of a batch create, aligned index-for-index with the request. `Status` is\n            `created` | `existed` (idempotent hit on SourceKey) | `forbidden` (no access to the calendar, or the SourceKey\n            belongs to an item the caller can't access; no `ItemId`) | `invalid` (see `Error`) | `unavailable`\n            (a place couldn't be verified with geo; retry the item)."
+        "description": "Per-item outcome of a batch create, aligned index-for-index with the request. `Status` is\n            `Created` | `Existed` (idempotent hit on SourceKey) | `Forbidden` (no access to the calendar, or the SourceKey\n            belongs to an item the caller can't access; no `ItemId`) | `Invalid` (see `Error`) | `Unavailable`\n            (a place couldn't be verified with geo; retry the item)."
+      },
+      "ItemBatchStatus": {
+        "enum": [
+          "Created",
+          "Existed",
+          "Forbidden",
+          "Invalid",
+          "Unavailable"
+        ],
+        "description": "Per-item outcome of a batch create."
       },
       "ItemCategory": {
         "enum": [

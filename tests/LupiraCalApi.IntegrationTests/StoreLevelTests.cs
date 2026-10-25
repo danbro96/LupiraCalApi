@@ -63,7 +63,7 @@ public sealed class StoreLevelTests(CalApiTestFactory factory) : IntegrationTest
             new FileItemRequest { ItemId = missing, CalendarId = calId },
         ])).Value!;
 
-        Assert.Equal(["filed", "filed", "notfound"], res.Select(r => r.Status));   // per-entry, one bad entry does not abort
+        Assert.Equal([FileItemStatus.Filed, FileItemStatus.Filed, FileItemStatus.NotFound], res.Select(r => r.Status));   // per-entry, one bad entry does not abort
         Assert.Equal([i1, i2, missing], res.Select(r => r.ItemId));                // input order preserved
 
         await using var s = Factory.Store.LightweightSession();
@@ -89,7 +89,7 @@ public sealed class StoreLevelTests(CalApiTestFactory factory) : IntegrationTest
             new FileItemRequest { ItemId = bobItem, CalendarId = calA, Status = "accepted" },      // no write to alice's calendar → forbidden
         ])).Value!;
 
-        Assert.Equal(["notfound", "filed", "forbidden"], res.Select(r => r.Status));
+        Assert.Equal([FileItemStatus.NotFound, FileItemStatus.Filed, FileItemStatus.Forbidden], res.Select(r => r.Status));
 
         // Bob still cannot read Alice's item — filing it did not self-grant access.
         var read = await InScope(sp => sp.GetRequiredService<CalendarItemService>().GetAsync(bob, aliceItem));

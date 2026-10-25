@@ -423,7 +423,7 @@ public sealed class GeoResolutionTests(CalApiTestFactory factory) : IntegrationT
 
         resp.EnsureSuccessStatusCode();
         var result = Assert.Single((await resp.Content.ReadFromJsonAsync<List<ItemBatchResult>>())!);
-        Assert.Equal("unavailable", result.Status);
+        Assert.Equal(ItemBatchStatus.Unavailable, result.Status);
         Assert.Null(result.ItemId);
     }
 

@@ -179,7 +179,7 @@ public sealed class CalendarItemService(IDocumentSession session, AccessResolver
 
     /// <summary>Create many items in one call. Topologically orders by in-batch <c>ParentSourceKey</c> so parents persist
     /// before children (each item saves via <see cref="CreateAsync"/>, which is idempotent on <c>SourceKey</c>). Never aborts
-    /// the whole batch on one bad item — returns a per-item status (created | existed | forbidden | invalid | unavailable). Results are in input order.</summary>
+    /// the whole batch on one bad item — returns a per-item <see cref="ItemBatchStatus"/>. Results are in input order.</summary>
     public async Task<OpResult<List<ItemBatchResult>>> CreateBatchAsync(Guid principalId, IReadOnlyList<CreateCalendarItemRequest> requests, CancellationToken ct = default)
     {
         if (requests.Count == 0) return OpResult<List<ItemBatchResult>>.Invalid("At least one item is required.");
@@ -195,17 +195,17 @@ public sealed class CalendarItemService(IDocumentSession session, AccessResolver
                 && await session.LoadAsync<CalendarItem>(DeterministicGuid.From(r.SourceKey!.Trim()), ct) is { DeletedAt: null } existing
                 && await MayReuseSourceKeyAsync(principalId, existing, ct))
             {
-                byRequest[r] = new ItemBatchResult { SourceKey = r.SourceKey, ItemId = existing.Id, Status = "existed", Error = null };
+                byRequest[r] = new ItemBatchResult { SourceKey = r.SourceKey, ItemId = existing.Id, Status = ItemBatchStatus.Existed, Error = null };
                 continue;
             }
 
             var res = await CreateAsync(principalId, r, ct);
             byRequest[r] = res.Status switch
             {
-                OpStatus.Ok => new ItemBatchResult { SourceKey = r.SourceKey, ItemId = res.Value!.Id, Status = "created", Error = null },
-                OpStatus.Forbidden => new ItemBatchResult { SourceKey = r.SourceKey, ItemId = null, Status = "forbidden", Error = res.Error },
-                OpStatus.Unavailable => new ItemBatchResult { SourceKey = r.SourceKey, ItemId = null, Status = "unavailable", Error = res.Error },
-                _ => new ItemBatchResult { SourceKey = r.SourceKey, ItemId = null, Status = "invalid", Error = res.Error },
+                OpStatus.Ok => new ItemBatchResult { SourceKey = r.SourceKey, ItemId = res.Value!.Id, Status = ItemBatchStatus.Created, Error = null },
+                OpStatus.Forbidden => new ItemBatchResult { SourceKey = r.SourceKey, ItemId = null, Status = ItemBatchStatus.Forbidden, Error = res.Error },
+                OpStatus.Unavailable => new ItemBatchResult { SourceKey = r.SourceKey, ItemId = null, Status = ItemBatchStatus.Unavailable, Error = res.Error },
+                _ => new ItemBatchResult { SourceKey = r.SourceKey, ItemId = null, Status = ItemBatchStatus.Invalid, Error = res.Error },
             };
         }
 
