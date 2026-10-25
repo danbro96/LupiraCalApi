@@ -29,6 +29,7 @@ internal static class CalendarItemMapper
         ExtraOccurrences = i.ExtraOccurrences,
         OccurrenceOverrides = i.OccurrenceOverrides,
         Category = i.Category,
+        Color = i.Color,
         Details = i.Details,
         PlaceId = i.PlaceId,
         LocationLabel = i.LocationLabel,

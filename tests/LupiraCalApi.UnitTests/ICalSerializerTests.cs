@@ -1,3 +1,4 @@
+using Lupira.Primitives;
 using LupiraCalApi.Core.Domain.CalendarItems;
 using LupiraCalApi.Core.Domain.Shared;
 using LupiraCalApi.Core.Serialization;
@@ -392,6 +393,63 @@ public class ICalSerializerTests
 
         Assert.Equal(Utc(2026, 7, 1, utcHour), p.StartsAt);
         Assert.Equal(zone, p.StartTimezone);
+    }
+
+    [Theory]
+    [InlineData(ItemColor.Red, "red")]
+    [InlineData(ItemColor.Orange, "darkorange")]
+    [InlineData(ItemColor.Yellow, "gold")]
+    [InlineData(ItemColor.Green, "green")]
+    [InlineData(ItemColor.Teal, "teal")]
+    [InlineData(ItemColor.Blue, "royalblue")]
+    [InlineData(ItemColor.Indigo, "indigo")]
+    [InlineData(ItemColor.Purple, "purple")]
+    [InlineData(ItemColor.Pink, "deeppink")]
+    [InlineData(ItemColor.Brown, "saddlebrown")]
+    [InlineData(ItemColor.Graphite, "slategray")]
+    public void Color_round_trips_as_a_css_name(ItemColor color, string name)
+    {
+        var start = Utc(2026, 7, 1, 9);
+        var ics = ICalSerializer.ToICalendar("c@x", "Gym", null, null, null, false, start, start.AddHours(1), null, null, null, color: color);
+
+        Assert.Contains($"COLOR:{name}\r\n", ics);
+        Assert.Equal(color, ICalSerializer.ParseICalendar(ics).Color);
+    }
+
+    [Fact]
+    public void Color_is_written_on_every_override_of_a_coloured_series()
+    {
+        var start = Utc(2026, 7, 1, 9);
+        var ics = ICalSerializer.ToICalendar("c@x", "Gym", null, null, null, false, start, start.AddHours(1), null, null, "FREQ=DAILY",
+            occurrenceOverrides: [new OccurrenceOverride(start.AddDays(1), start.AddDays(1).AddHours(2), null, "Late", null, null, null)], color: ItemColor.Teal);
+
+        Assert.Equal(2, ics.Split("COLOR:teal\r\n").Length - 1);
+    }
+
+    [Fact]
+    public void Uncoloured_ics_is_byte_identical_to_before_colour_existed()
+    {
+        var start = Utc(2026, 7, 1, 16);
+        var ics = ICalSerializer.ToICalendar("golden@x", "Middag", "desc", "Kök", ItemStatus.Confirmed, false, start, start.AddHours(2), null, null,
+            "FREQ=WEEKLY;BYDAY=WE", [start.AddDays(7)], [start.AddDays(3)],
+            [new OccurrenceOverride(start.AddDays(14), start.AddDays(14).AddHours(1), null, "Sen middag", null, null, null)], "Europe/Stockholm");
+        var allDay = ICalSerializer.ToICalendar("golden-day@x", "Läger", null, null, null, true, null, null, new DateOnly(2026, 7, 10), new DateOnly(2026, 7, 13), null);
+
+        Assert.DoesNotContain("COLOR", ics);
+        Assert.Equal("672842e3654527cd863c87e3307f834c48de4b5ffbe0902101a0805ad70bc1e1", ContentHash.Of(ics));
+        Assert.Equal("0c3c693f62e350631fe0725328b7bbcc99ec48f8ddeb3393b57edad8b5b23fb8", ContentHash.Of(allDay));
+    }
+
+    [Theory]
+    [InlineData("COLOR:DeepPink", ItemColor.Pink)]
+    [InlineData("COLOR:#ff0000", null)]
+    [InlineData("COLOR:chartreuse", null)]
+    [InlineData("SUMMARY:No colour", null)]
+    public void Parse_reads_a_known_css_colour_name_only(string line, ItemColor? expected)
+    {
+        var ics = CalendarHead + "BEGIN:VEVENT\r\nUID:c@x\r\nDTSTART:20260701T090000Z\r\n" + line + "\r\nEND:VEVENT\r\nEND:VCALENDAR\r\n";
+
+        Assert.Equal(expected, ICalSerializer.ParseICalendar(ics).Color);
     }
 
     private static DateTimeOffset Utc(int y, int m, int d, int h = 0) => new(y, m, d, h, 0, 0, TimeSpan.Zero);

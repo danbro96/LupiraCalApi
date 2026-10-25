@@ -52,6 +52,9 @@ public sealed class CalendarItem
 
     public ItemCategory? Category { get; set; }
 
+    /// <summary>The item's own colour for every occurrence; null ⇒ its calendar's colour.</summary>
+    public ItemColor? Color { get; set; }
+
     public Guid? PlaceId { get; set; }
 
     /// <summary>Denormalized display label for <see cref="PlaceId"/> (the geo place's canonical name, or the raw
@@ -368,6 +371,7 @@ public sealed class CalendarItem
         ExtraOccurrences = f.ExtraOccurrences;
         OccurrenceOverrides = f.OccurrenceOverrides;
         if (f.Category is { } c) Category = c;
+        Color = f.Color;
         PlaceId = f.PlaceId;
         LocationLabel = f.LocationLabel;
         ParentItemId = f.ParentItemId;

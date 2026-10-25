@@ -51,6 +51,9 @@ public sealed class CalendarItemDto
 
     public ItemCategory? Category { get; set; }
 
+    /// <summary>The item's own colour, the same for every occurrence; null ⇒ it draws in its calendar's colour.</summary>
+    public ItemColor? Color { get; set; }
+
     public ItemDetails? Details { get; set; }
 
     public Guid? PlaceId { get; set; }

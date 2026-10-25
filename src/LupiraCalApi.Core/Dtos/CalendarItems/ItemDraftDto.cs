@@ -18,6 +18,8 @@ public sealed class ItemDraftDto
 
     public ItemCategory? Category { get; set; }
 
+    public ItemColor? Color { get; set; }
+
     public required bool IsAllDay { get; set; }
 
     public DateTimeOffset? StartsAt { get; set; }

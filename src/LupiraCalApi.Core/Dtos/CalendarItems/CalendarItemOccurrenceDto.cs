@@ -33,6 +33,9 @@ public sealed class CalendarItemOccurrenceDto
 
     public ItemCategory? Category { get; set; }
 
+    /// <summary>The item's own colour; null ⇒ it draws in its calendar's colour.</summary>
+    public ItemColor? Color { get; set; }
+
     [JsonConverter(typeof(JsonStringEnumConverter<ItemStatus>))]
     public ItemStatus? Status { get; set; }
 

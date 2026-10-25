@@ -986,7 +986,7 @@
         "tags": [
           "CalendarItems"
         ],
-        "summary": "Create many items in one call (idempotent per item on SourceKey; children reference parents by ParentSourceKey in any order). Returns a per-item result (created|existed|forbidden|invalid) in input order.",
+        "summary": "Create many items in one call (idempotent per item on SourceKey; children reference parents by ParentSourceKey in any order). Returns a per-item result (created|existed|forbidden|invalid|unavailable) in input order; unavailable = geo was unreachable, retry that item.",
         "operationId": "CreateItemsBatch",
         "requestBody": {
           "content": {
@@ -4617,6 +4617,17 @@
               }
             ]
           },
+          "color": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "description": "The item's own colour, the same for every occurrence; null ⇒ it draws in its calendar's colour.",
+                "$ref": "#/components/schemas/ItemColor"
+              }
+            ]
+          },
           "details": {
             "oneOf": [
               {
@@ -4805,6 +4816,17 @@
               },
               {
                 "$ref": "#/components/schemas/ItemCategory"
+              }
+            ]
+          },
+          "color": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "description": "The item's own colour; null ⇒ it draws in its calendar's colour.",
+                "$ref": "#/components/schemas/ItemColor"
               }
             ]
           },
@@ -5226,6 +5248,17 @@
             "items": {
               "type": "string"
             }
+          },
+          "color": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "description": "The item's own colour for every occurrence. Omit to draw it in its calendar's colour.",
+                "$ref": "#/components/schemas/ItemColor"
+              }
+            ]
           },
           "startPrecision": {
             "oneOf": [
@@ -5679,7 +5712,7 @@
             ]
           }
         },
-        "description": "Per-item outcome of a batch create, aligned index-for-index with the request. `Status` is\n            `created` | `existed` (idempotent hit on SourceKey) | `forbidden` (no access to the calendar, or the SourceKey\n            belongs to an item the caller can't access; no `ItemId`) | `invalid` (see `Error`)."
+        "description": "Per-item outcome of a batch create, aligned index-for-index with the request. `Status` is\n            `created` | `existed` (idempotent hit on SourceKey) | `forbidden` (no access to the calendar, or the SourceKey\n            belongs to an item the caller can't access; no `ItemId`) | `invalid` (see `Error`) | `unavailable`\n            (a place couldn't be verified with geo; retry the item)."
       },
       "ItemCategory": {
         "enum": [
@@ -5696,6 +5729,21 @@
           "Chore"
         ],
         "description": "What a calendar event is (its semantic identity). Reservation/travel/presence specifics are carried by\n            composable optionals on the item (see ItemDetails), not by this discriminator."
+      },
+      "ItemColor": {
+        "enum": [
+          "Red",
+          "Orange",
+          "Yellow",
+          "Green",
+          "Teal",
+          "Blue",
+          "Indigo",
+          "Purple",
+          "Pink",
+          "Brown",
+          "Graphite"
+        ]
       },
       "ItemDetails": {
         "type": "object",
@@ -5799,6 +5847,16 @@
               },
               {
                 "$ref": "#/components/schemas/ItemCategory"
+              }
+            ]
+          },
+          "color": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/ItemColor"
               }
             ]
           },
@@ -7167,6 +7225,20 @@
             "items": {
               "type": "string"
             }
+          },
+          "color": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "description": "Recolour the whole item; omitted ⇒ kept. Set bool UpdateCalendarItemRequest.ColorProvided with a null value to reset it to\n            its calendar's colour.",
+                "$ref": "#/components/schemas/ItemColor"
+              }
+            ]
+          },
+          "colorProvided": {
+            "type": "boolean"
           },
           "availability": {
             "oneOf": [

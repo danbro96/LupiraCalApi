@@ -33,7 +33,7 @@ public static class ICalSerializer
         bool isAllDay, DateTimeOffset? startsAt, DateTimeOffset? endsAt,
         DateOnly? startDate, DateOnly? endDate, string? recurrenceRule,
         IReadOnlyList<DateTimeOffset>? excludedOccurrences = null, IReadOnlyList<DateTimeOffset>? extraOccurrences = null,
-        IReadOnlyList<OccurrenceOverride>? occurrenceOverrides = null, string? startTimezone = null)
+        IReadOnlyList<OccurrenceOverride>? occurrenceOverrides = null, string? startTimezone = null, ItemColor? color = null)
     {
         // A timed series is written in its zone, so the client expands it at the same wall-clock time across offset changes.
         // One-off items stay in UTC: an instant needs no zone.
@@ -49,6 +49,7 @@ public static class ICalSerializer
         if (!string.IsNullOrWhiteSpace(description)) ev.Description = description;
         if (!string.IsNullOrWhiteSpace(location)) ev.Location = location;
         if (status is { } s) ev.Status = StatusText(s);
+        if (color is { } c) ev.AddProperty(ColorProperty, ColorNames[c]);
 
         if (isAllDay && startDate is { } sd)
         {
@@ -70,14 +71,15 @@ public static class ICalSerializer
             foreach (var x in (excludedOccurrences ?? []).Order()) ev.ExceptionDates.Add(At(x));
             foreach (var x in (extraOccurrences ?? []).Order()) ev.RecurrenceDates.Add(At(x));
             foreach (var o in (occurrenceOverrides ?? []).OrderBy(o => o.OriginalStart))
-                calendar.Events.Add(OverrideEvent(uid, o, ev, At, isAllDay, SeriesLength(isAllDay, startsAt, endsAt, startDate, endDate)));
+                calendar.Events.Add(OverrideEvent(uid, o, ev, At, isAllDay, SeriesLength(isAllDay, startsAt, endsAt, startDate, endDate), color));
         }
 
         var ics = new CalendarSerializer().SerializeToString(calendar) ?? string.Empty;
         return vtimezone is null ? ics : ics.Insert(ics.IndexOf("BEGIN:VEVENT", StringComparison.Ordinal), vtimezone);
     }
 
-    private static CalendarEvent OverrideEvent(string uid, OccurrenceOverride o, CalendarEvent series, Func<DateTimeOffset, CalDateTime> at, bool isAllDay, TimeSpan? length)
+    private static CalendarEvent OverrideEvent(
+        string uid, OccurrenceOverride o, CalendarEvent series, Func<DateTimeOffset, CalDateTime> at, bool isAllDay, TimeSpan? length, ItemColor? color)
     {
         var start = o.StartsAt ?? o.OriginalStart;
         var end = o.EndsAt is { } last && isAllDay ? last.AddDays(1) : o.EndsAt ?? (length is { } l ? start + l : null);
@@ -93,6 +95,7 @@ public static class ICalSerializer
             Status = o.Status is { } st ? StatusText(st) : series.Status,
         };
         if (end is { } e) ev.End = at(e);
+        if (color is { } c) ev.AddProperty(ColorProperty, ColorNames[c]);
         return ev;
     }
 
@@ -119,6 +122,30 @@ public static class ICalSerializer
         _ => "TENTATIVE",
     };
 
+    private const string ColorProperty = "COLOR";
+
+    // RFC 7986 COLOR takes a CSS3 colour name.
+    private static readonly Dictionary<ItemColor, string> ColorNames = new()
+    {
+        [ItemColor.Red] = "red",
+        [ItemColor.Orange] = "darkorange",
+        [ItemColor.Yellow] = "gold",
+        [ItemColor.Green] = "green",
+        [ItemColor.Teal] = "teal",
+        [ItemColor.Blue] = "royalblue",
+        [ItemColor.Indigo] = "indigo",
+        [ItemColor.Purple] = "purple",
+        [ItemColor.Pink] = "deeppink",
+        [ItemColor.Brown] = "saddlebrown",
+        [ItemColor.Graphite] = "slategray",
+    };
+
+    private static readonly Dictionary<string, ItemColor> ColorsByName =
+        ColorNames.ToDictionary(kv => kv.Value, kv => kv.Key, StringComparer.OrdinalIgnoreCase);
+
+    private static ItemColor? ParseColor(CalendarEvent ev) =>
+        ev.Properties.AllOf(ColorProperty).FirstOrDefault()?.Value is string name && ColorsByName.TryGetValue(name.Trim(), out var c) ? c : null;
+
     private static ItemStatus? ParseStatus(string? s) => s?.ToUpperInvariant() switch
     {
         "CONFIRMED" => ItemStatus.Confirmed,
@@ -131,7 +158,7 @@ public static class ICalSerializer
     /// item's denormalized location label.</summary>
     public static string From(CalendarItem i, string? locationLabel) =>
         ToICalendar(i.ExternalId, i.Title, i.Description, locationLabel, i.Status, i.IsAllDay, i.StartsAt, i.EndsAt,
-            i.StartDate, i.EndDate, i.RecurrenceRule, i.ExcludedOccurrences, i.ExtraOccurrences, i.OccurrenceOverrides, i.StartTimezone);
+            i.StartDate, i.EndDate, i.RecurrenceRule, i.ExcludedOccurrences, i.ExtraOccurrences, i.OccurrenceOverrides, i.StartTimezone, i.Color);
 
     /// <summary>The item's ETag: the hash of its canonical ICS. The one place canonical form and its hash are defined
     /// together, so the DAV bytes served and the stored ETag can never drift.</summary>
@@ -197,7 +224,7 @@ public static class ICalSerializer
 
         return new ParsedEvent(uid, ev.Summary, ev.Description, ev.Location, ParseStatus(ev.Status), ParseCategory(ev.Categories), allDay,
             startsAt, endsAt, ZoneOf(ev.Start, floatingZone), ZoneOf(ev.End, floatingZone), startDate, endDate, rrule,
-            excluded.Length > 0 ? excluded : null, extra.Length > 0 ? extra : null, overrides.Length > 0 ? overrides : null);
+            excluded.Length > 0 ? excluded : null, extra.Length > 0 ? extra : null, overrides.Length > 0 ? overrides : null, ParseColor(ev));
     }
 
     private static string? ZoneOf(CalDateTime? d, DateTimeZone? floatingZone) =>

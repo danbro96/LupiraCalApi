@@ -14,6 +14,7 @@ internal static class ItemDraftMapper
         Description = p.Description,
         Status = p.Status,
         Category = p.Category,
+        Color = p.Color,
         IsAllDay = p.IsAllDay,
         StartsAt = p.StartsAt,
         EndsAt = p.EndsAt,

@@ -32,4 +32,5 @@ public sealed record CalendarItemFields(
     // Trailing + defaulted so pre-existing serialized events (which lack these keys) and the DAV/other call sites
     // that don't set precision stay source- and wire-compatible; null ⇒ the date is exact/unqualified.
     DatePrecision? StartPrecision = null,
-    DatePrecision? EndPrecision = null);
+    DatePrecision? EndPrecision = null,
+    ItemColor? Color = null);

@@ -9,4 +9,4 @@ public sealed record ParsedEvent(
     string? Uid, string? Title, string? Description, string? Location, ItemStatus? Status, ItemCategory? Category, bool IsAllDay,
     DateTimeOffset? StartsAt, DateTimeOffset? EndsAt, string? StartTimezone, string? EndTimezone,
     DateOnly? StartDate, DateOnly? EndDate, string? RecurrenceRule,
-    DateTimeOffset[]? ExcludedOccurrences, DateTimeOffset[]? ExtraOccurrences, OccurrenceOverride[]? OccurrenceOverrides);
+    DateTimeOffset[]? ExcludedOccurrences, DateTimeOffset[]? ExtraOccurrences, OccurrenceOverride[]? OccurrenceOverrides, ItemColor? Color);

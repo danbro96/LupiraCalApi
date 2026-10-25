@@ -59,6 +59,9 @@ public sealed class CreateCalendarItemRequest
 
     public string[]? Tags { get; set; }
 
+    /// <summary>The item's own colour for every occurrence. Omit to draw it in its calendar's colour.</summary>
+    public Domain.Shared.ItemColor? Color { get; set; }
+
     /// <summary>Confidence of the start/end date for a historical or backfilled item — the date is still a concrete day;
     /// this records that it is only known to the month/year/roughly. Omit for exact dates.</summary>
     public Domain.Shared.DatePrecision? StartPrecision { get; set; }

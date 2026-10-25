@@ -79,6 +79,12 @@ public sealed class UpdateCalendarItemRequest
 
     public string[]? Tags { get; set; }
 
+    /// <summary>Recolour the whole item; omitted ⇒ kept. Set <see cref="ColorProvided"/> with a null value to reset it to
+    /// its calendar's colour.</summary>
+    public Domain.Shared.ItemColor? Color { get; set; }
+
+    public bool ColorProvided { get; set; }
+
     /// <summary>Change the item's presence segment status.</summary>
     public Domain.Shared.AvailabilityStatus? Availability { get; set; }
 

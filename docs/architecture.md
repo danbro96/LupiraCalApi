@@ -116,6 +116,7 @@ classDiagram
         DateTimeOffset[]? ExtraOccurrences
         OccurrenceOverride[]? OccurrenceOverrides
         ItemCategory? Category
+        ItemColor? Color
         Guid? PlaceId
         string? LocationLabel
         Guid? ParentItemId
@@ -327,6 +328,7 @@ Ordered by last day, then occurrence count.
 |---|---|---|
 | `ItemStatus` | `Tentative` · `Confirmed` · `Cancelled` | iCalendar VEVENT `STATUS` |
 | `ItemCategory` | `General` · `Meeting` · `Appointment` · `Meal` · `Occasion` · `Outing` · `Trip` · `Stay` · `Activity` · `Focus` · `Chore` | a calendar event's semantic type |
+| `ItemColor` | `Red` · `Orange` · `Yellow` · `Green` · `Teal` · `Blue` · `Indigo` · `Purple` · `Pink` · `Brown` · `Graphite` | an item's own colour for the whole series; absent = its calendar's colour |
 | `TransportMode` | `Flight` · `Train` · `Metro` · `Tram` · `Bus` · `Coach` · `Car` · `Ferry` · `Bike` · `Walk` · `Other` | mode of a `TravelLeg` (a `Trip`) |
 | `CalendarClass` | `Agenda` · `System` | agenda (user-facing, DAV-projected) vs. agent-managed system calendar |
 | `CalendarKind` | `Personal` · `Group` · `Birthdays` · `Availability` · `Inbox` · `LlmPrompts` · `UserCheckIn` · `DevOps` · `FoodPlan` · `Generic` | a calendar's purpose within the standard set |

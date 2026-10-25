@@ -1,3 +1,4 @@
+using System.Text.Json;
 using Lupira.Contracts.Fires;
 using LupiraCalApi.Core.Domain.CalendarItems;
 using LupiraCalApi.Core.Domain.CalendarItems.Events;
@@ -329,5 +330,56 @@ public class CalendarItemTests
         i.Apply(Ev(new OccurrenceRestored(id, start)));
         Assert.Null(i.ExcludedOccurrences);
         Assert.Null(i.OccurrenceOverrides);
+    }
+
+    [Fact]
+    public void Revisions_set_and_clear_the_colour()
+    {
+        var id = Guid.NewGuid();
+        var i = new CalendarItem();
+        i.Apply(Ev(new ItemScheduled(id, "u@x", Fields() with { Color = ItemColor.Green }, null)));
+        Assert.Equal(ItemColor.Green, i.Color);
+        var green = i.ContentHash;
+
+        i.Apply(Ev(new ItemRevised(id, Fields() with { Color = ItemColor.Pink }, null)));
+        Assert.Equal(ItemColor.Pink, i.Color);
+        Assert.NotEqual(green, i.ContentHash);
+
+        i.Apply(Ev(new ItemRevised(id, Fields(), null)));
+        Assert.Null(i.Color);
+        Assert.Equal(Scheduled(Guid.NewGuid()).ContentHash, i.ContentHash);
+    }
+
+    [Fact]
+    public void A_stale_colour_change_loses()
+    {
+        var id = Guid.NewGuid();
+        var i = Scheduled(id);
+        var t = new DateTimeOffset(2026, 7, 10, 10, 0, 0, TimeSpan.Zero);
+        i.Apply(Ev(new ItemRevised(id, Fields() with { Color = ItemColor.Blue }, null, t, Guid.NewGuid())));
+
+        i.Apply(Ev(new ItemRevised(id, Fields() with { Color = ItemColor.Red }, null, t.AddMinutes(-5), Guid.NewGuid())));
+
+        Assert.Equal(ItemColor.Blue, i.Color);
+    }
+
+    [Fact]
+    public void An_uncoloured_item_keeps_its_content_hash() =>
+        Assert.Equal("050c7c732a3d5a96c8eebf4674b699f73a9661f432129be27679129fb0d639ad", Scheduled(Guid.NewGuid()).ContentHash);
+
+    [Fact]
+    public void A_scheduled_event_stored_before_colour_existed_replays_uncoloured()
+    {
+        var id = Guid.NewGuid();
+        var json = JsonSerializer.SerializeToNode(new ItemScheduled(id, "u@x", Fields() with { Color = ItemColor.Teal }, null))!.AsObject();
+        Assert.True(json["Fields"]!.AsObject().Remove("Color"));
+
+        var stored = json.Deserialize<ItemScheduled>()!;
+        var i = new CalendarItem();
+        i.Apply(Ev(stored));
+
+        Assert.Null(stored.Fields.Color);
+        Assert.Null(i.Color);
+        Assert.Equal("Lunch", i.Title);
     }
 }

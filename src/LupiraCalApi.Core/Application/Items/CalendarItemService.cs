@@ -158,7 +158,7 @@ public sealed class CalendarItemService(IDocumentSession session, AccessResolver
 
         var fields = new CalendarItemFields(r.Title, r.Description, status, r.IsAllDay, r.StartsAt, r.EndsAt,
             startTimezone, endTimezone, r.StartDate, r.EndDate, r.RecurrenceRule, null, null, null, category, placeId, locationLabel, parentItemId, r.Tags,
-            r.StartPrecision, r.EndPrecision);
+            r.StartPrecision, r.EndPrecision, r.Color);
 
         var events = new List<object> { new ItemScheduled(id, uid, fields, details) };
         if (r.Metadata is { } meta)
@@ -327,12 +327,12 @@ public sealed class CalendarItemService(IDocumentSession session, AccessResolver
                     var change = occ.Change;
                     var coveredUntil = change?.EndsAt is { } changedEnd ? (i.IsAllDay ? changedEnd.AddDays(1) : changedEnd) : occ.Start + coverage;
                     if (!Overlaps(occ.Start, coveredUntil, windowStart, windowEnd)) continue;
-                    results.Add(new CalendarItemOccurrenceDto { Id = i.Id, Title = change?.Title ?? i.Title, PlaceId = i.PlaceId, LocationLabel = change?.LocationLabel ?? i.LocationLabel, IsAllDay = i.IsAllDay, Start = occ.Start, End = change?.EndsAt ?? (duration is { } d ? occ.Start + d : null), OriginalStart = occ.OriginalStart, IsChanged = change is not null, CalendarIds = memberIds, Category = i.Category, Status = change?.Status ?? i.Status, Tags = i.Tags, ParentItemId = i.ParentItemId, ParentTitle = parentTitle, ChildCount = childCount, Completeness = score, Etag = i.ContentHash });
+                    results.Add(new CalendarItemOccurrenceDto { Id = i.Id, Title = change?.Title ?? i.Title, PlaceId = i.PlaceId, LocationLabel = change?.LocationLabel ?? i.LocationLabel, IsAllDay = i.IsAllDay, Start = occ.Start, End = change?.EndsAt ?? (duration is { } d ? occ.Start + d : null), OriginalStart = occ.OriginalStart, IsChanged = change is not null, CalendarIds = memberIds, Category = i.Category, Color = i.Color, Status = change?.Status ?? i.Status, Tags = i.Tags, ParentItemId = i.ParentItemId, ParentTitle = parentTitle, ChildCount = childCount, Completeness = score, Etag = i.ContentHash });
                 }
             }
             else if (OccurrenceStart(i) is { } start && Overlaps(start, start + coverage, windowStart, windowEnd))
             {
-                results.Add(new CalendarItemOccurrenceDto { Id = i.Id, Title = i.Title, PlaceId = i.PlaceId, LocationLabel = i.LocationLabel, IsAllDay = i.IsAllDay, Start = start, End = duration is { } d ? start + d : i.EndsAt, IsChanged = false, CalendarIds = memberIds, Category = i.Category, Status = i.Status, Tags = i.Tags, ParentItemId = i.ParentItemId, ParentTitle = parentTitle, ChildCount = childCount, Completeness = score, Etag = i.ContentHash });
+                results.Add(new CalendarItemOccurrenceDto { Id = i.Id, Title = i.Title, PlaceId = i.PlaceId, LocationLabel = i.LocationLabel, IsAllDay = i.IsAllDay, Start = start, End = duration is { } d ? start + d : i.EndsAt, IsChanged = false, CalendarIds = memberIds, Category = i.Category, Color = i.Color, Status = i.Status, Tags = i.Tags, ParentItemId = i.ParentItemId, ParentTitle = parentTitle, ChildCount = childCount, Completeness = score, Etag = i.ContentHash });
             }
         }
 
@@ -465,6 +465,7 @@ public sealed class CalendarItemService(IDocumentSession session, AccessResolver
         var endTimezone = r.EndTimezoneProvided ? r.EndTimezone : r.EndTimezone ?? current.EndTimezone;
         var rrule = r.RecurrenceRuleProvided ? r.RecurrenceRule : r.RecurrenceRule ?? current.RecurrenceRule;
         var tags = r.Tags ?? current.Tags;
+        var color = r.ColorProvided ? r.Color : r.Color ?? current.Color;
         if (isAllDay && startDate is null) return OpResult<Revision>.Invalid("An all-day item needs StartDate.");
         var location = LocationOnUpdate(r, current);
         if (!location.IsOk) return OpResult<Revision>.Invalid(location.Error!);
@@ -499,7 +500,7 @@ public sealed class CalendarItemService(IDocumentSession session, AccessResolver
         var fields = new CalendarItemFields(title, description, status, isAllDay, startsAt, endsAt,
             startTimezone, endTimezone, startDate, endDate, after.RecurrenceRule,
             deviations.Excluded, current.ExtraOccurrences, deviations.Overrides, category, placeId, locationLabel, parentItemId, tags,
-            r.StartPrecision ?? current.StartPrecision, r.EndPrecision ?? current.EndPrecision);
+            r.StartPrecision ?? current.StartPrecision, r.EndPrecision ?? current.EndPrecision, color);
 
         var (incoming, detailsUnresolved) = await ItemDetailsMapper.BuildAsync(r.Details, r.Availability, geo, ct);
         if (detailsUnresolved) return OpResult<Revision>.Unavailable(TravelUnresolved);
@@ -715,7 +716,7 @@ public sealed class CalendarItemService(IDocumentSession session, AccessResolver
         StartsAt = part.Series.StartsAt, EndsAt = part.EndsAt, StartTimezone = item.StartTimezone, EndTimezone = item.EndTimezone,
         StartDate = part.Series.StartDate, EndDate = part.EndDate, StartPrecision = item.StartPrecision, EndPrecision = item.EndPrecision,
         RecurrenceRule = part.Series.RecurrenceRule, ExcludedOccurrences = part.Excluded, ExtraOccurrences = part.Extra, OccurrenceOverrides = part.Overrides,
-        Category = item.Category, PlaceId = item.PlaceId, LocationLabel = item.LocationLabel, ParentItemId = item.ParentItemId, Tags = item.Tags,
+        Category = item.Category, Color = item.Color, PlaceId = item.PlaceId, LocationLabel = item.LocationLabel, ParentItemId = item.ParentItemId, Tags = item.Tags,
         Details = item.Details, Calendars = item.Calendars,
     };
 
@@ -744,7 +745,7 @@ public sealed class CalendarItemService(IDocumentSession session, AccessResolver
     private static CalendarItemFields FieldsOf(CalendarItem i) =>
         new(i.Title, i.Description, i.Status, i.IsAllDay, i.StartsAt, i.EndsAt, i.StartTimezone, i.EndTimezone, i.StartDate, i.EndDate,
             i.RecurrenceRule, i.ExcludedOccurrences, i.ExtraOccurrences, i.OccurrenceOverrides, i.Category, i.PlaceId, i.LocationLabel,
-            i.ParentItemId, i.Tags, i.StartPrecision, i.EndPrecision);
+            i.ParentItemId, i.Tags, i.StartPrecision, i.EndPrecision, i.Color);
 
     private string? OccurrenceUnknown(CalendarItem item, DateTimeOffset originalStart) =>
         string.IsNullOrWhiteSpace(item.RecurrenceRule) ? "Only a recurring item has occurrences to change."
@@ -814,7 +815,8 @@ public sealed class CalendarItemService(IDocumentSession session, AccessResolver
         var (placeId, locationLabel, _) = await ResolvePlaceAsync(p.Location, ct);   // DAV stays lenient: external clients send free-text, unresolved → label-only
         var fields = new CalendarItemFields(p.Title, p.Description, null, p.IsAllDay, p.StartsAt, p.EndsAt,
             p.StartTimezone, p.EndTimezone, p.StartDate, p.EndDate, p.RecurrenceRule,
-            p.ExcludedOccurrences, p.ExtraOccurrences, p.OccurrenceOverrides, null, placeId, locationLabel, null, null);
+            p.ExcludedOccurrences, p.ExtraOccurrences, p.OccurrenceOverrides, null, placeId, locationLabel, null, null,
+            Color: p.Color ?? existing?.Color);
 
         stream.AppendOne(new ItemImported(id, externalId, fields));   // also clears any soft-delete (resurrect)
         if (existing is null || !existing.IsAcceptedIn(calendarId))

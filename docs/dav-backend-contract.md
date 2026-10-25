@@ -65,6 +65,8 @@ recurrence expansion runs in the backend). Backends without time semantics ignor
 ### 4. `PUT /collections/{id}/resources/{uid}`
 
 Body = raw blob. `If-Match` / `If-None-Match: *` pass through verbatim.
+Calendar: an RFC 7986 `COLOR` naming one of the item palette's CSS colours sets the item's colour; an absent,
+hex or unknown `COLOR` keeps it. `GET` emits `COLOR` on the master and each override only when the item has one.
 → `201`+`ETag` (created) | `204`+`ETag` (updated) | `400` (unparsable) | `403` | `404` | `412`.
 
 ### 5. `DELETE /collections/{id}/resources/{uid}`

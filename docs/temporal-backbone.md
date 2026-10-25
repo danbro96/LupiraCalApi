@@ -23,6 +23,7 @@ The LupiraAssistant product uses this service as its **universal scheduling and 
 | All-day / timed | `IsAllDay` + `StartsAt`/`EndsAt` + `StartDate`/`EndDate` |
 | Trips (parent + legs) | `ParentItemId` + `ItemDetails.Travel` (`TravelLeg` with `TransportMode`) |
 | Topic slicing | `Tags[]` + `Metadata` JSONB |
+| Per-item colour | `CalendarItem.Color` (`ItemColor`, whole series; null = the calendar's colour) |
 | Cross-links | `Relation` (`FromId` → `ToRef`) |
 
 **Headline:** the Inbox→committed flow needs no new mechanism — it is the existing curation model. A captured event is `AddedToCalendar(Inbox, Accepted)`; proposing it is `AddedToCalendar(Personal, Proposed)`; approving is `CalendarEntryStatusChanged(Personal, Accepted)`; dismissing leaves it in Inbox only.
@@ -40,6 +41,7 @@ classDiagram
     bool IsAllDay
     string RecurrenceRule
     ItemCategory Category
+    ItemColor Color
   }
   class ItemPrompt {
     PromptIntent Intent
