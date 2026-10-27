@@ -748,6 +748,545 @@
         ]
       }
     },
+    "/calendars/{calendarId}/subscriptions": {
+      "get": {
+        "tags": [
+          "Subscriptions"
+        ],
+        "summary": "List the published calendar feeds shown in a calendar, with their sync status; any grant on the calendar. Only the feed's host is returned, never its address.",
+        "operationId": "ListSubscriptions",
+        "parameters": [
+          {
+            "name": "calendarId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/SubscriptionDto"
+                  }
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not Found",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal server error",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "Bearer": [ ]
+          }
+        ]
+      },
+      "post": {
+        "tags": [
+          "Subscriptions"
+        ],
+        "summary": "Subscribe a calendar to a published calendar feed (http, https or webcal address); owner-only. Its events appear read-only in the calendar after the first sync.",
+        "operationId": "CreateSubscription",
+        "parameters": [
+          {
+            "name": "calendarId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateSubscriptionRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SubscriptionDto"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not Found",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal server error",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "Bearer": [ ]
+          }
+        ]
+      }
+    },
+    "/calendars/{calendarId}/subscriptions/{subscriptionId}": {
+      "put": {
+        "tags": [
+          "Subscriptions"
+        ],
+        "summary": "Rename or recolour a subscription, or point it at a new feed address (which restarts its sync); owner-only.",
+        "operationId": "UpdateSubscription",
+        "parameters": [
+          {
+            "name": "calendarId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "subscriptionId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateSubscriptionRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SubscriptionDto"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not Found",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal server error",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "Bearer": [ ]
+          }
+        ]
+      },
+      "delete": {
+        "tags": [
+          "Subscriptions"
+        ],
+        "summary": "Remove a subscription and its events from the calendar; owner-only.",
+        "operationId": "DeleteSubscription",
+        "parameters": [
+          {
+            "name": "calendarId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "subscriptionId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "No Content"
+          },
+          "404": {
+            "description": "Not Found",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal server error",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "Bearer": [ ]
+          }
+        ]
+      }
+    },
+    "/calendars/{calendarId}/subscriptions/{subscriptionId}/refresh": {
+      "post": {
+        "tags": [
+          "Subscriptions"
+        ],
+        "summary": "Fetch the feed again soon; owner-only. Within a short cooldown of the last attempt nothing changes. Returns the current status.",
+        "operationId": "RefreshSubscription",
+        "parameters": [
+          {
+            "name": "calendarId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "subscriptionId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SubscriptionDto"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not Found",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal server error",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "Bearer": [ ]
+          }
+        ]
+      }
+    },
+    "/calendars/{calendarId}/subscriptions/{subscriptionId}/events/{eventId}": {
+      "get": {
+        "tags": [
+          "Subscriptions"
+        ],
+        "summary": "Get one read-only event of a subscribed feed (the id search returns with origin kind Subscription); any grant on the calendar.",
+        "operationId": "GetSubscribedEvent",
+        "parameters": [
+          {
+            "name": "calendarId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "subscriptionId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "eventId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SubscribedEventDto"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not Found",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal server error",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "Bearer": [ ]
+          }
+        ]
+      }
+    },
     "/items": {
       "get": {
         "tags": [
@@ -4300,6 +4839,52 @@
         ]
       }
     },
+    "/sync/subscribed-events": {
+      "get": {
+        "tags": [
+          "Sync"
+        ],
+        "summary": "Snapshot of the read-only events of every published calendar feed the caller's calendars subscribe to, each with its occurrences expanded over the sync window: always reset with no cursor; replace the local set on each call.",
+        "operationId": "GetSyncSubscribedEvents",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SyncPageOfSubscribedEventSyncDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal server error",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "Bearer": [ ]
+          }
+        ]
+      }
+    },
     "/sync/containers": {
       "get": {
         "tags": [
@@ -5439,6 +6024,33 @@
         },
         "description": "Many references of one kind linked to one item in a single call (e.g. an album's photos to its event)."
       },
+      "CreateSubscriptionRequest": {
+        "required": [
+          "feedUrl",
+          "displayName"
+        ],
+        "type": "object",
+        "properties": {
+          "feedUrl": {
+            "type": "string",
+            "description": "The published feed's address: http, https or webcal."
+          },
+          "displayName": {
+            "type": "string",
+            "description": "1–100 characters."
+          },
+          "color": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/ItemColor"
+              }
+            ]
+          }
+        }
+      },
       "DatePrecision": {
         "enum": [
           "Exact",
@@ -5993,7 +6605,8 @@
           "Tentative",
           "Confirmed",
           "Cancelled"
-        ]
+        ],
+        "description": "Whether an item or occurrence is tentative, confirmed or cancelled."
       },
       "ItemSyncChange": {
         "required": [
@@ -6059,7 +6672,7 @@
             "format": "uuid"
           }
         },
-        "description": "Ties a projected occurrence back to the entity it was derived from — the birthday occurrence's\n            Guid OccurrenceOrigin.SourceId is the contact whose birthday it is."
+        "description": "Ties a projected occurrence back to the entity it was derived from: Guid OccurrenceOrigin.SourceId is the contact\n            whose birthday it is, or the subscription whose read-only feed event it is."
       },
       "OccurrenceOverride": {
         "required": [
@@ -6124,7 +6737,8 @@
       },
       "OriginKind": {
         "enum": [
-          "Birthday"
+          "Birthday",
+          "Subscription"
         ],
         "description": "What a read-time-projected occurrence was synthesized from."
       },
@@ -6798,6 +7412,248 @@
         },
         "description": "Slim result of `set_participants` — the additions and how many were already present. Deliberately not the\n            full item DTO (which would echo the whole, growing attendee list on every call)."
       },
+      "SubscribedEventDto": {
+        "required": [
+          "id",
+          "subscriptionId",
+          "subscriptionName",
+          "calendarId",
+          "title",
+          "isAllDay",
+          "start",
+          "status",
+          "isRecurring"
+        ],
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "subscriptionId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "subscriptionName": {
+            "type": "string"
+          },
+          "calendarId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "title": {
+            "type": "string"
+          },
+          "description": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "locationLabel": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "isAllDay": {
+            "type": "boolean"
+          },
+          "start": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "end": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "date-time"
+          },
+          "status": {
+            "$ref": "#/components/schemas/ItemStatus"
+          },
+          "isRecurring": {
+            "type": "boolean"
+          }
+        },
+        "description": "One read-only event of a subscribed feed. DateTimeOffset SubscribedEventDto.Start/DateTimeOffset? SubscribedEventDto.End are its first occurrence; an\n            all-day end is the inclusive last day at 00:00Z."
+      },
+      "SubscribedEventSyncDto": {
+        "required": [
+          "id",
+          "subscriptionId",
+          "calendarId",
+          "title",
+          "isAllDay",
+          "status",
+          "etag",
+          "occurrences"
+        ],
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "subscriptionId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "calendarId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "title": {
+            "type": "string"
+          },
+          "locationLabel": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "isAllDay": {
+            "type": "boolean"
+          },
+          "status": {
+            "$ref": "#/components/schemas/ItemStatus"
+          },
+          "color": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "description": "The subscription's colour; null ⇒ the calendar's colour.",
+                "$ref": "#/components/schemas/ItemColor"
+              }
+            ]
+          },
+          "etag": {
+            "type": "string"
+          },
+          "occurrences": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/SubscribedOccurrenceDto"
+            }
+          }
+        },
+        "description": "A subscribed event for an offline mirror, with its occurrences already expanded over the sync window."
+      },
+      "SubscribedOccurrenceDto": {
+        "required": [
+          "start"
+        ],
+        "type": "object",
+        "properties": {
+          "start": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "end": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "date-time"
+          },
+          "originalStart": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "description": "Its start in the unmodified series; null when the event doesn't recur.",
+            "format": "date-time"
+          }
+        },
+        "description": "One occurrence of a subscribed event; an all-day end is the inclusive last day at 00:00Z."
+      },
+      "SubscriptionDto": {
+        "required": [
+          "id",
+          "calendarId",
+          "displayName",
+          "sourceHost",
+          "nextRefreshAt",
+          "eventCount"
+        ],
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "calendarId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "displayName": {
+            "type": "string"
+          },
+          "color": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "description": "The colour its events draw in; null ⇒ the calendar's colour.",
+                "$ref": "#/components/schemas/ItemColor"
+              }
+            ]
+          },
+          "sourceHost": {
+            "type": "string"
+          },
+          "nextRefreshAt": {
+            "type": "string",
+            "description": "When the feed is next fetched; at or before now while a refresh is pending.",
+            "format": "date-time"
+          },
+          "lastAttemptAt": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "description": "Null until the first fetch attempt.",
+            "format": "date-time"
+          },
+          "lastSyncedAt": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "description": "Null until the first successful fetch.",
+            "format": "date-time"
+          },
+          "lastError": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "description": "Why the last fetch failed; null after a success.",
+                "$ref": "#/components/schemas/SubscriptionError"
+              }
+            ]
+          },
+          "eventCount": {
+            "type": "integer",
+            "format": "int32"
+          }
+        },
+        "description": "A published calendar feed shown in a calendar. Only the feed's host is returned: a private feed address works\n            like a password."
+      },
+      "SubscriptionError": {
+        "enum": [
+          "Unreachable",
+          "Rejected",
+          "NotACalendar",
+          "TooLarge",
+          "Blocked"
+        ]
+      },
       "SyncPageOfContainerDto": {
         "required": [
           "cursor",
@@ -6856,6 +7712,41 @@
             "type": "array",
             "items": {
               "$ref": "#/components/schemas/ItemSyncChange"
+            }
+          },
+          "deleted": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        },
+        "description": "One page of a `/sync/*` feed. `reset` starts a full sync: rows the full sync never mentions are gone."
+      },
+      "SyncPageOfSubscribedEventSyncDto": {
+        "required": [
+          "cursor",
+          "hasMore",
+          "reset",
+          "changed",
+          "deleted"
+        ],
+        "type": "object",
+        "properties": {
+          "cursor": {
+            "type": "string"
+          },
+          "hasMore": {
+            "type": "boolean"
+          },
+          "reset": {
+            "type": "boolean"
+          },
+          "changed": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/SubscribedEventSyncDto"
             }
           },
           "deleted": {
@@ -7294,6 +8185,36 @@
           }
         },
         "description": "Changes a calendar's settings. `DefaultTimezone` is an IANA zone id; it applies to items written later\n            without a zone of their own, never to existing items."
+      },
+      "UpdateSubscriptionRequest": {
+        "required": [
+          "displayName"
+        ],
+        "type": "object",
+        "properties": {
+          "displayName": {
+            "type": "string",
+            "description": "1–100 characters."
+          },
+          "color": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "description": "Null ⇒ the calendar's colour.",
+                "$ref": "#/components/schemas/ItemColor"
+              }
+            ]
+          },
+          "feedUrl": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "description": "A new feed address restarts the sync; null keeps the current one."
+          }
+        }
       }
     },
     "securitySchemes": {
@@ -7323,6 +8244,9 @@
     },
     {
       "name": "Owners"
+    },
+    {
+      "name": "Subscriptions"
     },
     {
       "name": "CalendarItems"

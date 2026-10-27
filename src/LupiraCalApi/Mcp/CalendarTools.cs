@@ -6,10 +6,12 @@ using Lupira.Mcp;
 using LupiraCalApi.Core.Application.Calendars;
 using LupiraCalApi.Core.Application.Hotspots;
 using LupiraCalApi.Core.Application.Items;
+using LupiraCalApi.Core.Application.Subscriptions;
 using LupiraCalApi.Core.Dtos.CalendarItems;
 using LupiraCalApi.Core.Dtos.Calendars;
 using LupiraCalApi.Core.Dtos.Hotspots;
 using LupiraCalApi.Core.Dtos.Relations;
+using LupiraCalApi.Core.Dtos.Subscriptions;
 using ModelContextProtocol;
 using ModelContextProtocol.Server;
 
@@ -24,7 +26,7 @@ namespace LupiraCalApi.Mcp;
 public sealed class CalendarTools
 {
     [McpServerTool(Name = "search_items")]
-    [Description("Search calendar items the caller can access, optionally by text, time window (matches occurrences overlapping it), category/status, tag; pageable. Each occurrence of a recurring item carries originalStart (its start in the unmodified series — the key the occurrence tools take) and isChanged.")]
+    [Description("Search calendar items the caller can access, optionally by text, time window (matches occurrences overlapping it), category/status, tag; pageable. Each occurrence of a recurring item carries originalStart (its start in the unmodified series — the key the occurrence tools take) and isChanged. Results may include read-only events from subscribed published calendar feeds (origin.kind = Subscription, origin.sourceId = the subscription): read them with get_subscribed_event; they can't be edited, filed or linked.")]
     public static async Task<IReadOnlyList<CalendarItemOccurrenceDto>> SearchItems(
         CalendarItemService items, CurrentUser user,
         [Description("Free-text query over title/description. With no from/to, matches all-time.")] string? query = null,
@@ -241,6 +243,30 @@ public sealed class CalendarTools
     {
         var u = await user.GetAsync();
         return (await calendars.ListContainersAsync(u.Id)).Require();
+    }
+
+    [McpServerTool(Name = "list_subscriptions")]
+    [Description("List the published calendar feeds a calendar subscribes to, with their sync status (lastSyncedAt, lastError, eventCount). Their events show up read-only in search_items. Only the feed's host is returned.")]
+    public static async Task<IReadOnlyList<SubscriptionDto>> ListSubscriptions(
+        SubscriptionService subscriptions,
+        CurrentUser user,
+        [Description("Calendar id.")] Guid calendarId)
+    {
+        var u = await user.GetAsync();
+        return (await subscriptions.ListAsync(u.Id, calendarId)).Require();
+    }
+
+    [McpServerTool(Name = "get_subscribed_event")]
+    [Description("Get one read-only event of a subscribed feed in full (description included): the occurrence's id from search_items, its calendarIds[0] and origin.sourceId.")]
+    public static async Task<SubscribedEventDto> GetSubscribedEvent(
+        SubscriptionService subscriptions,
+        CurrentUser user,
+        [Description("Calendar id.")] Guid calendarId,
+        [Description("Subscription id (origin.sourceId).")] Guid subscriptionId,
+        [Description("Subscribed event id (the occurrence's id).")] Guid eventId)
+    {
+        var u = await user.GetAsync();
+        return (await subscriptions.GetEventAsync(u.Id, calendarId, subscriptionId, eventId)).Require();
     }
 
     [McpServerTool(Name = "bootstrap_me")]

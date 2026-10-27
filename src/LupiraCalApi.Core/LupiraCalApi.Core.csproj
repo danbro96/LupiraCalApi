@@ -30,6 +30,7 @@
     <PackageReference Include="Marten" Version="9.40.0" />
     <PackageReference Include="Ical.Net" Version="5.2.3" />
     <PackageReference Include="NodaTime" Version="3.3.4" />
+    <PackageReference Include="Npgsql.EntityFrameworkCore.PostgreSQL" Version="10.0.3" />
   </ItemGroup>
 
 </Project>

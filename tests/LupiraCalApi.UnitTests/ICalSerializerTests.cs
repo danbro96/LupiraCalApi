@@ -452,5 +452,36 @@ public class ICalSerializerTests
         Assert.Equal(expected, ICalSerializer.ParseICalendar(ics).Color);
     }
 
+    [Fact]
+    public void A_vevent_the_block_scan_misses_does_not_hand_its_neighbours_rule_and_uid_to_another()
+    {
+        const string ics = "BEGIN:VCALENDAR\r\nVERSION:2.0\r\nPRODID:-//test//EN\r\n"
+            + "begin:vevent\r\nUID:odd\r\nDTSTART:20260101T100000Z\r\nSUMMARY:Odd\r\nend:vevent\r\n"
+            + "BEGIN:VEVENT\r\nUID:good\r\nDTSTART:20260105T100000Z\r\nRRULE:FREQ=WEEKLY;COUNT=4\r\nSUMMARY:Good\r\nEND:VEVENT\r\n"
+            + "END:VCALENDAR\r\n";
+
+        var events = ICalSerializer.ParseAll(ics);
+
+        var good = Assert.Single(events, e => e.Title == "Good");
+        Assert.Equal("good", good.Uid);
+        Assert.Equal("FREQ=WEEKLY;COUNT=4", good.RecurrenceRule);
+        Assert.Null(Assert.Single(events, e => e.Title == "Odd").RecurrenceRule);
+    }
+
+    [Fact]
+    public void Overrides_pair_with_their_own_lines_by_uid_and_recurrence_id()
+    {
+        const string ics = "BEGIN:VCALENDAR\r\nVERSION:2.0\r\nPRODID:-//test//EN\r\n"
+            + "BEGIN:VEVENT\r\nUID:s\r\nRECURRENCE-ID:20260112T100000Z\r\nDTSTART:20260112T110000Z\r\nSUMMARY:Moved\r\nEND:VEVENT\r\n"
+            + "BEGIN:VEVENT\r\nUID:s\r\nDTSTART:20260105T100000Z\r\nRRULE:FREQ=WEEKLY;COUNT=3\r\nSUMMARY:Series\r\nEND:VEVENT\r\n"
+            + "END:VCALENDAR\r\n";
+
+        var p = Assert.Single(ICalSerializer.ParseAll(ics));
+
+        Assert.Equal("s", p.Uid);
+        Assert.Equal("FREQ=WEEKLY;COUNT=3", p.RecurrenceRule);
+        Assert.Equal(new DateTimeOffset(2026, 1, 12, 11, 0, 0, TimeSpan.Zero), Assert.Single(p.OccurrenceOverrides!).StartsAt);
+    }
+
     private static DateTimeOffset Utc(int y, int m, int d, int h = 0) => new(y, m, d, h, 0, 0, TimeSpan.Zero);
 }

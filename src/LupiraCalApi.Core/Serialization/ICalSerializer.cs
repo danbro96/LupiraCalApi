@@ -1,3 +1,4 @@
+using System.Globalization;
 using System.Text.RegularExpressions;
 using Ical.Net.CalendarComponents;
 using Ical.Net.DataTypes;
@@ -27,6 +28,8 @@ public static class ICalSerializer
     private static readonly Regex VEventBlock = new(@"^BEGIN:VEVENT\r?$.*?^END:VEVENT\r?$", RegexOptions.Multiline | RegexOptions.Singleline);
     private static readonly Regex RuleLine = new(@"^RRULE:(.+)$", RegexOptions.Multiline);
     private static readonly Regex UidLine = new(@"^UID[;:]", RegexOptions.Multiline);
+    private static readonly Regex UidValue = new(@"^UID[^:\r\n]*:(.*?)\r?$", RegexOptions.Multiline);
+    private static readonly Regex RecurrenceIdValue = new(@"^RECURRENCE-ID[^:\r\n]*:([0-9T]+)", RegexOptions.Multiline);
 
     public static string ToICalendar(
         string uid, string? title, string? description, string? location, ItemStatus? status,
@@ -184,9 +187,18 @@ public static class ICalSerializer
 
         if (calendar is null) throw new FormatException("Invalid iCalendar payload.");
 
-        // Per VEVENT in document order: the RRULE stays verbatim and a missing UID isn't replaced by Ical.Net's random one.
-        var blocks = VEventBlock.Matches(FoldedLine.Replace(raw, string.Empty));
-        var events = calendar.Events.Select((e, i) => (Event: e, Lines: i < blocks.Count ? blocks[i].Value : string.Empty)).ToList();
+        // Raw lines keep the RRULE verbatim and a missing UID missing; paired by identity, as Ical.Net reads VEVENTs the scan misses.
+        var blocks = VEventBlock.Matches(FoldedLine.Replace(raw, string.Empty))
+            .GroupBy(b => BlockKey(b.Value))
+            .ToDictionary(g => g.Key, g => new Queue<string>(g.Select(b => b.Value)));
+        string LinesOf(CalendarEvent e)
+        {
+            var rid = e.RecurrenceIdentifier?.StartTime is { } at ? at.Value.ToString(at.HasTime ? "yyyyMMdd'T'HHmmss" : "yyyyMMdd", CultureInfo.InvariantCulture) : null;
+            return (blocks.TryGetValue((e.Uid?.Trim(), rid), out var own) && own.TryDequeue(out var lines))
+                || (blocks.TryGetValue((null, rid), out var anonymous) && anonymous.TryDequeue(out lines)) ? lines : string.Empty;
+        }
+
+        var events = calendar.Events.Select(e => (Event: e, Lines: LinesOf(e))).ToList();
 
         // The master is the VEVENT without a RECURRENCE-ID; the others are its per-occurrence overrides.
         return [.. events.GroupBy(x => x.Event.Uid).Select(g =>
@@ -197,6 +209,10 @@ public static class ICalSerializer
             return Parse(master.Event, uid, rule, floatingZone, g.Select(x => x.Event).Where(x => x.RecurrenceIdentifier is not null));
         })];
     }
+
+    private static (string? Uid, string? RecurrenceId) BlockKey(string block) =>
+        (UidValue.Match(block) is { Success: true } u ? u.Groups[1].Value.Trim() : null,
+            RecurrenceIdValue.Match(block) is { Success: true } r ? r.Groups[1].Value : null);
 
     private static ParsedEvent Parse(CalendarEvent ev, string? uid, string? rrule, DateTimeZone? floatingZone, IEnumerable<CalendarEvent> overrideEvents)
     {

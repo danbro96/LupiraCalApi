@@ -8,6 +8,7 @@ using LupiraCalApi.Core.Application.Dav;
 using LupiraCalApi.Core.Application.Hotspots;
 using LupiraCalApi.Core.Application.Items;
 using LupiraCalApi.Core.Application.Places;
+using LupiraCalApi.Core.Application.Subscriptions;
 using LupiraCalApi.Core.Application.Sync;
 using LupiraCalApi.Core.Auth;
 using LupiraCalApi.Core.Data;
@@ -15,6 +16,7 @@ using LupiraCalApi.Core.Domain.CalendarItems;
 using LupiraCalApi.Core.Domain.Shared;
 using LupiraCalApi.Core.Scheduling;
 using Marten;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Hosting;
@@ -52,6 +54,13 @@ public static class CoreServiceCollectionExtensions
           // run from the API container and must see it. Declaring is not running: with no daemon it stays inert.
           .AddProjectionWithServices<ScheduledFireProjection>(ProjectionLifecycle.Async, ServiceLifetime.Singleton, "scheduled_fire");
 
+        // The subscribed-feed mirror: synced read-only data, so EF beside Marten on the same database (schema cal_subscriptions).
+        services.AddDbContext<SubscriptionsDbContext>((sp, opts) =>
+        {
+            var connectionString = sp.GetRequiredService<IConfiguration>().GetConnectionString("Postgres") ?? DefaultConnectionString;
+            opts.UseNpgsql(connectionString, o => o.MigrationsHistoryTable("__ef_migrations_history", SubscriptionsDbContext.Schema));
+        });
+
         services.AddSingleton<IFireMaterializer, FireMaterializer>();
         services.AddSingleton<RecurrenceExpander>();
         services.TryAddSingleton(TimeProvider.System);
@@ -79,6 +88,9 @@ public static class CoreServiceCollectionExtensions
         services.AddScoped<DavChangeFeed>();
         services.AddOptions<SyncFeedOptions>().BindConfiguration(SyncFeedOptions.SectionName);
         services.AddScoped<SyncFeed>();
+        services.AddOptions<SubscriptionOptions>().BindConfiguration(SubscriptionOptions.SectionName);
+        services.AddScoped<SubscribedOccurrenceReader>();
+        services.AddScoped<SubscriptionService>();
         return marten;
     }
 

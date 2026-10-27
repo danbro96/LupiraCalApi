@@ -1,5 +1,8 @@
+using System.Net.Http.Json;
+using Lupira.Primitives;
 using Lupira.Testing.Mcp;
 using Lupira.Testing.Postgres;
+using LupiraCalApi.Core.Dtos.Calendars;
 using ModelContextProtocol.Protocol;
 using Xunit;
 
@@ -40,5 +43,30 @@ public sealed class McpToolArgumentsTests(CalApiTestFactory factory) : McpStrict
             var text = Assert.IsType<TextContentBlock>(Assert.Single(result.Content)).Text;
             Assert.Contains("must be a JSON object", text);
         }
+    }
+
+    [Fact]
+    public async Task Subscription_tools_list_subscriptions_and_read_an_event()
+    {
+        var api = factory.ApiClient("alice@x.test");
+        var created = await api.PostAsJsonAsync("/calendars", new CreateCalendarRequest { Slug = "work", Type = "calendar", DefaultTimezone = "UTC" });
+        var cal = (await created.Content.ReadFromJsonAsync<ContainerDto>())!.Id;
+        var start = new DateTimeOffset(2026, 9, 7, 16, 0, 0, TimeSpan.Zero);
+        var sub = await SubscriptionSeed.SeedAsync(factory, cal, SubscriptionSeed.Feed(SubscriptionSeed.Event("m@feed", "Match", start, description: "Bortamatch")), "Klubben");
+        var eventId = DeterministicGuid.From($"subscription:{sub.Id:N}:m@feed");
+        await using var mcp = await ConnectAsync();
+
+        var listed = await mcp.CallToolAsync("list_subscriptions", new Dictionary<string, object?> { ["calendarId"] = cal });
+        Assert.NotEqual(true, listed.IsError);
+        Assert.Contains("Klubben", Assert.IsType<TextContentBlock>(Assert.Single(listed.Content)).Text);
+
+        var read = await mcp.CallToolAsync("get_subscribed_event", new Dictionary<string, object?>
+        {
+            ["calendarId"] = cal,
+            ["subscriptionId"] = sub.Id,
+            ["eventId"] = eventId,
+        });
+        Assert.NotEqual(true, read.IsError);
+        Assert.Contains("Bortamatch", Assert.IsType<TextContentBlock>(Assert.Single(read.Content)).Text);
     }
 }

@@ -19,4 +19,13 @@ public sealed class ApiDocsTests(CalApiTestFactory factory) : IntegrationTest(fa
         var resp = await Factory.CreateClient().GetAsync("/scalar/v1");
         Assert.Equal(HttpStatusCode.OK, resp.StatusCode);
     }
+
+    [Fact]
+    public async Task Subscription_operations_are_documented()
+    {
+        var doc = await Factory.CreateClient().GetStringAsync("/openapi/v1.json");
+
+        foreach (var operation in new[] { "ListSubscriptions", "CreateSubscription", "UpdateSubscription", "DeleteSubscription", "RefreshSubscription", "GetSubscribedEvent", "GetSyncSubscribedEvents" })
+            Assert.Contains($"\"operationId\": \"{operation}\"", doc);
+    }
 }

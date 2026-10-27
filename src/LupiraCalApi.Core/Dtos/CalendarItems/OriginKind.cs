@@ -7,4 +7,5 @@ namespace LupiraCalApi.Core.Dtos.CalendarItems;
 public enum OriginKind
 {
     Birthday,
+    Subscription,
 }

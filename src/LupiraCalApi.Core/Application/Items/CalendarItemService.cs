@@ -5,6 +5,7 @@ using Lupira.Primitives;
 using Lupira.Results;
 using LupiraCalApi.Core.Abstractions;
 using LupiraCalApi.Core.Application.Dav;
+using LupiraCalApi.Core.Application.Subscriptions;
 using LupiraCalApi.Core.Auth;
 using LupiraCalApi.Core.Domain.CalendarItems;
 using LupiraCalApi.Core.Domain.CalendarItems.Events;
@@ -26,7 +27,7 @@ namespace LupiraCalApi.Core.Application.Items;
 /// <c>occurredAt</c> client stamp (see <see cref="SectionLww"/>); creates need neither — <c>SourceKey</c>
 /// already makes them replay-safe.
 /// </summary>
-public sealed class CalendarItemService(IDocumentSession session, AccessResolver access, RecurrenceExpander expander, IGeoResolver geo, CompletenessResolver completeness, IContactResolver contacts, Idempotency idempotency, IOptions<ItemTimeZoneOptions> zones)
+public sealed class CalendarItemService(IDocumentSession session, AccessResolver access, RecurrenceExpander expander, IGeoResolver geo, CompletenessResolver completeness, IContactResolver contacts, Idempotency idempotency, IOptions<ItemTimeZoneOptions> zones, SubscribedOccurrenceReader subscribed)
 {
     /// <summary>Resolve free-text to a (geo place id, label). Geo owns resolution. <c>Unresolved</c> is true only when geo
     /// IS configured but couldn't resolve (unreachable/GeocodeUnavailable) — a retryable failure the REST/MCP paths reject
@@ -307,32 +308,10 @@ public sealed class CalendarItemService(IDocumentSession session, AccessResolver
                 .Select(m => m.CalendarId).ToArray();
             var parentTitle = i.ParentItemId is { } pid ? titleById.GetValueOrDefault(pid) : null;
             var childCount = childCounts.GetValueOrDefault(i.Id);
-            // All-day items carry their span in StartDate/EndDate, not StartsAt/EndsAt; derive the end at the
-            // inclusive last day's 00:00Z (same convention as TimeRangeFilter) so multi-day all-day occurrences
-            // report an End instead of null.
-            TimeSpan? duration =
-                i.StartsAt is { } s && i.EndsAt is { } en ? en - s
-                : i.IsAllDay && i.StartDate is { } sd && i.EndDate is { } ed ? AllDayInstant(ed) - AllDayInstant(sd)
-                : null;
-            // The window matches occurrences overlapping it, not only those starting in it: a photo taken mid-trip
-            // belongs to a trip that began that morning. An all-day item covers through its inclusive last day.
-            var coverage =
-                i.StartsAt is { } cs && i.EndsAt is { } ce && ce > cs ? ce - cs
-                : i.IsAllDay && i.StartDate is { } csd ? AllDayInstant(i.EndDate ?? csd).AddDays(1) - AllDayInstant(csd)
-                : TimeSpan.Zero;
-            if (!string.IsNullOrWhiteSpace(i.RecurrenceRule))
+            foreach (var slot in OccurrenceSlots.Of(i, expander, windowStart, windowEnd, expansionEnd))
             {
-                foreach (var occ in expander.Occurrences(i, Lookback(windowStart, coverage), expansionEnd))
-                {
-                    var change = occ.Change;
-                    var coveredUntil = change?.EndsAt is { } changedEnd ? (i.IsAllDay ? changedEnd.AddDays(1) : changedEnd) : occ.Start + coverage;
-                    if (!Overlaps(occ.Start, coveredUntil, windowStart, windowEnd)) continue;
-                    results.Add(new CalendarItemOccurrenceDto { Id = i.Id, Title = change?.Title ?? i.Title, PlaceId = i.PlaceId, LocationLabel = change?.LocationLabel ?? i.LocationLabel, IsAllDay = i.IsAllDay, Start = occ.Start, End = change?.EndsAt ?? (duration is { } d ? occ.Start + d : null), OriginalStart = occ.OriginalStart, IsChanged = change is not null, CalendarIds = memberIds, Category = i.Category, Color = i.Color, Status = change?.Status ?? i.Status, Tags = i.Tags, ParentItemId = i.ParentItemId, ParentTitle = parentTitle, ChildCount = childCount, Completeness = score, Etag = i.ContentHash });
-                }
-            }
-            else if (OccurrenceStart(i) is { } start && Overlaps(start, start + coverage, windowStart, windowEnd))
-            {
-                results.Add(new CalendarItemOccurrenceDto { Id = i.Id, Title = i.Title, PlaceId = i.PlaceId, LocationLabel = i.LocationLabel, IsAllDay = i.IsAllDay, Start = start, End = duration is { } d ? start + d : i.EndsAt, IsChanged = false, CalendarIds = memberIds, Category = i.Category, Color = i.Color, Status = i.Status, Tags = i.Tags, ParentItemId = i.ParentItemId, ParentTitle = parentTitle, ChildCount = childCount, Completeness = score, Etag = i.ContentHash });
+                var change = slot.Change;
+                results.Add(new CalendarItemOccurrenceDto { Id = i.Id, Title = change?.Title ?? i.Title, PlaceId = i.PlaceId, LocationLabel = change?.LocationLabel ?? i.LocationLabel, IsAllDay = i.IsAllDay, Start = slot.Start, End = slot.End, OriginalStart = slot.OriginalStart, IsChanged = change is not null, CalendarIds = memberIds, Category = i.Category, Color = i.Color, Status = change?.Status ?? i.Status, Tags = i.Tags, ParentItemId = i.ParentItemId, ParentTitle = parentTitle, ChildCount = childCount, Completeness = score, Etag = i.ContentHash });
             }
         }
 
@@ -345,6 +324,10 @@ public sealed class CalendarItemService(IDocumentSession session, AccessResolver
             if (bdayCalIds.Length > 0)
                 results.AddRange(await SynthesizeBirthdaysAsync(bdayCalIds, query, from, to, ct));
         }
+
+        // Subscribed feeds carry no tags, parents, attendees or categories, so those filters exclude them.
+        if (tag is null && parentId is null && contactId is null && cat is null)
+            results.AddRange(await subscribed.OccurrencesAsync([.. searchIds], query, windowStart, windowEnd, expansionEnd, st, ct));
 
         // take/skip count expanded occurrences, not items.
         IEnumerable<CalendarItemOccurrenceDto> page = desc ? results.OrderByDescending(x => x.Start) : results.OrderBy(x => x.Start);
@@ -936,13 +919,6 @@ public sealed class CalendarItemService(IDocumentSession session, AccessResolver
         if (i.IsAllDay && i.StartDate is { } d) return AllDayInstant(d);
         return i.StartsAt;
     }
-
-    // Half-open [start, end); a zero-length occurrence still matches at its start.
-    private static bool Overlaps(DateTimeOffset start, DateTimeOffset end, DateTimeOffset windowStart, DateTimeOffset windowEnd) =>
-        start < windowEnd && (start >= windowStart || end > windowStart);
-
-    private static DateTimeOffset Lookback(DateTimeOffset windowStart, TimeSpan coverage) =>
-        windowStart - DateTimeOffset.MinValue > coverage ? windowStart - coverage : DateTimeOffset.MinValue;
 
     private async Task<CalendarItemDto> ToDtoAsync(CalendarItem item, CancellationToken ct) =>
         item.ToResponse(await completeness.ScoreItemAsync(item, ct));

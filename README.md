@@ -16,8 +16,9 @@ Two background hosts in this repo split the scheduling work, because their scali
   runs the Marten async daemon that keeps `cal.scheduled_fire` in step with item events, plus the nightly
   horizon sweep. `DaemonMode.Solo` claims exclusive ownership, so **exactly one replica** may run.
 - **`lupira-cal-dispatcher`** (`src/LupiraCalApi.Dispatcher`, image `danbro96/lupira-cal-dispatcher`)
-  dispatches due rows to assistant-api `POST /fires` with claim leases, retry/backoff, and per-kind expiry.
-  Claims use lease-based `SKIP LOCKED`, so it is safe to scale.
+  dispatches due rows to assistant-api `POST /fires` with claim leases, retry/backoff, and per-kind expiry,
+  and refreshes subscribed calendar feeds into the `cal_subscriptions` mirror. Both loops claim with lease-based
+  `SKIP LOCKED`, so it is safe to scale.
 
 The API host itself registers no hosted services and opens no connection at startup.
 
@@ -93,9 +94,10 @@ then email), so REST/MCP and DAV-gateway traffic act as the same account.
 
 ## Schema
 
-Marten owns its schema; there are **no EF migrations**. The schema is applied **deliberately**, not on boot —
-run the app once with `--apply-schema` (it calls Marten's `ApplyAllConfiguredChangesToDatabaseAsync()` and
-exits), then start it normally:
+Marten owns the event store and documents; EF Core migrations own the subscribed-feed mirror (schema
+`cal_subscriptions`). The schema is applied **deliberately**, not on boot — run the app once with `--apply-schema`
+(it calls Marten's `ApplyAllConfiguredChangesToDatabaseAsync()`, creates `cal.scheduled_fire`, runs the EF
+migrations and exits), then start it normally:
 
 ```bash
 dotnet run --project src/LupiraCalApi -- --apply-schema
@@ -111,6 +113,8 @@ are scoped to the caller's accessible containers.
 | **Me** | `GET /me` · `POST /me/bootstrap` (idempotently seed the standard calendar set — agenda + agent-managed system calendars) |
 | **Calendars** | `GET /calendars` (each with a `class`/`kind`) · `POST /calendars` · `PUT /calendars/{id}` (default zone; owner-only) |
 | **Sharing** | `POST`/`DELETE /calendars/{id}/owners` |
+| **Subscriptions** | `GET`/`POST /calendars/{id}/subscriptions` (published calendar feeds shown read-only in the calendar; list with sync status, only the feed's host is returned) · `PUT`/`DELETE …/{subscriptionId}` · `POST …/{subscriptionId}/refresh` (owner-only, with a cooldown) · `GET …/{subscriptionId}/events/{eventId}` (one read-only event; search returns its occurrences with origin `Subscription`) |
+| **Sync** | `GET /sync/items` (paged item feed) · `GET /sync/calendars` · `GET /sync/subscribed-events` (snapshot of subscribed events with occurrences expanded over the sync window) |
 | **Items** | `GET /items` (text/time/tag search, recurrence-expanded; carries a derived completeness score) · `POST /items` · `GET`/`PUT`/`DELETE /items/{id}` · `POST /items/{id}/metadata` (merge JSON) · `PUT`/`DELETE /items/{id}/occurrences/{originalStart}` (exclude or override one occurrence of a series; delete reverts) · `POST /items/{id}/occurrences/{originalStart}/following` (change or delete an occurrence and every one after it; the rest continues as a new series) · `PUT`/`DELETE /items/{id}/prompt` · `PUT`/`DELETE /items/{id}/action` (event-bound payload, server-side only) |
 | **Participation** | `POST /items/{id}/participants` (invite) · `…/{participationId}/respond` · `…/attend` · `…/leave` · `PUT …/{participationId}/reminder` · `DELETE …/{participationId}` |
 | **Curation** | `GET /calendars/{id}/proposed` · `POST /items/{itemId}/calendars/{calId}/accept` · `POST /items/{itemId}/calendars/{calId}` · `DELETE /items/{itemId}/calendars/{calId}` |
@@ -127,7 +131,7 @@ The agent surface mirrors REST and is scoped to the caller's access:
 `search_items` · `create_item` · `update_item` · `attach_metadata` · `invite_participant` ·
 `respond_participant` · `list_calendars` · `bootstrap_me` · `create_calendar` · `update_calendar` · `grant_calendar_owner` ·
 `revoke_calendar_owner` · `link_item_to_task` · `unlink_item_from_task` · `list_items_linked_to_task` ·
-`list_hotspots`
+`list_hotspots` · `list_subscriptions` · `get_subscribed_event`
 
 ## Docker & Compose
 
@@ -162,6 +166,7 @@ src/
     Application/            services returning the transport-neutral OpResult (Lupira.Results)
     Auth/                   AccessResolver (container-scoped authorization)
     Scheduling/             cal.scheduled_fire table + materializer (Marten async daemon) + horizon sweep
+    Data/                   Marten registration + the EF subscribed-feed mirror (cal_subscriptions) and its migrations
     Dtos/ Mappers/ Serialization/
   LupiraCalApi/             thin web host
     Endpoints/ Handlers/    REST routes → handlers → Core services

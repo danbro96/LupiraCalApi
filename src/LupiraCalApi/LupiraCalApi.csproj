@@ -39,6 +39,10 @@
       <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
       <PrivateAssets>all</PrivateAssets>
     </PackageReference>
+    <PackageReference Include="Microsoft.EntityFrameworkCore.Design" Version="10.0.4">
+      <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
+      <PrivateAssets>all</PrivateAssets>
+    </PackageReference>
     <PackageReference Include="Lupira.Auth.Jwt" Version="0.2.0" />
     <PackageReference Include="Lupira.Clients.ServiceTokens" Version="0.1.0" />
     <PackageReference Include="Lupira.Depz" Version="0.1.1" />

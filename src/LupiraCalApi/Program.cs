@@ -14,6 +14,7 @@ using LupiraCalApi.Auth;
 using LupiraCalApi.Clients;
 using LupiraCalApi.Core.Abstractions;
 using LupiraCalApi.Core.Application.Dav;
+using LupiraCalApi.Core.Data;
 using LupiraCalApi.Core.Domain.CalendarItems;
 using LupiraCalApi.Core.Scheduling;
 using LupiraCalApi.Dav;
@@ -23,6 +24,7 @@ using LupiraCalApi.Handlers;
 using LupiraCalApi.Mcp;
 using Marten;
 using Microsoft.AspNetCore.HttpOverrides;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.OpenApi;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -35,6 +37,7 @@ builder.Services.AddCalCore();
 builder.Services.AddLupiraCurrentUser(o => o.StampProvenance = true);
 builder.Services.AddScoped<MeHandler>();
 builder.Services.AddScoped<CalendarsHandler>();
+builder.Services.AddScoped<SubscriptionsHandler>();
 builder.Services.AddScoped<CalendarItemsHandler>();
 builder.Services.AddScoped<DraftsHandler>();
 builder.Services.AddScoped<RelationsHandler>();
@@ -164,6 +167,8 @@ if (args.Contains("--apply-schema"))
     await store.Storage.ApplyAllConfiguredChangesToDatabaseAsync();
     // The operational scheduled_fire queue is a raw relational table (not a Marten document) — created here too.
     await ScheduledFireSchema.EnsureExistsAsync(app.Configuration.GetConnectionString("Postgres") ?? CoreServiceCollectionExtensions.DefaultConnectionString);
+    await using (var scope = app.Services.CreateAsyncScope())
+        await scope.ServiceProvider.GetRequiredService<SubscriptionsDbContext>().Database.MigrateAsync();
     Console.WriteLine("Schema applied.");
     return;
 }
@@ -211,6 +216,7 @@ app.MapLupiraPing("ApiPolicy");
 app.MapMe();
 app.MapCalendars();
 app.MapOwners();
+app.MapSubscriptions();
 app.MapCalendarItems();
 app.MapRelations();
 app.MapHotspots();

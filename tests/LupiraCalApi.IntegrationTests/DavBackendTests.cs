@@ -197,6 +197,20 @@ public sealed class DavBackendTests(CalApiTestFactory factory) : IntegrationTest
         Assert.Equal(HttpStatusCode.Unauthorized, (await anon.GetAsync($"{DavBackendBase(Email)}/collections")).StatusCode);
     }
 
+    [Fact]
+    public async Task Subscribed_events_stay_out_of_the_dav_projection()
+    {
+        var api = Factory.ApiClient(Email);
+        var cal = await CreateCalendarAsync(api);
+        await PutIcsBackendAsync(api, Email, cal, "own@x", MinimalIcs("own@x", "Own", Start));
+        await SubscriptionSeed.SeedAsync(Factory, cal, SubscriptionSeed.Feed(SubscriptionSeed.Event("feed@x", "From feed", Start)));
+
+        Assert.Equal(["own@x"], await ListBackendUidsAsync(api, Email, cal));
+        var window = await QueryAsync(api, cal, new DavQueryRequest { Start = Start.AddDays(-1), End = Start.AddDays(1) });
+        Assert.Equal(["own@x"], window.Resources.Select(r => r.Uid));
+        Assert.Equal(HttpStatusCode.NotFound, (await GetIcsBackendAsync(api, Email, cal, "feed@x")).StatusCode);
+    }
+
     private static async Task<DavResourcesDto> QueryAsync(HttpClient api, Guid cal, DavQueryRequest body)
     {
         var resp = await api.PostAsJsonAsync($"{DavBackendBase(Email)}/collections/{cal}/query", body);

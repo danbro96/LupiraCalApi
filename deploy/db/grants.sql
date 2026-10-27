@@ -1,6 +1,6 @@
 -- lupira-cal-api: provision the `lupira_cal` database on the shared medelynas-db.
--- One role, one logical database. EF Core owns the `cal` schema, tables, and indexes — all created by
--- `--apply-schema` (the regenerated Initial migration), not here.
+-- One role, one logical database; the role owns it, so `--apply-schema` creates every schema itself (Marten's,
+-- `cal.scheduled_fire`, and the EF-migrated `cal_subscriptions` mirror). No further grants are needed here.
 --
 -- Apply (TrueNAS Shell), substituting a freshly generated password:
 --   LUPIRA_CAL_DB_PW="$(openssl rand -hex 32)"; echo "$LUPIRA_CAL_DB_PW"   # save to your password manager

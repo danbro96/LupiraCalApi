@@ -6,6 +6,7 @@ using System.Net.Http.Json;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 using LupiraCalApi.Core.Dtos.CalendarItems;
+using LupiraCalApi.Core.Dtos.Subscriptions;
 using LupiraCalApi.Core.Dtos.Sync;
 using Xunit;
 
@@ -413,5 +414,34 @@ public class SyncEndpointsTests(CalApiTestFactory factory) : IntegrationTest(fac
         resp.EnsureSuccessStatusCode();
         var body = (await resp.Content.ReadFromJsonAsync<List<ContainerDto>>(Json))!;
         Assert.Contains(body, c => c.Id == cal);
+    }
+
+    [Fact]
+    public async Task Subscribed_events_snapshot_expands_occurrences_over_the_sync_window()
+    {
+        var api = Factory.ApiClient("a@x");
+        var cal = await CreateCalendarAsync(api);
+        var start = new DateTimeOffset(DateTimeOffset.UtcNow.UtcDateTime.Date.AddDays(2).AddHours(17), TimeSpan.Zero);
+        var sub = await SubscriptionSeed.SeedAsync(Factory, cal, SubscriptionSeed.Feed(
+            SubscriptionSeed.Event("weekly@feed", "Weekly", start, "FREQ=WEEKLY;COUNT=3"),
+            SubscriptionSeed.Event("far@feed", "Far", start.AddYears(3))));
+
+        var resp = await api.GetAsync("/sync/subscribed-events");
+        resp.EnsureSuccessStatusCode();
+        var body = (await resp.Content.ReadFromJsonAsync<SyncPage<SubscribedEventSyncDto>>(Json))!;
+
+        Assert.True(body.Reset);
+        Assert.False(body.HasMore);
+        Assert.Empty(body.Deleted);
+        var weekly = Assert.Single(body.Changed);
+        Assert.Equal("Weekly", weekly.Title);
+        Assert.Equal(sub.Id, weekly.SubscriptionId);
+        Assert.Equal(cal, weekly.CalendarId);
+        Assert.Equal([start, start.AddDays(7), start.AddDays(14)], weekly.Occurrences.Select(o => o.Start));
+        Assert.All(weekly.Occurrences, o => Assert.Equal(o.Start.AddHours(1), o.End));
+        Assert.Equal(start.AddDays(7), weekly.Occurrences[1].OriginalStart);
+
+        var stranger = (await (await Factory.ApiClient("b@x").GetAsync("/sync/subscribed-events")).Content.ReadFromJsonAsync<SyncPage<SubscribedEventSyncDto>>(Json))!;
+        Assert.Empty(stranger.Changed);
     }
 }

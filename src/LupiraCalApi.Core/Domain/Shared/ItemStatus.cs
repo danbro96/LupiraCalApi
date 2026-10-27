@@ -1,6 +1,6 @@
 namespace LupiraCalApi.Core.Domain.Shared;
 
-/// <summary>iCalendar VEVENT <c>STATUS</c>.</summary>
+/// <summary>Whether an item or occurrence is tentative, confirmed or cancelled.</summary>
 public enum ItemStatus
 {
     Tentative,

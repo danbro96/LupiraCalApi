@@ -6,6 +6,7 @@ Docs: `docs/` (architecture, event-sourcing, temporal-backbone, dav-backend-cont
 - Core is domain-first (NodaTime, series, occurrence, time zone, wall-clock time), not DAV-standards-based. No DTSTART/TZID/VTIMEZONE/PRODID concepts in new core code.
 - Fix domain behaviour in the domain, never in the serializer. DAV/ICS rendering is an adapter concern at the `/dav-backend` seam.
 - Remaining ICS coupling in core (`ContentHash`, expander via `ICalSerializer`) is legacy; do not extend it.
+- Subscribed feeds are parsed only through `SubscribedFeedReader`; their read-only mirror lives in EF schema `cal_subscriptions`.
 
 ## All-day spans
 - All-day `EndDate` is the inclusive last day; so is an all-day occurrence change's `EndsAt` (00:00Z). REST/MCP reject non-midnight all-day occurrence times.

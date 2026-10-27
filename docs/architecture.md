@@ -18,7 +18,8 @@ Two projects enforce the layering at compile time:
 
 ## Persistence: hybrid event sourcing on one Marten store
 
-A single Marten store in one Postgres schema (`MartenRegistrations.UseLupiraCal`). Three kinds of state:
+A single Marten store in one Postgres schema (`MartenRegistrations.UseLupiraCal`), plus an EF Core mirror beside it
+on the same database. Four kinds of state:
 
 - **Event-sourced aggregates** — `CalendarItem`. An event stream with an **inline snapshot** projection
   (read-your-write). Its full history (scheduled, revised, cancelled, attendee invited/responded,
@@ -31,22 +32,25 @@ A single Marten store in one Postgres schema (`MartenRegistrations.UseLupiraCal`
 - **Operational relational state** — `cal.scheduled_fire`, a plain Npgsql table (not a Marten document)
   written by the scheduling materializer. It is transient, rebuildable from the items, so it sits
   deliberately outside event sourcing (see *Scheduling / firing*).
+- **Synced read-only mirror** — `SubscriptionsDbContext` (EF Core, schema `cal_subscriptions`): each
+  `CalendarSubscription` and the `SubscribedEvent`s its last refresh read from a published feed. External data
+  replaced wholesale on every refresh, so it is not event-sourced (see *Calendar subscriptions*).
 
 Enums serialize as strings. Aggregates use deterministic stream ids derived from the iCalendar UID,
 so a DAV `DELETE` followed by a `PUT` of the same UID resurrects the same stream. **Structured domain fields
 are canonical**: the `/dav-backend` seam regenerates ICS on demand from them, and `ContentHash` (the DAV ETag)
 is derived deterministically from that canonical form — no source blob is stored. Schema is applied deliberately
-via a one-shot `--apply-schema` run (`ApplyAllConfiguredChangesToDatabaseAsync`, which also creates
-`cal.scheduled_fire`), not on boot — there are no EF migrations. One background process runs: the Marten
-**async daemon**, hosting the scheduling materializer.
+via a one-shot `--apply-schema` run (`ApplyAllConfiguredChangesToDatabaseAsync`, then `cal.scheduled_fire`, then the
+EF migrations of `cal_subscriptions`), not on boot. One background process runs: the Marten **async daemon**, hosting
+the scheduling materializer.
 
 ## Bounded context
 
 **In scope** — calendaring (items, recurrence expansion, kinds), first-class participation, item↔calendar
 curation, geo place references (LupiraGeoApi), multi-owner sharing of calendars, opaque cross-API relations,
 calendar classification (agenda vs. agent-managed system calendars), event-bound payloads (an LLM prompt or
-a deterministic action that fires at a time), a derived completeness signal over items, and the firing
-**materializer** that computes *what is due*.
+a deterministic action that fires at a time), a derived completeness signal over items, read-only subscriptions
+to published calendar feeds, and the firing **materializer** that computes *what is due*.
 
 **Out of scope for the API host** — the identity provider (external OIDC); contacts and address books
 (LupiraContactApi — attendees/details reference contacts by bare Guid, validated via `IContactResolver`
@@ -57,7 +61,7 @@ when configured); the DAV protocol itself (the LupiraDavApi gateway — this ser
 materialization and delivery** live in this repo as two separate hosts: `lupira-cal-materializer`
 (`src/LupiraCalApi.Materializer`, Solo async daemon, exactly one replica) advances the `scheduled_fire`
 projection, and `lupira-cal-dispatcher` (`src/LupiraCalApi.Dispatcher`, scalable on SKIP LOCKED claims)
-claims due rows and pushes them to assistant-api.
+claims due rows and pushes them to assistant-api, and fetches subscribed feeds into the `cal_subscriptions` mirror.
 
 ## Domain model
 
@@ -338,6 +342,8 @@ Ordered by last day, then occurrence count.
 | `ParticipationStatus` | `NeedsAction` · `Accepted` · `Declined` · `Tentative` · `Delegated` | iCalendar `PARTSTAT` |
 | `ReminderMode` | `Default` · `Off` · `Before` | a participant's own reminder for an item |
 | `Access` | `Owner` · `ReadWrite` · `Read` | a principal's permission on a container |
+| `OriginKind` | `Birthday` · `Subscription` | what a read-time-projected occurrence was derived from |
+| `SubscriptionError` | `Unreachable` · `Rejected` · `NotACalendar` · `TooLarge` · `Blocked` | why a subscription's last refresh failed |
 
 ## Item details
 
@@ -409,6 +415,27 @@ the three can never disagree. The **dispatcher** is the separate `lupira-cal-dis
 + a 60 s lease), re-reads the item aggregate, and pushes the fire to assistant-api `POST /fires`
 (accept-then-own: 202 → `done`; transient failure → `pending` with 30 s→30 m backoff, max 5 attempts →
 `failed`; a gone/cleared payload → `expired`). The API host owns *what is due*; the worker owns delivery.
+
+## Calendar subscriptions
+
+A calendar can subscribe to published calendar feeds (a URL; no OAuth). Everyone who can read the calendar sees
+the feed's events, read-only; only an owner adds, changes, removes or refreshes a subscription (`SubscriptionService`).
+The feed address never leaves the server — responses carry only its host — since a private feed address works like
+a password.
+
+- **Refresh loop** — the `lupira-cal-dispatcher` host runs `SubscriptionRefreshWorker`: every tick it leases a due
+  batch (`FOR UPDATE SKIP LOCKED` + a lease, so replicas never share one), fetches each feed conditionally
+  (`If-None-Match`/`If-Modified-Since`), and on a changed body reads it through `SubscribedFeedReader` and, in one
+  transaction, upserts the events whose hash changed and deletes the ones gone. A failure keeps the last good events,
+  records `LastError` (`Unreachable`, `Rejected`, `NotACalendar`, `TooLarge`, `Blocked`) and backs off by doubling
+  the interval up to a cap. Redirects are followed by hand and re-validated; `PrivateAddressGuard` refuses private,
+  loopback, link-local and reserved addresses at connect time, so neither DNS nor a redirect can reach the LAN.
+- **Read-time merge** — search projects the mirror like birthdays (`SubscribedOccurrenceReader`): each series is
+  expanded by the same `OccurrenceSlots`/`RecurrenceExpander` as stored items, tagged with origin `Subscription`
+  (source = the subscription) and the subscription's colour. Tag, parent, contact and category filters exclude them.
+  Offline clients take `GET /sync/subscribed-events`, a snapshot with occurrences already expanded.
+- **Excluded** — DAV, hotspots, place usage, participation, completeness, curation, the items sync feed and fires
+  read only `CalendarItem`, so subscribed events never reach them.
 
 ## DAV seam
 

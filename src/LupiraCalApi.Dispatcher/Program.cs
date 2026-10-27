@@ -1,8 +1,13 @@
+using System.Net;
 using Lupira.Clients.ServiceTokens;
 using Lupira.Hosting.Observability;
+using LupiraCalApi.Core.Application.Subscriptions;
 using LupiraCalApi.Dispatcher.Clients;
 using LupiraCalApi.Dispatcher.Dispatch;
+using LupiraCalApi.Dispatcher.Subscriptions;
+using Microsoft.Extensions.Options;
 using Npgsql;
+using OpenTelemetry.Instrumentation.Http;
 
 namespace LupiraCalApi.Dispatcher;
 
@@ -34,6 +39,27 @@ public static class Program
             http.Timeout = TimeSpan.FromSeconds(30);
         }).AddLupiraServiceToken<AssistantOptions>();
         builder.Services.AddScoped<FireDispatchService>();
+
+        // Feed refresh runs whether or not fire delivery is configured. Redirects stay manual so each hop is re-checked.
+        builder.Services.AddHttpClient<SubscriptionFeedClient>((sp, http) =>
+        {
+            http.Timeout = sp.GetRequiredService<IOptions<SubscriptionOptions>>().Value.Timeout;
+            http.DefaultRequestHeaders.UserAgent.ParseAdd("LupiraCal");
+        }).ConfigurePrimaryHttpMessageHandler(() => new SocketsHttpHandler
+        {
+            AllowAutoRedirect = false,
+            UseProxy = false,
+            ConnectCallback = PrivateAddressGuard.ConnectAsync,
+            AutomaticDecompression = DecompressionMethods.All,
+        });
+        builder.Services.AddScoped<SubscriptionRefreshService>();
+        builder.Services.AddHostedService<SubscriptionRefreshWorker>();
+        // A private feed address works like a password: its spans keep only the host.
+        builder.Services.Configure<HttpClientTraceInstrumentationOptions>(o => o.EnrichWithHttpRequestMessage = (activity, request) =>
+        {
+            if (request.Options.TryGetValue(SubscriptionFeedClient.FeedRequest, out _) && request.RequestUri is { } uri)
+                activity.SetTag("url.full", $"{uri.Scheme}://{uri.IdnHost}/");
+        });
 
         var assistantConfigured = !string.IsNullOrWhiteSpace(builder.Configuration.GetSection(AssistantOptions.SectionName)["BaseUrl"]);
         if (assistantConfigured)
