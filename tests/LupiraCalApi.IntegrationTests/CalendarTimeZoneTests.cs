@@ -37,7 +37,7 @@ public sealed class CalendarTimeZoneTests(CalApiTestFactory factory) : Integrati
     {
         var seeded = await BootstrapAsync(Factory.ApiClient(Email));
 
-        Assert.Equal(8, seeded.Count);
+        Assert.Equal(9, seeded.Count);
         Assert.All(seeded, c => Assert.Equal("Europe/Stockholm", c.DefaultTimezone));
     }
 

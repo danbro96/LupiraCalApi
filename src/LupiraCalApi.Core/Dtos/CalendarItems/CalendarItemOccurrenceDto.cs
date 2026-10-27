@@ -1,5 +1,6 @@
 using System.Text.Json.Serialization;
 using LupiraCalApi.Core.Domain.Completeness;
+using LupiraCalApi.Core.Domain.Holidays;
 using LupiraCalApi.Core.Domain.Shared;
 
 namespace LupiraCalApi.Core.Dtos.CalendarItems;
@@ -54,6 +55,9 @@ public sealed class CalendarItemOccurrenceDto
 
     /// <summary>Provenance of a read-time-projected occurrence (e.g. Birthdays → a contact). Null for stored items.</summary>
     public OccurrenceOrigin? Origin { get; set; }
+
+    /// <summary>Set only on a holiday: a public holiday (red day) or an eve.</summary>
+    public HolidayKind? Holiday { get; set; }
 
     public required string Etag { get; set; }
 }

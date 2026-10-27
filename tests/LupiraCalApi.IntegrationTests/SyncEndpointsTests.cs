@@ -1,6 +1,9 @@
+using Lupira.Contracts.Fires;
 using Lupira.Sync;
 using Lupira.Testing.Postgres;
+using LupiraCalApi.Core.Domain.Holidays;
 using LupiraCalApi.Core.Dtos.Calendars;
+using LupiraCalApi.Core.Dtos.Holidays;
 using System.Net;
 using System.Net.Http.Json;
 using System.Text.Json;
@@ -442,6 +445,29 @@ public class SyncEndpointsTests(CalApiTestFactory factory) : IntegrationTest(fac
         Assert.Equal(start.AddDays(7), weekly.Occurrences[1].OriginalStart);
 
         var stranger = (await (await Factory.ApiClient("b@x").GetAsync("/sync/subscribed-events")).Content.ReadFromJsonAsync<SyncPage<SubscribedEventSyncDto>>(Json))!;
+        Assert.Empty(stranger.Changed);
+    }
+
+    [Fact]
+    public async Task Holidays_snapshot_lists_each_holiday_with_its_dates_over_the_sync_window()
+    {
+        var api = Factory.ApiClient("holidays-sync@x");
+        var seeded = await (await api.PostAsync("/me/bootstrap", null)).Content.ReadFromJsonAsync<List<ContainerDto>>(Json);
+        var holidays = seeded!.Single(c => c.Kind == CalendarKind.Holidays).Id;
+
+        var body = (await (await api.GetAsync("/sync/holidays")).Content.ReadFromJsonAsync<SyncPage<HolidaySyncDto>>(Json))!;
+
+        Assert.True(body.Reset);
+        Assert.False(body.HasMore);
+        Assert.Empty(body.Deleted);
+        Assert.Equal(20, body.Changed.Count);
+        var year = DateTimeOffset.UtcNow.Year;
+        var julafton = body.Changed.Single(h => h.Name == "Julafton");
+        Assert.Equal(HolidayKind.Eve, julafton.Kind);
+        Assert.Equal([holidays], julafton.CalendarIds);
+        Assert.Equal(Enumerable.Range(year - 1, 4).Select(y => new DateOnly(y, 12, 24)), julafton.Dates);
+
+        var stranger = (await (await Factory.ApiClient("no-holidays@x").GetAsync("/sync/holidays")).Content.ReadFromJsonAsync<SyncPage<HolidaySyncDto>>(Json))!;
         Assert.Empty(stranger.Changed);
     }
 }

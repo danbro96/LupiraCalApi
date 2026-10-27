@@ -1,3 +1,4 @@
+using System.Net;
 using System.Net.Http.Json;
 using Lupira.Contracts.Fires;
 using Lupira.Testing.Postgres;
@@ -41,8 +42,8 @@ public sealed class CalendarClassificationTests(CalApiTestFactory factory) : Int
         var seeded = await (await api.PostAsync("/me/bootstrap", null)).Content.ReadFromJsonAsync<List<ContainerDto>>();
 
         var calendars = seeded!.Where(c => c.Type == "calendar").ToList();
-        Assert.Equal(8, calendars.Count);   // FoodPlan is deferred (enum value only)
-        foreach (var kind in new[] { CalendarKind.Personal, CalendarKind.Group, CalendarKind.Birthdays, CalendarKind.Availability })
+        Assert.Equal(9, calendars.Count);   // FoodPlan is deferred (enum value only)
+        foreach (var kind in new[] { CalendarKind.Personal, CalendarKind.Group, CalendarKind.Birthdays, CalendarKind.Holidays, CalendarKind.Availability })
             Assert.Contains(calendars, c => c.Kind == kind && c.Class == CalendarClass.Agenda);
         foreach (var kind in new[] { CalendarKind.Inbox, CalendarKind.LlmPrompts, CalendarKind.UserCheckIn, CalendarKind.DevOps })
             Assert.Contains(calendars, c => c.Kind == kind && c.Class == CalendarClass.System);
@@ -63,6 +64,23 @@ public sealed class CalendarClassificationTests(CalApiTestFactory factory) : Int
 
         Assert.Contains(dto!.Collections, c => c.Id == personal.Id);      // agenda → projected
         Assert.DoesNotContain(dto.Collections, c => c.Id == inbox.Id);    // system → hidden
+    }
+
+    [Fact]
+    public async Task Computed_calendars_are_not_dav_projected_and_refuse_writes()
+    {
+        var api = Factory.ApiClient(Email);
+        var seeded = await (await api.PostAsync("/me/bootstrap", null)).Content.ReadFromJsonAsync<List<ContainerDto>>();
+        var computed = seeded!.Where(c => c.Kind is CalendarKind.Birthdays or CalendarKind.Holidays).Select(c => c.Id).ToList();
+
+        var dto = await (await api.GetAsync($"{DavBackendBase(Email)}/collections")).Content.ReadFromJsonAsync<Lupira.Contracts.Dav.DavCollectionsDto>();
+        Assert.DoesNotContain(dto!.Collections, c => computed.Contains(c.Id));
+
+        foreach (var id in computed)
+        {
+            var put = await PutIcsBackendAsync(api, Email, id, "shadow@x", MinimalIcs("shadow@x", "Shadow", new DateTimeOffset(2026, 7, 1, 9, 0, 0, TimeSpan.Zero)));
+            Assert.Equal(HttpStatusCode.Forbidden, put.StatusCode);
+        }
     }
 
     [Fact]

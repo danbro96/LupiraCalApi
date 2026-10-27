@@ -4885,6 +4885,52 @@
         ]
       }
     },
+    "/sync/holidays": {
+      "get": {
+        "tags": [
+          "Sync"
+        ],
+        "summary": "Snapshot of the computed holidays of the caller's Holidays calendars, each with its dates over the sync window: always reset with no cursor; replace the local set on each call.",
+        "operationId": "GetSyncHolidays",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SyncPageOfHolidaySyncDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal server error",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "Bearer": [ ]
+          }
+        ]
+      }
+    },
     "/sync/containers": {
       "get": {
         "tags": [
@@ -5475,6 +5521,17 @@
               }
             ]
           },
+          "holiday": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "description": "Set only on a holiday: a public holiday (red day) or an eve.",
+                "$ref": "#/components/schemas/HolidayKind"
+              }
+            ]
+          },
           "etag": {
             "type": "string"
           }
@@ -5492,6 +5549,7 @@
           "UserCheckIn",
           "DevOps",
           "FoodPlan",
+          "Holidays",
           "Generic"
         ]
       },
@@ -6116,6 +6174,50 @@
         },
         "description": "Grant a member access to a container, identified by their login `Email` (provisioned if they have\n            not logged in yet). `Access` is `owner` (default), `read-write`, or `read` — case-insensitive."
       },
+      "HolidayKind": {
+        "enum": [
+          "PublicHoliday",
+          "Eve"
+        ]
+      },
+      "HolidaySyncDto": {
+        "required": [
+          "id",
+          "name",
+          "kind",
+          "calendarIds",
+          "dates"
+        ],
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "name": {
+            "type": "string"
+          },
+          "kind": {
+            "$ref": "#/components/schemas/HolidayKind"
+          },
+          "calendarIds": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "description": "The caller's Holidays calendars it shows in."
+          },
+          "dates": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "format": "date"
+            }
+          }
+        },
+        "description": "A holiday for an offline mirror, with its all-day dates over the sync window."
+      },
       "HotspotDto": {
         "required": [
           "id",
@@ -6672,7 +6774,7 @@
             "format": "uuid"
           }
         },
-        "description": "Ties a projected occurrence back to the entity it was derived from: Guid OccurrenceOrigin.SourceId is the contact\n            whose birthday it is, or the subscription whose read-only feed event it is."
+        "description": "Ties a projected occurrence back to the entity it was derived from: Guid OccurrenceOrigin.SourceId is the contact\n            whose birthday it is, the subscription whose read-only feed event it is, or the holiday itself."
       },
       "OccurrenceOverride": {
         "required": [
@@ -6738,7 +6840,8 @@
       "OriginKind": {
         "enum": [
           "Birthday",
-          "Subscription"
+          "Subscription",
+          "Holiday"
         ],
         "description": "What a read-time-projected occurrence was synthesized from."
       },
@@ -7677,6 +7780,41 @@
             "type": "array",
             "items": {
               "$ref": "#/components/schemas/ContainerDto"
+            }
+          },
+          "deleted": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        },
+        "description": "One page of a `/sync/*` feed. `reset` starts a full sync: rows the full sync never mentions are gone."
+      },
+      "SyncPageOfHolidaySyncDto": {
+        "required": [
+          "cursor",
+          "hasMore",
+          "reset",
+          "changed",
+          "deleted"
+        ],
+        "type": "object",
+        "properties": {
+          "cursor": {
+            "type": "string"
+          },
+          "hasMore": {
+            "type": "boolean"
+          },
+          "reset": {
+            "type": "boolean"
+          },
+          "changed": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/HolidaySyncDto"
             }
           },
           "deleted": {

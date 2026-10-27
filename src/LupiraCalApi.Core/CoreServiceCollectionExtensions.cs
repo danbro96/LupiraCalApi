@@ -8,6 +8,7 @@ using LupiraCalApi.Core.Application.Dav;
 using LupiraCalApi.Core.Application.Hotspots;
 using LupiraCalApi.Core.Application.Items;
 using LupiraCalApi.Core.Application.Places;
+using LupiraCalApi.Core.Application.Holidays;
 using LupiraCalApi.Core.Application.Subscriptions;
 using LupiraCalApi.Core.Application.Sync;
 using LupiraCalApi.Core.Auth;
@@ -91,6 +92,7 @@ public static class CoreServiceCollectionExtensions
         services.AddOptions<SubscriptionOptions>().BindConfiguration(SubscriptionOptions.SectionName);
         services.AddScoped<SubscribedOccurrenceReader>();
         services.AddScoped<SubscriptionService>();
+        services.AddScoped<HolidayOccurrenceReader>();
         return marten;
     }
 

@@ -5,6 +5,7 @@ using Lupira.Primitives;
 using Lupira.Results;
 using LupiraCalApi.Core.Abstractions;
 using LupiraCalApi.Core.Application.Dav;
+using LupiraCalApi.Core.Application.Holidays;
 using LupiraCalApi.Core.Application.Subscriptions;
 using LupiraCalApi.Core.Auth;
 using LupiraCalApi.Core.Domain.CalendarItems;
@@ -27,7 +28,7 @@ namespace LupiraCalApi.Core.Application.Items;
 /// <c>occurredAt</c> client stamp (see <see cref="SectionLww"/>); creates need neither — <c>SourceKey</c>
 /// already makes them replay-safe.
 /// </summary>
-public sealed class CalendarItemService(IDocumentSession session, AccessResolver access, RecurrenceExpander expander, IGeoResolver geo, CompletenessResolver completeness, IContactResolver contacts, Idempotency idempotency, IOptions<ItemTimeZoneOptions> zones, SubscribedOccurrenceReader subscribed)
+public sealed class CalendarItemService(IDocumentSession session, AccessResolver access, RecurrenceExpander expander, IGeoResolver geo, CompletenessResolver completeness, IContactResolver contacts, Idempotency idempotency, IOptions<ItemTimeZoneOptions> zones, SubscribedOccurrenceReader subscribed, HolidayOccurrenceReader holidays)
 {
     /// <summary>Resolve free-text to a (geo place id, label). Geo owns resolution. <c>Unresolved</c> is true only when geo
     /// IS configured but couldn't resolve (unreachable/GeocodeUnavailable) — a retryable failure the REST/MCP paths reject
@@ -115,9 +116,8 @@ public sealed class CalendarItemService(IDocumentSession session, AccessResolver
     {
         if (r.CalendarId is { } pre && !await access.CanWriteCalendarAsync(principalId, pre, ct))
             return OpResult<CalendarItemDto>.Forbidden("No write access to this calendar.");
-        // Birthdays content is synthesized from contacts at read time — stored items filed there would shadow it.
-        if (r.CalendarId is { } target && await session.LoadAsync<Calendar>(target, ct) is { Kind: CalendarKind.Birthdays })
-            return OpResult<CalendarItemDto>.Invalid("Items cannot be created in the Birthdays calendar — it is synthesized from contact birthdays.");
+        if (r.CalendarId is { } target && await session.LoadAsync<Calendar>(target, ct) is { } cal && CalendarKinds.IsProjected(cal.Kind))
+            return OpResult<CalendarItemDto>.Invalid($"Items cannot be created in the {cal.DisplayName} calendar — it is computed.");
 
         // A client SourceKey pins the stream id + external UID (idempotent import replay); else a random uid.
         var hasKey = !string.IsNullOrWhiteSpace(r.SourceKey);
@@ -315,14 +315,18 @@ public sealed class CalendarItemService(IDocumentSession session, AccessResolver
             }
         }
 
-        // Birthdays are not stored items — they're synthesized at read time from LupiraContactApi whenever a
-        // Birthdays-kind calendar is in scope and no item-relational filter (tag/parent/contact/category) excludes them.
+        // Birthdays (from LupiraContactApi) and holidays are not stored items — they're synthesized at read time whenever
+        // their calendar is in scope and no item-relational filter (tag/parent/contact/category) excludes them. Holidays
+        // stop at the expansion ceiling so an all-time text search stays finite.
         if (tag is null && parentId is null && contactId is null && cat is null && (st is null || st == ItemStatus.Confirmed))
         {
-            var bdayCalIds = (await session.Query<Calendar>().Where(c => c.Kind == CalendarKind.Birthdays).ToListAsync(ct))
-                .Select(c => c.Id).Where(searchIds.Contains).ToArray();
+            var projected = (await session.Query<Calendar>().Where(c => c.Kind == CalendarKind.Birthdays || c.Kind == CalendarKind.Holidays).ToListAsync(ct))
+                .Where(c => searchIds.Contains(c.Id)).ToList();
+            var bdayCalIds = projected.Where(c => c.Kind == CalendarKind.Birthdays).Select(c => c.Id).ToArray();
             if (bdayCalIds.Length > 0)
                 results.AddRange(await SynthesizeBirthdaysAsync(bdayCalIds, query, from, to, ct));
+            var holidayCalIds = projected.Where(c => c.Kind == CalendarKind.Holidays).Select(c => c.Id).ToArray();
+            results.AddRange(holidays.Occurrences(holidayCalIds, query, windowStart, windowEnd < expansionEnd ? windowEnd : expansionEnd));
         }
 
         // Subscribed feeds carry no tags, parents, attendees or categories, so those filters exclude them.
@@ -769,6 +773,8 @@ public sealed class CalendarItemService(IDocumentSession session, AccessResolver
         Guid principalId, Guid calendarId, string externalId, string rawIcs, string? ifMatch, bool ifNoneMatchStar, CancellationToken ct = default)
     {
         if (!await access.CanWriteCalendarAsync(principalId, calendarId, ct)) return OpResult<DavWriteResult>.Forbidden("No write access to this calendar.");
+        if (await session.LoadAsync<Calendar>(calendarId, ct) is { } cal && CalendarKinds.IsProjected(cal.Kind))
+            return OpResult<DavWriteResult>.Forbidden($"The {cal.DisplayName} calendar is computed and takes no writes.");
 
         var id = DeterministicGuid.From(externalId);
         var stream = await session.Events.FetchForWriting<CalendarItem>(id, ct);

@@ -13,6 +13,7 @@ using Lupira.Postgres.Health;
 using LupiraCalApi.Auth;
 using LupiraCalApi.Clients;
 using LupiraCalApi.Core.Abstractions;
+using LupiraCalApi.Core.Application.Calendars;
 using LupiraCalApi.Core.Application.Dav;
 using LupiraCalApi.Core.Data;
 using LupiraCalApi.Core.Domain.CalendarItems;
@@ -193,6 +194,15 @@ if (args.Contains("--rematerialize-fires"))
         app.Services.GetRequiredService<ILogger<HorizonSweep>>());
     await sweep.RematerializeAsync(DateTimeOffset.UtcNow, CancellationToken.None);
     Console.WriteLine("Scheduled fires rematerialized.");
+    return;
+}
+
+// One-shot backfill after a standard calendar is added: every principal owning a Personal calendar gets the missing ones.
+if (args.Contains("--bootstrap-standard-calendars"))
+{
+    await using var scope = app.Services.CreateAsyncScope();
+    var count = await scope.ServiceProvider.GetRequiredService<CalendarService>().BootstrapEveryPersonalOwnerAsync();
+    Console.WriteLine($"Standard calendars ensured for {count} principals.");
     return;
 }
 

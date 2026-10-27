@@ -1,5 +1,6 @@
 using Lupira.Sync;
 using LupiraCalApi.Core.Dtos.Calendars;
+using LupiraCalApi.Core.Dtos.Holidays;
 using LupiraCalApi.Core.Dtos.Subscriptions;
 using LupiraCalApi.Core.Dtos.Sync;
 using LupiraCalApi.Handlers;
@@ -35,6 +36,11 @@ public static class SyncEndpoints
             .WithName("GetSyncSubscribedEvents")
             .WithSummary("Snapshot of the read-only events of every published calendar feed the caller's calendars subscribe to, each with its occurrences expanded over the sync window: always reset with no cursor; replace the local set on each call.")
             .Produces<SyncPage<SubscribedEventSyncDto>>(StatusCodes.Status200OK);
+
+        group.MapGet("/holidays", (SyncHandler h, CancellationToken ct) => h.HolidaysAsync(ct))
+            .WithName("GetSyncHolidays")
+            .WithSummary("Snapshot of the computed holidays of the caller's Holidays calendars, each with its dates over the sync window: always reset with no cursor; replace the local set on each call.")
+            .Produces<SyncPage<HolidaySyncDto>>(StatusCodes.Status200OK);
 
         group.MapGet("/containers", (SyncHandler h, CancellationToken ct) => h.ContainersAsync(ct))
             .WithName("GetSyncContainers")

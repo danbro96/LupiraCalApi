@@ -1,4 +1,3 @@
-using Lupira.Contracts.Fires;
 using Lupira.Marten.Idempotency;
 using Lupira.Results;
 using LupiraCalApi.Core.Application.Items;
@@ -35,10 +34,9 @@ public sealed class CurationService(IDocumentSession session, AccessResolver acc
 
     public async Task<OpResult<CalendarItemDto>> AddToCalendarAsync(Guid principalId, Guid itemId, Guid calendarId, string? status, DateTimeOffset? occurredAt = null, Guid? commandId = null, CancellationToken ct = default)
     {
-        // Birthdays content is synthesized from contacts at read time — stored items filed there would
-        // shadow it. Removal stays allowed (cleanup of anything that slipped in historically).
-        if (await session.LoadAsync<Calendar>(calendarId, ct) is { Kind: CalendarKind.Birthdays })
-            return OpResult<CalendarItemDto>.Invalid("Items cannot be filed into the Birthdays calendar — it is synthesized from contact birthdays.");
+        // Removal stays allowed (cleanup of anything that slipped in historically).
+        if (await session.LoadAsync<Calendar>(calendarId, ct) is { } cal && CalendarKinds.IsProjected(cal.Kind))
+            return OpResult<CalendarItemDto>.Invalid($"Items cannot be filed into the {cal.DisplayName} calendar — it is computed.");
         return await MutateAsync(principalId, itemId, calendarId, new AddedToCalendar(itemId, calendarId, ParseEntryStatus(status), occurredAt ?? DateTimeOffset.UtcNow, commandId), commandId, ct);
     }
 

@@ -64,6 +64,7 @@ public sealed class CalendarService(IDocumentSession session, PrincipalDirectory
         ("personal", "Personal", CalendarClass.Agenda, CalendarKind.Personal),
         ("group", "Group", CalendarClass.Agenda, CalendarKind.Group),
         ("birthdays", "Birthdays", CalendarClass.Agenda, CalendarKind.Birthdays),
+        ("helgdagar", "Helgdagar", CalendarClass.Agenda, CalendarKind.Holidays),
         ("availability", "Availability", CalendarClass.Agenda, CalendarKind.Availability),
         ("inbox", "Inbox", CalendarClass.System, CalendarKind.Inbox),
         ("llm-prompts", "LLM Prompts", CalendarClass.System, CalendarKind.LlmPrompts),
@@ -86,6 +87,19 @@ public sealed class CalendarService(IDocumentSession session, PrincipalDirectory
                 ?? (await CreateAsync(principalId, new CreateCalendarRequest { Slug = slug, DisplayName = name, Type = "calendar", Class = cls, Kind = kind, DefaultTimezone = defaultTimezone }, ct)).Value!);
 
         return OpResult<List<ContainerDto>>.Ok(result);
+    }
+
+    /// <summary>Backfills a newly added standard calendar: bootstraps every principal owning a Personal calendar, in
+    /// that calendar's zone. Returns how many principals it ran for.</summary>
+    public async Task<int> BootstrapEveryPersonalOwnerAsync(CancellationToken ct = default)
+    {
+        var personal = (await session.Query<Calendar>().Where(c => c.Kind == CalendarKind.Personal).ToListAsync(ct)).ToDictionary(c => c.Id);
+        var personalIds = personal.Keys.ToArray();
+        var owners = (await session.Query<CalendarOwner>().Where(o => o.Access == Access.Owner && personalIds.Contains(o.CalendarId)).ToListAsync(ct))
+            .DistinctBy(o => o.PrincipalId).ToList();
+        foreach (var owner in owners)
+            await BootstrapPersonalAsync(owner.PrincipalId, personal[owner.CalendarId].DefaultTimezone, ct);
+        return owners.Count;
     }
 
     public async Task<OpResult<OwnerGrantDto>> GrantCalendarOwnerAsync(Guid callerId, Guid calendarId, GrantOwnerRequest r, CancellationToken ct = default)

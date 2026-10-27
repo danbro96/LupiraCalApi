@@ -65,7 +65,7 @@ public sealed class RestEndpointsTests(CalApiTestFactory factory) : IntegrationT
         Assert.Equal(first!.Select(c => c.Id).OrderBy(x => x), second!.Select(c => c.Id).OrderBy(x => x));
 
         var all = await api.GetFromJsonAsync<List<ContainerDto>>("/calendars");
-        Assert.Equal(8, all!.Count);   // the 8 standard calendars — no duplicates
+        Assert.Equal(9, all!.Count);   // the 9 standard calendars — no duplicates
     }
 
     [Fact]

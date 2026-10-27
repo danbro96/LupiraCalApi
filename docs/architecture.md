@@ -335,14 +335,15 @@ Ordered by last day, then occurrence count.
 | `ItemColor` | `Red` · `Orange` · `Yellow` · `Green` · `Teal` · `Blue` · `Indigo` · `Purple` · `Pink` · `Brown` · `Graphite` | an item's own colour for the whole series; absent = its calendar's colour |
 | `TransportMode` | `Flight` · `Train` · `Metro` · `Tram` · `Bus` · `Coach` · `Car` · `Ferry` · `Bike` · `Walk` · `Other` | mode of a `TravelLeg` (a `Trip`) |
 | `CalendarClass` | `Agenda` · `System` | agenda (user-facing, DAV-projected) vs. agent-managed system calendar |
-| `CalendarKind` | `Personal` · `Group` · `Birthdays` · `Availability` · `Inbox` · `LlmPrompts` · `UserCheckIn` · `DevOps` · `FoodPlan` · `Generic` | a calendar's purpose within the standard set |
+| `CalendarKind` | `Personal` · `Group` · `Birthdays` · `Availability` · `Inbox` · `LlmPrompts` · `UserCheckIn` · `DevOps` · `FoodPlan` · `Holidays` · `Generic` | a calendar's purpose within the standard set |
 | `AvailabilityStatus` | `Office` · `Home` · `Vacation` · `Sick` · `Leave` | a presence segment's status |
 | `CalendarEntryStatus` | `Proposed` · `Accepted` · `Removed` | curation state of an item in a calendar |
 | `ParticipationRole` | `Chair` · `RequiredParticipant` · `OptionalParticipant` · `NonParticipant` | iCalendar `ROLE` |
 | `ParticipationStatus` | `NeedsAction` · `Accepted` · `Declined` · `Tentative` · `Delegated` | iCalendar `PARTSTAT` |
 | `ReminderMode` | `Default` · `Off` · `Before` | a participant's own reminder for an item |
 | `Access` | `Owner` · `ReadWrite` · `Read` | a principal's permission on a container |
-| `OriginKind` | `Birthday` · `Subscription` | what a read-time-projected occurrence was derived from |
+| `OriginKind` | `Birthday` · `Subscription` · `Holiday` | what a read-time-projected occurrence was derived from |
+| `HolidayKind` | `PublicHoliday` · `Eve` | a holiday occurrence's kind: a red day, or an eve that isn't one |
 | `SubscriptionError` | `Unreachable` · `Rejected` · `NotACalendar` · `TooLarge` · `Blocked` | why a subscription's last refresh failed |
 
 ## Item details
@@ -362,12 +363,13 @@ surfaced on the agenda via a `Relation`.
 ## Calendar classification
 
 Each `Calendar` carries a `CalendarClass` and a `CalendarKind`. **Agenda** calendars are the user's own
-(Personal, Group, Birthdays, Availability, FoodPlan); **System** calendars are agent-managed scaffolding
+(Personal, Group, Birthdays, Holidays, Availability, FoodPlan); **System** calendars are agent-managed scaffolding
 (Inbox, LlmPrompts, UserCheckIn, DevOps) that the assistant owns via ordinary `Owner` grants. `POST /me/bootstrap`
 seeds the standard set per principal, idempotently (matched on `CalendarKind`). Every calendar carries an IANA
 `DefaultTimezone`: the one supplied to create/bootstrap, else `Items:DefaultTimezone`; an owner changes it with
-`PUT /calendars/{id}`. **Only `Agenda` calendars are
-projected on the DAV seam** — System calendars are REST/DB-only, which is how DAV stays non-bearing. The REST
+`PUT /calendars/{id}`. **Only `Agenda` calendars with stored content are
+projected on the DAV seam** — System calendars are REST/DB-only, which is how DAV stays non-bearing, and the computed
+Birthdays and Holidays calendars are neither listed nor writable there. The REST
 DTOs keep the `type` discriminator (now always `calendar`) for wire compatibility with generated clients.
 
 ## Event-bound payloads
@@ -397,7 +399,7 @@ on `GET /items` to drive the assistant's elicitation/enrichment ranking. It is c
 depends on the item's *calendar* kinds. The rubric
 is category-aware (a `Trip` needs from/to + carrier; a `Meeting` needs location/attendees) and scores *presence*, not
 quality (`1` present · `0.5` weak · `0` absent). Exempt records score `null` (not applicable): system-calendar /
-Birthdays / Availability-calendar items, any item with a `Presence` segment, and any item carrying a fired payload.
+Birthdays / Holidays / Availability-calendar items, any item with a `Presence` segment, and any item carrying a fired payload.
 `GapSeverity` is `Weak`|`Absent`.
 
 ## Scheduling / firing
@@ -436,6 +438,23 @@ a password.
   Offline clients take `GET /sync/subscribed-events`, a snapshot with occurrences already expanded.
 - **Excluded** — DAV, hotspots, place usage, participation, completeness, curation, the items sync feed and fires
   read only `CalendarItem`, so subscribed events never reach them.
+
+## Holidays
+
+Every principal's standard set includes **Helgdagar** (`CalendarKind.Holidays`, Agenda): Swedish public holidays and
+eves, computed in code (`SwedishHolidays`), never stored. From 2005 (Nationaldagen a public holiday, Annandag pingst
+not) each year has 13 public holidays (`HolidayKind.PublicHoliday`, red days) and 7 eves (`Eve`): Trettondagsafton,
+Påskafton, Valborgsmässoafton, Pingstafton, Midsommarafton, Julafton, Nyårsafton. Names are Swedish; every day is
+all-day. Easter Sunday anchors the movable days; Midsommardagen is the Saturday 20–26 June and Alla helgons dag the
+Saturday 31 October–6 November.
+
+- **Read-time merge** — search adds them like birthdays (`HolidayOccurrenceReader`) whenever a Holidays calendar is in
+  scope and no tag/parent/contact/category filter or non-`Confirmed` status excludes them; an all-time text search
+  stops at the expansion ceiling. Each occurrence carries origin `Holiday` (source = the holiday, the same id every
+  year) and `holiday` = its `HolidayKind`. Offline clients take `GET /sync/holidays`, a snapshot of each holiday with
+  its dates from last year through two years ahead.
+- **Read-only** — creating or filing items into the calendar is refused; DAV doesn't list it. Hiding it is a
+  per-device client choice, like any calendar.
 
 ## DAV seam
 

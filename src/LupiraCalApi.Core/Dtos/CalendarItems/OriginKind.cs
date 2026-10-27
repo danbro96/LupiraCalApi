@@ -8,4 +8,5 @@ public enum OriginKind
 {
     Birthday,
     Subscription,
+    Holiday,
 }

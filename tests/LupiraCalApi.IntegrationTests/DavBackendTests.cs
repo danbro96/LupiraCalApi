@@ -29,8 +29,8 @@ public sealed class DavBackendTests(CalApiTestFactory factory) : IntegrationTest
         resp.EnsureSuccessStatusCode();
 
         var dto = await resp.Content.ReadFromJsonAsync<DavCollectionsDto>();
-        // Bootstrap seeds 8 calendars; only the 4 Agenda-class ones are DAV-projected.
-        Assert.Equal(4, dto!.Collections.Count);
+        // Bootstrap seeds 9 calendars; only the 3 Agenda-class ones with stored content are DAV-projected.
+        Assert.Equal(3, dto!.Collections.Count);
         Assert.All(dto.Collections, c => Assert.Equal(DavCollectionKind.EventCalendar, c.Kind));
         Assert.Contains(dto.Collections, c => c.DisplayName == "Personal");
         Assert.All(dto.Collections, c => Assert.StartsWith("seq-", c.Ctag));

@@ -26,7 +26,7 @@ namespace LupiraCalApi.Mcp;
 public sealed class CalendarTools
 {
     [McpServerTool(Name = "search_items")]
-    [Description("Search calendar items the caller can access, optionally by text, time window (matches occurrences overlapping it), category/status, tag; pageable. Each occurrence of a recurring item carries originalStart (its start in the unmodified series — the key the occurrence tools take) and isChanged. Results may include read-only events from subscribed published calendar feeds (origin.kind = Subscription, origin.sourceId = the subscription): read them with get_subscribed_event; they can't be edited, filed or linked.")]
+    [Description("Search calendar items the caller can access, optionally by text, time window (matches occurrences overlapping it), category/status, tag; pageable. Each occurrence of a recurring item carries originalStart (its start in the unmodified series — the key the occurrence tools take) and isChanged. Results may include read-only events from subscribed published calendar feeds (origin.kind = Subscription, origin.sourceId = the subscription): read them with get_subscribed_event; they can't be edited, filed or linked. Results may also include computed Swedish holidays (origin.kind = Holiday; holiday = PublicHoliday for a red day, Eve otherwise): read-only and not retrievable with get_item.")]
     public static async Task<IReadOnlyList<CalendarItemOccurrenceDto>> SearchItems(
         CalendarItemService items, CurrentUser user,
         [Description("Free-text query over title/description. With no from/to, matches all-time.")] string? query = null,

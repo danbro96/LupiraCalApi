@@ -224,7 +224,7 @@ public sealed class StoreLevelTests(CalApiTestFactory factory) : IntegrationTest
         var alice = await ProvisionAsync("sub-alice", "alice@x.test");
 
         var first = await InScope(sp => sp.GetRequiredService<CalendarService>().BootstrapPersonalAsync(alice));
-        Assert.Equal(8, first.Value!.Count);   // the 8 standard calendars
+        Assert.Equal(9, first.Value!.Count);   // the 9 standard calendars
         Assert.Contains(first.Value!, c => c is { Type: "calendar", Kind: CalendarKind.Personal, Slug: "personal" });
         Assert.Contains(first.Value!, c => c is { Type: "calendar", Class: CalendarClass.System, Kind: CalendarKind.Inbox });
 
@@ -234,7 +234,30 @@ public sealed class StoreLevelTests(CalApiTestFactory factory) : IntegrationTest
             second.Value!.Select(c => c.Id).OrderBy(x => x));   // same ids, nothing new created
 
         var all = await InScope(sp => sp.GetRequiredService<CalendarService>().ListContainersAsync(alice));
-        Assert.Equal(8, all.Value!.Count);
+        Assert.Equal(9, all.Value!.Count);
+    }
+
+    [Fact]
+    public async Task Backfill_gives_every_personal_owner_a_missing_standard_calendar()
+    {
+        var alice = await ProvisionAsync("sub-backfill", "backfill@x.test");
+        var seeded = await InScope(sp => sp.GetRequiredService<CalendarService>().BootstrapPersonalAsync(alice, "Europe/Stockholm"));
+        var holidays = seeded.Value!.Single(c => c.Kind == CalendarKind.Holidays).Id;
+        await InScope(async sp =>
+        {
+            var session = sp.GetRequiredService<IDocumentSession>();
+            session.DeleteWhere<CalendarOwner>(o => o.CalendarId == holidays);
+            session.Delete<Calendar>(holidays);
+            await session.SaveChangesAsync();
+            return true;
+        });
+
+        var count = await InScope(sp => sp.GetRequiredService<CalendarService>().BootstrapEveryPersonalOwnerAsync());
+
+        Assert.True(count >= 1);
+        var all = (await InScope(sp => sp.GetRequiredService<CalendarService>().ListContainersAsync(alice))).Value!;
+        Assert.Equal(9, all.Count);
+        Assert.Contains(all, c => c is { Kind: CalendarKind.Holidays, DefaultTimezone: "Europe/Stockholm" });
     }
 
 }

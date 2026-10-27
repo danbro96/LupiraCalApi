@@ -25,7 +25,7 @@ public sealed class ApiDocsTests(CalApiTestFactory factory) : IntegrationTest(fa
     {
         var doc = await Factory.CreateClient().GetStringAsync("/openapi/v1.json");
 
-        foreach (var operation in new[] { "ListSubscriptions", "CreateSubscription", "UpdateSubscription", "DeleteSubscription", "RefreshSubscription", "GetSubscribedEvent", "GetSyncSubscribedEvents" })
+        foreach (var operation in new[] { "ListSubscriptions", "CreateSubscription", "UpdateSubscription", "DeleteSubscription", "RefreshSubscription", "GetSubscribedEvent", "GetSyncSubscribedEvents", "GetSyncHolidays" })
             Assert.Contains($"\"operationId\": \"{operation}\"", doc);
     }
 }

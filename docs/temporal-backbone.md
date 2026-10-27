@@ -75,7 +75,7 @@ classDiagram
 Two new fields on the plain document (no event sourcing):
 ```
 CalendarClass Class   // Agenda | System
-CalendarKind  Kind    // Personal | Group | Birthdays | Availability | Inbox | LlmPrompts | UserCheckIn | DevOps | FoodPlan | Generic
+CalendarKind  Kind    // Personal | Group | Birthdays | Availability | Inbox | LlmPrompts | UserCheckIn | DevOps | FoodPlan | Holidays | Generic
 ```
 - Agenda views and the DAV projection include `Class == Agenda` only. **System calendars (CheckIns, DevOps) are REST/DB-only — never DAV.** That is how DAV stays non-bearing.
 - Seed the standard set per principal at provisioning — idempotent bootstrap (matched on `CalendarKind`, plus a `personal` address book) via REST `POST /me/bootstrap`, MCP `bootstrap_me`, or automatically on first DAV contact. `FoodPlan` is an enum value, deliberately unseeded.
@@ -130,7 +130,7 @@ Previously `SourceIcalendar` / `SourceVcard` were stored as the DAV source of tr
 A derived `Completeness`, scoring how well-documented a record is, on **both** the `CalendarItem` (events) **and** `Contact` (address book) read models. It is the signal the assistant uses to decide *which* events to clarify and *which* contacts to flesh out.
 
 - **Derived at read time in the service/mapper layer, never stored.** A pure function (`CompletenessScorer`) over the read model — exemption needs the item's *calendar* class/kind and a contact's `ContactGroup` organisation, neither visible to a single-stream snapshot. Nothing persisted means no backfill: old, thin events score the moment they're read.
-- **`null` = not applicable**, not "unscored": Birthdays, presence segments, items carrying a fired payload, and everything on System calendars (Inbox, LlmPrompts, UserCheckIn, DevOps) are exempt — never a check-in target. A number means "assessed".
+- **`null` = not applicable**, not "unscored": Birthdays, Holidays, presence segments, items carrying a fired payload, and everything on System calendars (Inbox, LlmPrompts, UserCheckIn, DevOps) are exempt — never a check-in target. A number means "assessed".
 - **Category-aware rubric** (`ItemCategory` + `ItemDetails`): a Trip needs its leg (from→to, times, carrier); an Appointment needs provider + location; a Meeting needs attendees + location; a Birthday needs nothing. A flat field-count would wrongly flag birthdays.
 - **Store completeness only, never the weighted priority** — `f(completeness, proximity/relevance)` is context-dependent and would go stale; the assistant computes it at selection time.
 - **Rubric changes take effect on the next read** (nothing stored); a `rubricVersion` on the score makes drift detectable.
@@ -156,7 +156,7 @@ Expected fields + weights, by `ItemCategory` (`rubricVersion 1`):
 | Stay | location (2) · check-in/out (1) · booking (1) |
 | Meal / Outing | location (2) · time (1) · booking (1) |
 | General · Occasion · Activity · Focus · Chore | location (2) · time (1) · description (1) |
-| Birthdays · presence · fired payloads · System calendars | — exempt → `null` |
+| Birthdays · Holidays · presence · fired payloads · System calendars | — exempt → `null` |
 
 The scorer returns the **absent/weak fields ranked by weight** next to the number — that ranked gap list is what the assistant asks about, heaviest gap first. It scores *presence*, not *quality* — crude on purpose, enough to rank thin-vs-rich; the assistant's phrasing handles nuance.
 
@@ -174,9 +174,10 @@ A contact has no time-proximity, so the assistant prioritises contact enrichment
 - *Contact enrichment:* rank low-completeness contacts by **relevance** (upcoming-event attendee · recent interaction); over a threshold, ask the user for the top missing field.
 
 ## Standard calendar set
-- **Agenda:** Personal · Group · Birthdays · Availability · FoodPlan *(later)*.
-  - **Birthdays** holds no stored items — its occurrences are **synthesized at read time** from LupiraContactApi (every live, non-deceased contact with a birthday → one all-day, yearly-recurring occurrence). Year-less birthdays still recur on their month-day; a Feb-29 birthday lands only in leap years. Search fetches them whenever a Birthdays-kind calendar is in scope and no item-relational filter (tag/parent/contact/category) excludes them; contacts unavailable ⇒ the calendar reads empty (fail-open). *REST/MCP only for now — not yet on the DAV projection, whose sync-token delta feed can't carry event-less synthetic items.*
+- **Agenda:** Personal · Group · Birthdays · Holidays · Availability · FoodPlan *(later)*.
+  - **Birthdays** holds no stored items — its occurrences are **synthesized at read time** from LupiraContactApi (every live, non-deceased contact with a birthday → one all-day, yearly-recurring occurrence). Year-less birthdays still recur on their month-day; a Feb-29 birthday lands only in leap years. Search fetches them whenever a Birthdays-kind calendar is in scope and no item-relational filter (tag/parent/contact/category) excludes them; contacts unavailable ⇒ the calendar reads empty (fail-open). *REST/MCP only — not on the DAV projection, whose sync-token delta feed can't carry event-less synthetic items.*
   - **Subscribed feeds** are projected the same way: occurrences of a calendar's subscribed published feeds are expanded at read time from the `cal_subscriptions` mirror (origin `Subscription`) whenever that calendar is in scope and no tag/parent/contact/category filter excludes them. REST/MCP only (plus the mobile snapshot `GET /sync/subscribed-events`); never on DAV, and never materialized into fires.
+  - **Holidays** (Helgdagar) holds no stored items either — Swedish public holidays and eves are computed in code (origin `Holiday`, marked `PublicHoliday` or `Eve`). REST/MCP plus the mobile snapshot `GET /sync/holidays`; never on DAV.
 - **System (agent-managed; the assistant has full CRUD — see Agent write access):** Inbox (all external events, source of truth; curation proposes from here) · LlmPrompts (LLM instructions — research, follow-ups, answer-processing; carry an `ItemPrompt`) · UserCheckIn (frozen messages to the user — `ItemAction(SendCheckIn)`, delivered at fire, no LLM) · DevOps (recurring ops — `ItemPrompt` or `ItemAction`).
 
 ## Agent write access

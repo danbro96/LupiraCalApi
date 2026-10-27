@@ -8,6 +8,7 @@ using LupiraCalApi.Core.Application.Dav;
 using LupiraCalApi.Core.Application.Items;
 using LupiraCalApi.Core.Auth;
 using LupiraCalApi.Core.Domain.CalendarItems;
+using LupiraCalApi.Core.Domain.Calendars;
 using LupiraCalApi.Core.Serialization;
 using Marten;
 using DavCalendar = LupiraCalApi.Core.Domain.Calendars.Calendar;   // disambiguate from System.Globalization.Calendar
@@ -49,8 +50,10 @@ public sealed class DavBackendHandler(
             await calendars.BootstrapPersonalAsync(principal.Id, ct: ct);
 
         var ids = await access.AccessibleCalendarIdsAsync(principal.Id, ct);
-        // Only agenda calendars are DAV-projected; system calendars (Inbox/LlmPrompts/UserCheckIn/DevOps) are REST/DB-only.
-        var cals = await session.Query<DavCalendar>().Where(c => ids.Contains(c.Id) && c.Class == CalendarClass.Agenda).ToListAsync(ct);
+        // Only agenda calendars with stored content are DAV-projected; system calendars (Inbox/LlmPrompts/UserCheckIn/DevOps)
+        // are REST/DB-only and computed ones (Birthdays/Holidays) are REST/MCP/sync-only.
+        var cals = (await session.Query<DavCalendar>().Where(c => ids.Contains(c.Id) && c.Class == CalendarClass.Agenda).ToListAsync(ct))
+            .Where(c => !CalendarKinds.IsProjected(c.Kind)).ToList();
         var token = await feed.CurrentTokenAsync(ct);
         return TypedResults.Ok(new DavCollectionsDto
         {
@@ -144,13 +147,13 @@ public sealed class DavBackendHandler(
         });
     }
 
-    /// <summary>Read gate for the DAV projection: the caller can read the calendar AND it is Agenda-class
-    /// (system calendars — Inbox/LlmPrompts/UserCheckIn/DevOps — are REST/DB-only, opaque 404 here).</summary>
+    /// <summary>Read gate for the DAV projection: the caller can read the calendar AND it is Agenda-class with stored content
+    /// (system and computed calendars are opaque 404 here).</summary>
     private async Task<bool> IsReadableAgendaAsync(Guid principalId, Guid collectionId, CancellationToken ct)
     {
         if (!await access.CanReadCalendarAsync(principalId, collectionId, ct)) return false;
         var cal = await session.LoadAsync<DavCalendar>(collectionId, ct);
-        return cal is { Class: CalendarClass.Agenda };
+        return cal is { Class: CalendarClass.Agenda } && !CalendarKinds.IsProjected(cal.Kind);
     }
 
     /// <summary>An <c>If-Match</c> of <c>*</c> (or empty) is "no specific tag"; quotes are stripped from a

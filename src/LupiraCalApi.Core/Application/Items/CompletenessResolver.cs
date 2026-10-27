@@ -75,11 +75,11 @@ public sealed class CompletenessResolver(IQuerySession session, IGeoResolver geo
     private static IEnumerable<Guid> AcceptedIds(CalendarItem i) =>
         i.Calendars.Where(m => m.Status == CalendarEntryStatus.Accepted).Select(m => m.CalendarId);
 
-    // System calendars + the two special agenda kinds (Birthdays/Availability) are never check-in targets.
+    // System calendars, computed calendars and Availability are never check-in targets.
     private async Task<HashSet<Guid>> ExemptCalendarIdsAsync(IReadOnlyCollection<Guid> ids, CancellationToken ct)
     {
         if (ids.Count == 0) return [];
         var cals = await session.Query<Calendar>().Where(c => ids.Contains(c.Id)).ToListAsync(ct);
-        return [.. cals.Where(c => c.Class == CalendarClass.System || c.Kind is CalendarKind.Birthdays or CalendarKind.Availability).Select(c => c.Id)];
+        return [.. cals.Where(c => c.Class == CalendarClass.System || CalendarKinds.IsProjected(c.Kind) || c.Kind == CalendarKind.Availability).Select(c => c.Id)];
     }
 }
